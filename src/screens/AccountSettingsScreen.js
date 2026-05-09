@@ -6,10 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAlumniByEmail, uploadAlumniPhoto, updateAlumniProfile, removeAlumniPhoto, getAlumniPhotoFromStorage } from '../services/alumniQueries';
 import { getCurrentUser } from '../services/supabaseAuth';
+import { clearAuthCredentials } from '../services/authStorage';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
-import styles from '../styles/AccountSettingsScreen.styles';
+import styles from '../styles/AccountSettingsScreen.styles';
+
 import { ThemedAlert } from '../components/ThemedAlert';
 
 const formatDate = (value) => {
@@ -64,6 +66,7 @@ const AccountSettingsScreen = ({ navigation }) => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [disabling, setDisabling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [pickingImage, setPickingImage] = useState(false);
@@ -283,6 +286,52 @@ const AccountSettingsScreen = ({ navigation }) => {
     );
   };
 
+  const handleDisableAccount = () => {
+    if (!userData?.id) {
+      setErrorMessage('Missing the current account email.');
+      return;
+    }
+
+    ThemedAlert.alert(
+      'Disable Account',
+      'This will disable your account and sign you out immediately. You will need support help to use this account again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disable',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDisabling(true);
+              setErrorMessage('');
+
+              const updated = await updateAlumniProfile(userData.id, {
+                account_status: 'disabled',
+              });
+
+              setUserData(updated || userData);
+              setCurrentUserProfile(null);
+
+              await clearAuthCredentials();
+
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
+            } catch (disableError) {
+              console.error('Failed to disable account:', disableError);
+              setErrorMessage('Could not disable account right now.');
+              ThemedAlert.alert('Error', 'Could not disable account right now.');
+            } finally {
+              setDisabling(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const profileName = userData
     ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(' ')
     : 'Alumni';
@@ -292,7 +341,7 @@ const AccountSettingsScreen = ({ navigation }) => {
   const verificationStatus = userData?.verification_status || 'pending';
   const phoneStatusText = verificationStatus === 'verified' ? 'Verified' : 'Unverified';
   const emailActionText = verificationStatus === 'verified' ? 'Verified' : 'Verify Email';
-  const formDisabled = loading || saving;
+  const formDisabled = loading || saving || disabling;
   const photoChangeDisabled = pickingImage || formDisabled;
 
   return (
@@ -570,11 +619,26 @@ const AccountSettingsScreen = ({ navigation }) => {
             style={styles.resetButton}
             activeOpacity={0.9}
             onPress={() => navigation.navigate('ResetPassword', { student_id_number: userData?.student_id_number || '' })}
+            disabled={formDisabled}
           >
             <Text style={styles.resetButtonText}>Reset Account Password</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.disableButton, formDisabled && styles.actionButtonDisabled]}
+            activeOpacity={0.9}
+            onPress={handleDisableAccount}
+            disabled={formDisabled}
+          >
+            {disabling ? (
+              <ActivityIndicator color="#B91C1C" />
+            ) : (
+              <Text style={styles.disableButtonText}>Disable Account</Text>
+            )}
+          </TouchableOpacity>
         </ScrollView>
       </View>
+      <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']} />
     </SafeAreaView>
   );
 };

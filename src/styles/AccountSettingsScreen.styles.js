@@ -8,6 +8,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#31429B',
   },
+  bottomSafeArea: {
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#ECECEC',
@@ -258,6 +261,24 @@ const styles = StyleSheet.create({
     color: '#F2C919',
     fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 11, 14),
     fontWeight: '700',
+  },
+  disableButton: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 13, 11, 16),
+    marginTop: responsiveSpacing(SCREEN_HEIGHT, 14, 12, 20),
+  },
+  disableButtonText: {
+    color: '#B91C1C',
+    fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 11, 14),
+    fontWeight: '700',
+  },
+  actionButtonDisabled: {
+    opacity: 0.65,
   },
 });
 

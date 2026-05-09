@@ -306,7 +306,7 @@ const AccountSettingsScreen = ({ navigation }) => {
               setErrorMessage('');
 
               const updated = await updateAlumniProfile(userData.id, {
-                account_status: 'disabled',
+                account_status: 2,
               });
 
               setUserData(updated || userData);

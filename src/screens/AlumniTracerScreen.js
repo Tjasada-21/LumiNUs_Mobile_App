@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import BrandHeader from '../components/BrandHeader';
 import { getCurrentUser } from '../services/supabase';
 import { getAlumniByEmail } from '../services/alumniQueries';
-import { getActiveForms, getUserTracerResponses } from '../services/tracerQueries';
+import { getActiveForms, getDraftResponse, getUserTracerResponses } from '../services/tracerQueries';
 
 // Fast data extraction from various response formats
 const extractTracers = (response) => {
@@ -100,6 +100,7 @@ const AlumniTracerScreen = () => {
 	const [selectedTracer, setSelectedTracer] = useState(null);
 	const [modalVisible, setModalVisible] = useState(false);
 	const [hasAnswered, setHasAnswered] = useState(false);
+	const [hasDraftInProgress, setHasDraftInProgress] = useState(false);
 	const [checkingResponse, setCheckingResponse] = useState(false);
 	const [answeredFormIds, setAnsweredFormIds] = useState(new Set());
 	const isMounted = useRef(true);
@@ -169,19 +170,30 @@ const AlumniTracerScreen = () => {
 		if (!formId) return;
 		try {
 			setCheckingResponse(true);
+			setHasDraftInProgress(false);
 			const supaUser = await getCurrentUser().catch(() => null);
 			const alumni = supaUser?.email ? await getAlumniByEmail(supaUser.email).catch(() => null) : null;
 			if (!alumni?.id) {
-				if (isMounted.current) setHasAnswered(false);
+				if (isMounted.current) {
+					setHasAnswered(false);
+					setHasDraftInProgress(false);
+				}
 				return;
 			}
 
 			const responses = await getUserTracerResponses(alumni.id).catch(() => []);
 			const answered = responses.some((response) => String(response?.form?.id || response?.form_id) === String(formId));
-			if (isMounted.current) setHasAnswered(answered);
+			const draft = answered ? null : await getDraftResponse(alumni.id, formId).catch(() => null);
+			if (isMounted.current) {
+				setHasAnswered(answered);
+				setHasDraftInProgress(Boolean(draft?.id));
+			}
 		} catch (err) {
 			// If endpoint doesn't exist or fails, assume not answered
-			if (isMounted.current) setHasAnswered(false);
+			if (isMounted.current) {
+				setHasAnswered(false);
+				setHasDraftInProgress(false);
+			}
 		} finally {
 			if (isMounted.current) setCheckingResponse(false);
 		}
@@ -197,6 +209,7 @@ const AlumniTracerScreen = () => {
 	const closeModal = useCallback(() => {
 		setModalVisible(false);
 		setHasAnswered(false);
+		setHasDraftInProgress(false);
 		setCheckingResponse(false);
 	}, []);
 
@@ -287,7 +300,7 @@ const AlumniTracerScreen = () => {
 						>
 							{checkingResponse ? <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} /> : null}
 							<Text style={[styles.modalActionText, hasAnswered && styles.modalActionTextDisabled]}>
-								{checkingResponse ? 'Checking...' : hasAnswered ? '✓ Response Recorded' : 'Answer Tracer'}
+								{checkingResponse ? 'Checking...' : hasAnswered ? '✓ Response Recorded' : hasDraftInProgress ? 'Continue Answering Tracer' : 'Answer Tracer'}
 							</Text>
 						</Pressable>
 						<Pressable style={styles.modalCloseButton} onPress={closeModal}>
@@ -297,7 +310,7 @@ const AlumniTracerScreen = () => {
 				</SafeAreaView>
 			</Modal>
 		);
-	}, [selectedTracer, modalVisible, closeModal, hasAnswered, checkingResponse]);
+	}, [selectedTracer, modalVisible, closeModal, hasAnswered, hasDraftInProgress, checkingResponse]);
 
 	const emptyList = useMemo(
 		() => (
@@ -351,6 +364,7 @@ const AlumniTracerScreen = () => {
 				</View>
 			</View>
 			{detailsModal}
+			<SafeAreaView edges={['bottom']} style={styles.bottomSafe} />
 		</SafeAreaView>
 	);
 };

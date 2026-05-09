@@ -1,10 +1,10 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Image, Pressable, StatusBar, TextInput, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView, View, Text, Image, Pressable, StatusBar, TextInput, TouchableOpacity, BackHandler, Keyboard, Animated, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import styles from '../styles/TracerFormScreen.styles';
 import BrandHeader from '../components/BrandHeader';
-import { getTracerFormById, hasSubmittedForm, submitTracerForm } from '../services/tracerQueries';
+import { getTracerFormById, hasSubmittedForm, getOrCreateDraftResponse, getDraftAnswers, saveAnswerDraft, submitDraftResponse, submitTracerForm } from '../services/tracerQueries';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
 import { ThemedAlert } from '../components/ThemedAlert';
@@ -47,6 +47,30 @@ const hasAnswer = (question, value) => {
 	return value !== undefined && value !== null && String(value).trim().length > 0;
 };
 
+const serializeAnswerForDraft = (value) => {
+	if (Array.isArray(value)) {
+		return JSON.stringify(value);
+	}
+
+	return value;
+};
+
+const hydrateDraftAnswer = (value) => {
+	if (typeof value !== 'string') return value;
+
+	const trimmed = value.trim();
+	if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
+		return value;
+	}
+
+	try {
+		const parsed = JSON.parse(trimmed);
+		return Array.isArray(parsed) ? parsed : value;
+	} catch {
+		return value;
+	}
+};
+
 const TracerFormScreen = ({ route, navigation }) => {
 	const initialTracer = route?.params?.tracer || {};
 	const [tracer, setTracer] = useState(initialTracer);
@@ -56,6 +80,10 @@ const TracerFormScreen = ({ route, navigation }) => {
 	const [checkingSubmission, setCheckingSubmission] = useState(false);
 	const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [currentStep, setCurrentStep] = useState(1);
+	const [draftResponseId, setDraftResponseId] = useState(null);
+	const [savingDraft, setSavingDraft] = useState(false);
+	const progressAnim = useRef(new Animated.Value(0)).current;
 
 	useEffect(() => {
 		let active = true;
@@ -96,6 +124,8 @@ const TracerFormScreen = ({ route, navigation }) => {
 		const checkSubmissionStatus = async () => {
 			try {
 				setCheckingSubmission(true);
+				setDraftResponseId(null);
+				setAnswers({});
 
 				const supaUser = await getCurrentUser().catch(() => null);
 				if (!supaUser?.email) {
@@ -123,7 +153,25 @@ const TracerFormScreen = ({ route, navigation }) => {
 					ThemedAlert.alert('Already Submitted', 'You have already submitted this tracer form.', [
 						{ text: 'OK', onPress: () => navigation.replace('AlumniTracer') },
 					]);
+					return;
 				}
+
+				const draft = await getOrCreateDraftResponse(alumni.id, selectedId).catch(() => null);
+				if (!active || !draft?.id) return;
+
+				setDraftResponseId(draft.id);
+
+				const draftAnswers = await getDraftAnswers(draft.id).catch(() => []);
+				if (!active || !Array.isArray(draftAnswers)) return;
+
+				const nextAnswers = {};
+				draftAnswers.forEach((entry) => {
+					const qid = String(entry?.tq_id || '');
+					if (!qid) return;
+					nextAnswers[qid] = hydrateDraftAnswer(entry?.answer_value);
+				});
+
+				setAnswers(nextAnswers);
 			} finally {
 				if (active) {
 					setCheckingSubmission(false);
@@ -156,6 +204,27 @@ const TracerFormScreen = ({ route, navigation }) => {
 			});
 	}, [tracer]);
 
+	const totalSteps = questions.length;
+	const currentQuestion = totalSteps > 0 ? questions[currentStep - 1] : null;
+
+	useEffect(() => {
+		setCurrentStep(1);
+	}, [tracer?.id, tracer?.form_id]);
+
+	useEffect(() => {
+		const percentage = totalSteps > 0 ? (currentStep / totalSteps) * 100 : 0;
+		Animated.timing(progressAnim, {
+			toValue: percentage,
+			duration: 250,
+			useNativeDriver: false,
+		}).start();
+	}, [currentStep, progressAnim, totalSteps]);
+
+	const progressWidth = progressAnim.interpolate({
+		inputRange: [0, 100],
+		outputRange: ['0%', '100%'],
+	});
+
 	const toggleOption = (question, value) => {
 		const qid = String(question?.id || '');
 		if (!qid) return;
@@ -181,9 +250,19 @@ const TracerFormScreen = ({ route, navigation }) => {
 		]);
 	};
 
+	const goBackStep = () => {
+		if (currentStep > 1) {
+			setCurrentStep((prev) => prev - 1);
+			setShowValidation(false);
+			return;
+		}
+
+		confirmLeave();
+	};
+
 	useEffect(() => {
 		const onBackPress = () => {
-			confirmLeave();
+			goBackStep();
 			return true; // handled
 		};
 
@@ -193,12 +272,31 @@ const TracerFormScreen = ({ route, navigation }) => {
 				subscription.remove();
 			}
 		};
-	}, [navigation, tracer, answers]);
+	}, [currentStep, navigation, tracer, answers]);
 
 	const setTextAnswer = (question, value) => {
 		const qid = String(question?.id || '');
 		if (!qid) return;
 		setAnswers((prev) => ({ ...prev, [qid]: value }));
+	};
+
+	const saveCurrentStepDraftAnswer = async () => {
+		if (!currentQuestion || !draftResponseId) return;
+
+		const qid = String(currentQuestion?.id || '');
+		if (!qid) return;
+
+		const value = answers[qid];
+		if (!hasAnswer(currentQuestion, value)) return;
+
+		setSavingDraft(true);
+		try {
+			await saveAnswerDraft(draftResponseId, qid, serializeAnswerForDraft(value));
+		} catch (error) {
+			console.warn('[TracerFormScreen] Failed to save draft answer:', error?.message || error);
+		} finally {
+			setSavingDraft(false);
+		}
 	};
 
 	const submitResponses = async () => {
@@ -212,6 +310,19 @@ const TracerFormScreen = ({ route, navigation }) => {
 		try {
 			Keyboard.dismiss();
 			setSubmitting(true);
+
+			const requiredMissing = questions.filter((question) => {
+				if (!question?.is_required) return false;
+				const qid = String(question?.id || '');
+				return !hasAnswer(question, answers[qid]);
+			});
+
+			if (requiredMissing.length > 0) {
+				setShowValidation(true);
+				ThemedAlert.alert('Incomplete Form', 'Please answer all required questions.');
+				return;
+			}
+
 			if (alreadySubmitted) {
 				ThemedAlert.alert('Already Submitted', 'You have already submitted this tracer form.', [
 					{ text: 'OK', onPress: () => navigation.replace('AlumniTracer') },
@@ -240,10 +351,32 @@ const TracerFormScreen = ({ route, navigation }) => {
 				return;
 			}
 
-			// Convert answers object { qid: value } to array expected by submitTracerForm
-			const answerArray = Object.keys(answers).map((qid) => ({ questionId: qid, value: answers[qid] }));
+			let activeDraftId = draftResponseId;
+			if (!activeDraftId) {
+				const draft = await getOrCreateDraftResponse(alumni.id, formId).catch(() => null);
+				activeDraftId = draft?.id || null;
+				if (activeDraftId) {
+					setDraftResponseId(activeDraftId);
+				}
+			}
 
-			await submitTracerForm(alumni.id, formId, answerArray);
+			if (activeDraftId) {
+				const answeredQuestions = questions.filter((question) => {
+					const qid = String(question?.id || '');
+					return hasAnswer(question, answers[qid]);
+				});
+
+				for (const question of answeredQuestions) {
+					const qid = String(question?.id || '');
+					await saveAnswerDraft(activeDraftId, qid, serializeAnswerForDraft(answers[qid]));
+				}
+
+				await submitDraftResponse(activeDraftId);
+			} else {
+				// Fallback to legacy direct submit if draft row could not be created
+				const answerArray = Object.keys(answers).map((qid) => ({ questionId: qid, value: answers[qid] }));
+				await submitTracerForm(alumni.id, formId, answerArray);
+			}
 
 			ThemedAlert.alert('Submitted', 'Your responses have been submitted successfully.', [
 				{ text: 'OK', onPress: () => navigation.replace('AlumniTracer') },
@@ -256,16 +389,24 @@ const TracerFormScreen = ({ route, navigation }) => {
 		}
 	};
 
-	const handleSubmit = () => {
-		setShowValidation(true);
-		const requiredMissing = questions.filter((question) => {
-			if (!question?.is_required) return false;
-			const qid = String(question?.id || '');
-			return !hasAnswer(question, answers[qid]);
-		});
+	const handleNext = async () => {
+		if (!currentQuestion) return;
 
-		if (requiredMissing.length > 0) {
-			ThemedAlert.alert('Incomplete Form', 'Please answer all required questions.');
+		const qid = String(currentQuestion?.id || '');
+		const currentValue = answers[qid];
+		const invalidCurrent = currentQuestion?.is_required && !hasAnswer(currentQuestion, currentValue);
+
+		if (invalidCurrent) {
+			setShowValidation(true);
+			ThemedAlert.alert('Required Field', 'Please answer this question before proceeding.');
+			return;
+		}
+
+		await saveCurrentStepDraftAnswer();
+
+		if (currentStep < totalSteps) {
+			setCurrentStep((prev) => prev + 1);
+			setShowValidation(false);
 			return;
 		}
 
@@ -279,20 +420,30 @@ const TracerFormScreen = ({ route, navigation }) => {
 		<>
 			<SafeAreaView edges={['top']} style={styles.topSafe} />
 			<StatusBar backgroundColor="#31429B" barStyle="light-content" />
-			<View style={styles.container}>
+			<KeyboardAvoidingView
+				style={styles.container}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			>
 				<BrandHeader />
-				<View style={styles.backRow}>
-					<Pressable
-						style={styles.backButton}
-						onPress={() => navigation.navigate('AlumniTracer')}
-						accessibilityRole="button"
-						hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-					>
-						<Text style={styles.backButtonText}>{'‹  Alumni Tracer'}</Text>
-					</Pressable>
+				<View style={styles.header}>
+					<View style={styles.headerRow}>
+						<TouchableOpacity
+							style={styles.backButton}
+							onPress={goBackStep}
+							accessibilityRole="button"
+							hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+						>
+							<Text style={styles.backButtonText}>{currentStep > 1 ? '‹  Back' : '‹  Exit'}</Text>
+						</TouchableOpacity>
+						<Text style={styles.stepTitle}>Step {totalSteps > 0 ? currentStep : 0} of {totalSteps}</Text>
+						<View style={styles.headerSpacer} />
+					</View>
+					<View style={styles.progressBarContainer}>
+						<Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
+					</View>
 				</View>
 				{loading || checkingSubmission ? <ActivityIndicator size="small" color="#31429B" style={{ marginTop: 10 }} /> : null}
-				<ScrollView contentContainerStyle={styles.content}>
+				<ScrollView style={styles.wizardScroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 					{tracer?.form_header ? (
 						<Image source={{ uri: tracer.form_header }} style={styles.headerImage} />
 					) : (
@@ -301,83 +452,86 @@ const TracerFormScreen = ({ route, navigation }) => {
 
 					<View style={styles.titleCard}>
 						<Text style={styles.titleText}>{tracer?.form_title || 'Tracer Form'}</Text>
+						{tracer?.form_description || tracer?.description ? (
+							<Text style={styles.formDescriptionText}>{tracer?.form_description || tracer?.description}</Text>
+						) : null}
 					</View>
 
-					{questions.length > 0 ? (
-						questions.map((question, questionIndex) => {
-							const qid = String(question?.id || '');
-							const options = question?._options || [];
-							const type = normalizeType(question?.type, options.length > 0);
-							const selected = answers[qid];
-							const isInvalid = showValidation && question?.is_required && !hasAnswer(question, selected);
+					{currentQuestion ? (() => {
+						const qid = String(currentQuestion?.id || '');
+						const options = currentQuestion?._options || [];
+						const type = normalizeType(currentQuestion?.type, options.length > 0);
+						const selected = answers[qid];
+						const isInvalid = showValidation && currentQuestion?.is_required && !hasAnswer(currentQuestion, selected);
 
-							return (
-								<View key={qid || `question-${questionIndex}`} style={[styles.card, isInvalid ? styles.cardInvalid : null]}>
-									<View style={styles.questionTitleRow}>
-										<Text style={styles.cardTitle}>{question?.question_text || 'Question'}</Text>
-										{question?.is_required ? <Text style={styles.requiredMark}>*</Text> : null}
-									</View>
-									{question?.description ? <Text style={styles.cardText}>{question.description}</Text> : null}
-
-									{(type === 'text' || type === 'textarea') ? (
-										<TextInput
-											value={typeof selected === 'string' ? selected : ''}
-											onChangeText={(value) => setTextAnswer(question, value)}
-											placeholder={type === 'textarea' ? 'Type your answer' : 'Your answer'}
-											placeholderTextColor="#9CA3AF"
-											multiline={type === 'textarea'}
-											numberOfLines={type === 'textarea' ? 4 : 1}
-											style={[styles.textInput, type === 'textarea' ? styles.textArea : null]}
-										/>
-									) : Array.isArray(options) && options.length > 0 ? (
-										options.map((option) => {
-											const value = option?.option_value ?? option?.option_label ?? '';
-											const isChecked = Array.isArray(selected)
-												? selected.includes(value)
-												: selected === value;
-
-											return (
-												<Pressable
-													key={`${qid}-${String(value)}`}
-													style={[styles.optionRow, isChecked ? styles.optionRowActive : null]}
-													onPress={() => toggleOption(question, value)}
-													hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
-													accessibilityRole="button"
-												>
-													<View style={[styles.radioOuter, type === 'checkbox' ? styles.checkboxOuter : null]}>
-														{isChecked ? <View style={[styles.radioInner, type === 'checkbox' ? styles.checkboxInner : null]} /> : null}
-													</View>
-													<Text style={styles.optionText}>{option?.option_label || String(value)}</Text>
-												</Pressable>
-											);
-										})
-									) : (
-										<Text style={styles.cardText}>No answer options available.</Text>
-									)}
-									{isInvalid ? <Text style={styles.requiredHint}>This question is required.</Text> : null}
+						return (
+							<View style={[styles.card, styles.screenCard, isInvalid ? styles.cardInvalid : null]}>
+								<View style={styles.questionTitleRow}>
+									<Text style={styles.cardTitle}>{currentQuestion?.question_text || 'Question'}</Text>
+									{currentQuestion?.is_required ? <Text style={styles.requiredMark}>*</Text> : null}
 								</View>
-							);
-						})
-					) : (
+								{currentQuestion?.description ? <Text style={styles.cardText}>{currentQuestion.description}</Text> : null}
+
+								{(type === 'text' || type === 'textarea') ? (
+									<TextInput
+										value={typeof selected === 'string' ? selected : ''}
+										onChangeText={(value) => setTextAnswer(currentQuestion, value)}
+										placeholder={type === 'textarea' ? 'Type your answer' : 'Your answer'}
+										placeholderTextColor="#9CA3AF"
+										multiline={type === 'textarea'}
+										numberOfLines={type === 'textarea' ? 4 : 1}
+										style={[styles.textInput, type === 'textarea' ? styles.textArea : null]}
+									/>
+								) : Array.isArray(options) && options.length > 0 ? (
+									options.map((option) => {
+										const value = option?.option_value ?? option?.option_label ?? '';
+										const isChecked = Array.isArray(selected)
+											? selected.includes(value)
+											: selected === value;
+
+										return (
+											<Pressable
+												key={`${qid}-${String(value)}`}
+												style={[styles.optionRow, isChecked ? styles.optionRowActive : null]}
+												onPress={() => toggleOption(currentQuestion, value)}
+												hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
+												accessibilityRole="button"
+											>
+												<View style={[styles.radioOuter, type === 'checkbox' ? styles.checkboxOuter : null]}>
+													{isChecked ? <View style={[styles.radioInner, type === 'checkbox' ? styles.checkboxInner : null]} /> : null}
+												</View>
+												<Text style={styles.optionText}>{option?.option_label || String(value)}</Text>
+											</Pressable>
+										);
+									})
+								) : (
+									<Text style={styles.cardText}>No answer options available.</Text>
+								)}
+								{isInvalid ? <Text style={styles.requiredHint}>This question is required.</Text> : null}
+							</View>
+						);
+					})() : (
 						<View style={styles.card}>
-							<Text style={styles.cardTitle}>Data Privacy Notice</Text>
-							<Text style={styles.cardText}>
-								{tracer?.form_description || tracer?.description || 'No tracer questions available for this form yet.'}
-							</Text>
+							<Text style={styles.cardTitle}>No Questions Available</Text>
+							<Text style={styles.cardText}>This tracer form does not have any questions yet.</Text>
 						</View>
 					)}
+				</ScrollView>
 
-					<Pressable
-						style={[styles.submitButton, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }, submitting || alreadySubmitted || checkingSubmission ? { opacity: 0.75 } : null]}
-						onPress={handleSubmit}
-						disabled={submitting || alreadySubmitted || checkingSubmission}
+				<View style={styles.footer}>
+					<TouchableOpacity
+						style={[styles.nextButton, submitting || alreadySubmitted || checkingSubmission || !currentQuestion ? styles.nextButtonDisabled : null]}
+						onPress={handleNext}
+						disabled={submitting || alreadySubmitted || checkingSubmission || !currentQuestion}
 						accessibilityRole="button"
 					>
-						{submitting ? <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} /> : null}
-						<Text style={styles.submitText}>{submitting ? 'Submitting...' : alreadySubmitted ? 'Already submitted' : 'Submit'}</Text>
-					</Pressable>
-				</ScrollView>
-			</View>
+						{submitting || savingDraft ? <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} /> : null}
+						<Text style={styles.nextButtonText}>
+							{submitting ? 'Submitting...' : savingDraft ? 'Saving draft...' : currentStep >= totalSteps ? 'Submit' : 'Next'}
+						</Text>
+					</TouchableOpacity>
+				</View>
+			</KeyboardAvoidingView>
 			<SafeAreaView edges={['bottom']} style={styles.bottomSafe} />
 		</>
 	);

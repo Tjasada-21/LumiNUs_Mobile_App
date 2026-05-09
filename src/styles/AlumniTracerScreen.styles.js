@@ -5,6 +5,9 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: '#31429B',
 	},
+	bottomSafe: {
+		backgroundColor: '#FFFFFF',
+	},
 	container: {
 		flex: 1,
 		alignItems: 'stretch',

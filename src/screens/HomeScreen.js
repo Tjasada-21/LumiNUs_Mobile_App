@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import supabase from '../services/supabase';
-import { getCurrentUser, signOutUser } from '../services/supabaseAuth';
+import { getCurrentUser } from '../services/supabaseAuth';
 import { getAllEvents } from '../services/eventQueries';
 import { getUserPosts } from '../services/postQueries';
 import { getAlumniProfile, getAlumniByEmail } from '../services/alumniQueries';
@@ -464,11 +464,20 @@ const HomeScreen = ({ navigation }) => {
     // close the menu first
     closeMenu();
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user?.email) {
+        await supabase
+          .from('alumnis')
+          .update({ is_online: false })
+          .eq('email', user.email);
+      }
+
       // Sign out from Supabase and clear any stored credentials
       try {
-        await signOutUser();
+        await supabase.auth.signOut();
       } catch (err) {
-        console.warn('[HomeScreen] signOutUser error:', err?.message || err);
+        console.warn('[HomeScreen] signOut error:', err?.message || err);
       }
 
       await clearAuthCredentials();

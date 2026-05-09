@@ -7,6 +7,8 @@ import SmartTextInput from '../components/SmartTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { signInUser, getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
+import { clearAuthCredentials } from '../services/authStorage';
+import supabase from '../services/supabase';
 import styles from '../styles/LoginScreen.styles';
 import { useUnreadMessages } from '../context/UnreadMessagesContext';
 
@@ -27,6 +29,30 @@ const LoginScreen = ({ navigation }) => {
       try {
         const user = await getCurrentUser();
         if (user) {
+          const activeProfile = await getAlumniByEmail(String(user.email || '').trim().toLowerCase());
+
+          if (activeProfile) {
+            const accountStatus = Number(activeProfile.account_status);
+
+            if (accountStatus === 2) {
+              await clearAuthCredentials();
+              ThemedAlert.alert(
+                'Account Disabled',
+                'You previously disabled this account. Please contact the Alumni Office to restore your access.'
+              );
+              return;
+            }
+
+            if (accountStatus === 3) {
+              await clearAuthCredentials();
+              ThemedAlert.alert(
+                'Account Suspended',
+                'This account has been banned for violating the terms of service. Access is permanently revoked.'
+              );
+              return;
+            }
+          }
+
           if (user.needs_password_change) {
             navigation.replace('ChangePassword');
             return;
@@ -64,6 +90,35 @@ const LoginScreen = ({ navigation }) => {
 
       // Get alumni profile from Supabase
       const alumniProfile = await getAlumniByEmail(normalizedEmail);
+
+      if (alumniProfile) {
+        const accountStatus = Number(alumniProfile.account_status);
+
+        if (accountStatus === 2) {
+          await clearAuthCredentials();
+          ThemedAlert.alert(
+            'Account Disabled',
+            'You previously disabled this account. Please contact the Alumni Office to restore your access.'
+          );
+          return;
+        }
+
+        if (accountStatus === 3) {
+          await clearAuthCredentials();
+          ThemedAlert.alert(
+            'Account Suspended',
+            'This account has been banned for violating the terms of service. Access is permanently revoked.'
+          );
+          return;
+        }
+      }
+
+      if (normalizedEmail) {
+        await supabase
+          .from('alumnis')
+          .update({ is_online: true })
+          .eq('email', normalizedEmail);
+      }
 
       if (alumniProfile) {
         ThemedAlert.alert('Success!', `Welcome back, ${alumniProfile.first_name}!`);

@@ -1,14 +1,56 @@
 import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   topSafe: { backgroundColor: '#31429B' },
   bottomSafe: { backgroundColor: '#FFFFFF' },
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: 16, paddingBottom: 32 },
-  backRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2 },
-  backButton: { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 2 },
-  backButtonText: { fontSize: 15, color: '#31429B', fontWeight: '600' },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  backButton: {
+    minWidth: 72,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  backButtonText: {
+    fontSize: 15,
+    color: '#31429B',
+    fontWeight: '700',
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerSpacer: {
+    width: 72,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#31429B',
+    borderRadius: 6,
+  },
+  wizardScroll: {
+    flex: 1,
+  },
+  content: { padding: 16, paddingBottom: 24 },
   headerImage: { width: '100%', height: 180, resizeMode: 'cover', borderRadius: 12 },
   titleCard: {
     marginTop: -36,
@@ -24,7 +66,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
   },
   titleText: { fontSize: 18, fontWeight: '800', color: '#24346F' },
-  sectionLabel: { fontSize: 13, color: '#6B7280', marginTop: 16, marginBottom: 8 },
+  formDescriptionText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#4B5563',
+    lineHeight: 18,
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -32,6 +79,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E6E6E6',
     marginBottom: 12,
+  },
+  screenCard: {
+    marginTop: 8,
+    minHeight: 220,
   },
   cardInvalid: {
     borderColor: '#D14343',
@@ -98,14 +149,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
-  submitButton: {
-    marginTop: 18,
-    backgroundColor: '#F2C919',
-    paddingVertical: 14,
-    borderRadius: 28,
-    alignItems: 'center',
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
-  submitText: { color: '#24346F', fontWeight: '700', fontSize: 16 },
+  nextButton: {
+    backgroundColor: '#31429B',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  nextButtonDisabled: {
+    opacity: 0.7,
+  },
+  nextButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
 });
 
 export default styles;

@@ -1,6 +1,8 @@
 import supabase from './supabase';
 import { normalizeTracerForms, normalizeTracerForm } from './schemaMapper';
 
+const DRAFT_SUBMITTED_AT_SENTINEL = '1970-01-01T00:00:00.000Z';
+
 /**
  * Tracer Forms & Surveys Queries
  */
@@ -87,6 +89,7 @@ export const getUserTracerResponses = async (alumniId) => {
         )
       `)
       .eq('alumni_id', alumniId)
+      .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
       .order('submitted_at', { ascending: false });
 
     if (error) throw error;
@@ -135,11 +138,8 @@ export const hasSubmittedForm = async (alumniId, formId) => {
       .select('id')
       .eq('alumni_id', alumniId)
       .eq('form_id', formId)
-      .single();
-
-    if (error && error.code === 'PGRST116') {
-      return false; // Not submitted
-    }
+      .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
+      .maybeSingle();
 
     if (error) throw error;
     return !!data;
@@ -188,6 +188,104 @@ export const submitTracerForm = async (alumniId, formId, answers) => {
 };
 
 /**
+ * Get latest draft response for a form
+ */
+export const getDraftResponse = async (alumniId, formId) => {
+  try {
+    const { data, error } = await supabase
+      .from('tracer_responses')
+      .select('id, alumni_id, form_id, submitted_at, created_at, updated_at')
+      .eq('alumni_id', alumniId)
+      .eq('form_id', formId)
+      .eq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || null;
+  } catch (error) {
+    console.error('[tracer] Get draft response error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Create draft response row
+ */
+export const createDraftResponse = async (alumniId, formId) => {
+  try {
+    const { data, error } = await supabase
+      .from('tracer_responses')
+      .insert([{
+        alumni_id: alumniId,
+        form_id: formId,
+        submitted_at: DRAFT_SUBMITTED_AT_SENTINEL,
+      }])
+      .select('id, alumni_id, form_id, submitted_at, created_at, updated_at')
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[tracer] Create draft response error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get existing draft response or create one
+ */
+export const getOrCreateDraftResponse = async (alumniId, formId) => {
+  try {
+    const existing = await getDraftResponse(alumniId, formId);
+    if (existing?.id) return existing;
+    return await createDraftResponse(alumniId, formId);
+  } catch (error) {
+    console.error('[tracer] Get or create draft response error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get saved draft answers for a response
+ */
+export const getDraftAnswers = async (responseId) => {
+  try {
+    const { data, error } = await supabase
+      .from('tracer_answers')
+      .select('id, tq_id, answer_value')
+      .eq('tracer_response_id', responseId);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('[tracer] Get draft answers error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Submit an existing draft response
+ */
+export const submitDraftResponse = async (responseId) => {
+  try {
+    const { data, error } = await supabase
+      .from('tracer_responses')
+      .update({ submitted_at: new Date().toISOString() })
+      .eq('id', responseId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[tracer] Submit draft response error:', error.message);
+    throw error;
+  }
+};
+
+/**
  * Update tracer response
  */
 export const updateTracerResponse = async (responseId, updates) => {
@@ -213,12 +311,14 @@ export const updateTracerResponse = async (responseId, updates) => {
 export const saveAnswerDraft = async (responseId, questionId, value) => {
   try {
     // Check if answer exists
-    const { data: existingData } = await supabase
+    const { data: existingData, error: existingError } = await supabase
       .from('tracer_answers')
       .select('id')
       .eq('tracer_response_id', responseId)
       .eq('tq_id', questionId)
-      .single();
+      .maybeSingle();
+
+    if (existingError) throw existingError;
 
     if (existingData) {
       // Update existing

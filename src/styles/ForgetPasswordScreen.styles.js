@@ -1,0 +1,142 @@
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#31429B',
+  },
+  page: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  brandHeader: {
+    backgroundColor: '#31429B',
+  },
+  brandRow: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  brandLogo: {
+    width: 136,
+    height: 42,
+  },
+  nulipaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    minWidth: 122,
+    justifyContent: 'center',
+  },
+  nulipaIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 6,
+  },
+  nulipaText: {
+    color: '#31429B',
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  brandAccent: {
+    height: 10,
+    backgroundColor: '#F2C919',
+  },
+  content: {
+    flex: 1,
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingTop: 72,
+  },
+  iconWrap: {
+    width: 86,
+    height: 106,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+  lockTop: {
+    width: 38,
+    height: 26,
+    borderWidth: 6,
+    borderColor: '#31429B',
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginBottom: -2,
+  },
+  lockBody: {
+    width: 86,
+    height: 72,
+    borderWidth: 6,
+    borderColor: '#31429B',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questionMark: {
+    fontSize: 34,
+    lineHeight: 36,
+    fontWeight: '700',
+    color: '#31429B',
+    marginTop: -2,
+  },
+  title: {
+    fontSize: 33,
+    lineHeight: 38,
+    fontWeight: '800',
+    color: '#31429B',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#5C5C5C',
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  label: {
+    width: '100%',
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  input: {
+    width: '100%',
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#B8B8B8',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#111827',
+    marginBottom: 28,
+  },
+  button: {
+    width: '100%',
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#31429B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.72,
+  },
+  buttonText: {
+    color: '#F2C919',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+});
+
+export default styles;

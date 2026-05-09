@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "LumiNUsMobile_App",
+    "slug": "LumiNUsMobile_App",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/LumiNUs_Load.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#31429B",
+    "splash": {
+      "image": "./assets/images/LumiNUs_Load.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#31429B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/LumiNUs_Load.png",
+        "backgroundColor": "#31429B"
+      },
+      "package": "com.timothyjohn.luminus",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b0ff116b-bf3b-463f-bcbb-0e23eefc766a"
+      },
+      "supabaseUrl": "https://pmnirrvwibzqjlutbnwz.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtbmlycnZ3aWJ6cWpsdXRibnd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI0MzAwNDgsImV4cCI6MTkwODY5NzA0OH0.WoJBaLWvQy_0nMKLe4hVTvWJVLNQUKIHxfSZGFVQZEY"
+    },
+    "owner": "sakalatadik_2"
+  }
+}

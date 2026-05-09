@@ -1,0 +1,158 @@
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+	safeArea: {
+		flex: 1,
+		backgroundColor: '#31429B',
+	},
+	container: {
+		flex: 1,
+		backgroundColor: '#F4F6FB',
+	},
+	content: {
+		padding: 16,
+		paddingBottom: 28,
+	},
+	heroCard: {
+		backgroundColor: '#FFFFFF',
+		borderRadius: 24,
+		padding: 14,
+		shadowColor: '#BFC6D3',
+		shadowOpacity: 0.24,
+		shadowRadius: 14,
+		shadowOffset: { width: 0, height: 8 },
+		elevation: 4,
+	},
+	heroBadge: {
+		alignSelf: 'flex-start',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		backgroundColor: '#EAF0FF',
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: 999,
+		marginBottom: 12,
+	},
+	heroBadgeText: {
+		fontSize: 12,
+		fontWeight: '700',
+		color: '#31429B',
+	},
+	heroImage: {
+		width: '100%',
+		height: 220,
+		borderRadius: 18,
+		backgroundColor: '#E9EEF8',
+		marginBottom: 14,
+	},
+	heroPlaceholder: {
+		width: '100%',
+		height: 220,
+		borderRadius: 18,
+		backgroundColor: '#E9EEF8',
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 14,
+	},
+	heroPlaceholderText: {
+		marginTop: 8,
+		fontSize: 13,
+		fontWeight: '600',
+		color: '#9CA3AF',
+	},
+	title: {
+		fontSize: 28,
+		lineHeight: 33,
+		fontWeight: '900',
+		color: '#21306B',
+	},
+	description: {
+		marginTop: 10,
+		fontSize: 15,
+		lineHeight: 22,
+		color: '#596179',
+	},
+	gallerySection: {
+		marginTop: 14,
+	},
+	galleryLabel: {
+		fontSize: 12,
+		fontWeight: '800',
+		color: '#31429B',
+		textTransform: 'uppercase',
+		letterSpacing: 0.4,
+	},
+	galleryScroll: {
+		paddingTop: 10,
+		gap: 10,
+	},
+	galleryGrid: {
+		marginTop: 10,
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		justifyContent: 'space-between',
+		rowGap: 10,
+	},
+	galleryGridItem: {
+		width: '48.5%',
+		height: 120,
+		borderRadius: 16,
+		overflow: 'hidden',
+		backgroundColor: '#E9EEF8',
+		marginBottom: 10,
+	},
+	galleryGridImage: {
+		width: '100%',
+		height: '100%',
+	},
+	galleryImageWrap: {
+		width: 96,
+		height: 96,
+		borderRadius: 16,
+		overflow: 'hidden',
+		backgroundColor: '#E9EEF8',
+		marginRight: 10,
+	},
+	galleryImage: {
+		width: '100%',
+		height: '100%',
+	},
+	metaRow: {
+		marginTop: 16,
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		gap: 10,
+	},
+	metaPill: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		backgroundColor: '#F3F6FF',
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		borderRadius: 999,
+	},
+	metaPillText: {
+		fontSize: 12,
+		fontWeight: '700',
+		color: '#31429B',
+	},
+	backButton: {
+		marginTop: 16,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 8,
+		backgroundColor: '#31429B',
+		paddingVertical: 14,
+		borderRadius: 16,
+	},
+	backButtonText: {
+		fontSize: 15,
+		fontWeight: '700',
+		color: '#FFFFFF',
+	},
+});
+
+export default styles;

@@ -1,0 +1,121 @@
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+	safeArea: {
+		flex: 1,
+		backgroundColor: '#31429B',
+	},
+	container: {
+		flex: 1,
+		backgroundColor: '#F5F6FA',
+	},
+	scrollContent: {
+		paddingHorizontal: 12,
+		paddingTop: 12,
+		paddingBottom: 24,
+	},
+	headerCard: {
+		backgroundColor: '#FFFFFF',
+		borderRadius: 18,
+		paddingHorizontal: 16,
+		paddingVertical: 16,
+		marginBottom: 12,
+		shadowColor: '#111827',
+		shadowOpacity: 0.08,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: 6 },
+		elevation: 3,
+	},
+	titleRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	title: {
+		fontSize: 20,
+		lineHeight: 24,
+		fontFamily: 'Poppins_700Bold',
+		color: '#31429B',
+	},
+	subtitle: {
+		marginTop: 6,
+		fontSize: 13,
+		lineHeight: 18,
+		fontFamily: 'Poppins_400Regular',
+		color: '#5A5A5A',
+	},
+	stateCard: {
+		backgroundColor: '#FFFFFF',
+		borderRadius: 18,
+		paddingHorizontal: 16,
+		paddingVertical: 20,
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 10,
+		shadowColor: '#111827',
+		shadowOpacity: 0.08,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: 6 },
+		elevation: 3,
+	},
+	stateText: {
+		fontSize: 13,
+		lineHeight: 18,
+		fontFamily: 'Poppins_600SemiBold',
+		color: '#31429B',
+		textAlign: 'center',
+	},
+	listWrap: {
+		gap: 12,
+	},
+	eventCard: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 12,
+		backgroundColor: '#FFFFFF',
+		borderRadius: 18,
+		padding: 12,
+		shadowColor: '#111827',
+		shadowOpacity: 0.08,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: 6 },
+		elevation: 3,
+	},
+	eventCardPressed: {
+		opacity: 0.9,
+		transform: [{ scale: 0.99 }],
+	},
+	eventImage: {
+		width: 72,
+		height: 72,
+		borderRadius: 14,
+		backgroundColor: '#E5E7EB',
+	},
+	eventImageFallback: {
+		width: 72,
+		height: 72,
+		borderRadius: 14,
+		backgroundColor: '#EEF2FF',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	eventContent: {
+		flex: 1,
+		minWidth: 0,
+	},
+	eventTitle: {
+		fontSize: 15,
+		lineHeight: 20,
+		fontFamily: 'Poppins_700Bold',
+		color: '#1F2937',
+	},
+	eventMeta: {
+		marginTop: 4,
+		fontSize: 12,
+		lineHeight: 16,
+		fontFamily: 'Poppins_400Regular',
+		color: '#5A5A5A',
+	},
+});
+
+export default styles;

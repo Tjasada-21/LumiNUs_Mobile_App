@@ -1,0 +1,103 @@
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#31429B',
+  },
+  page: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingTop: 52,
+    paddingBottom: 24,
+  },
+  iconWrap: {
+    width: 86,
+    height: 102,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  lockTop: {
+    width: 38,
+    height: 26,
+    borderWidth: 6,
+    borderColor: '#31429B',
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginBottom: -2,
+  },
+  lockBody: {
+    width: 86,
+    height: 72,
+    borderWidth: 6,
+    borderColor: '#31429B',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockMark: {
+    fontSize: 34,
+    lineHeight: 36,
+    fontWeight: '700',
+    color: '#31429B',
+    marginTop: -2,
+    fontFamily: 'Poppins_700Bold',
+  },
+  title: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800',
+    color: '#31429B',
+    textAlign: 'center',
+    marginBottom: 26,
+    fontFamily: 'Poppins_700Bold',
+  },
+  label: {
+    width: '100%',
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#5A5A5A',
+    marginBottom: 10,
+    fontFamily: 'Poppins_400Regular',
+  },
+  input: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#C2C2C2',
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#111827',
+    marginBottom: 22,
+    fontFamily: 'Poppins_400Regular',
+  },
+  button: {
+    width: '100%',
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#31429B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 22,
+  },
+  buttonDisabled: {
+    opacity: 0.72,
+  },
+  buttonText: {
+    color: '#F2C919',
+    fontSize: 17,
+    fontWeight: '800',
+    fontFamily: 'Poppins_700Bold',
+  },
+});
+
+export default styles;

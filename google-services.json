@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "957852130492",
+    "project_id": "luminus-4735e",
+    "storage_bucket": "luminus-4735e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:957852130492:android:bdd02052860d65c63784b9",
+        "android_client_info": {
+          "package_name": "com.timothyjohn.luminus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCenS4O9kLVr7CFMnEFkce5X5ASg2550Cg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -38,19 +38,19 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     marginBottom: 8,
   },
   instructionText: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     textAlign: 'center',
     lineHeight: 20,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     marginBottom: 8,
     marginTop: 10,
   },

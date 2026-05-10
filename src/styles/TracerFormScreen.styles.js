@@ -2,15 +2,15 @@ import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
   topSafe: { backgroundColor: '#31429B' },
-  bottomSafe: { backgroundColor: '#FFFFFF' },
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  bottomSafe: { backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: {
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   headerRow: {
     flexDirection: 'row',
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   titleCard: {
     marginTop: -36,
     marginBottom: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 14,
     alignSelf: 'stretch',
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: '#111827',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     marginTop: 6,
   },
   textArea: {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   nextButton: {
     backgroundColor: '#31429B',
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   nextButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontWeight: '700',
     fontSize: 16,
   },

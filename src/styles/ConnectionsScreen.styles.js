@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
 	headerCard: {
 		marginTop: 14,
 		marginBottom: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 22,
 		padding: 16,
 		elevation: 3,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 	},
 	emptyCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		padding: 18,
 		alignItems: 'center',
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
 	contactCard: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		padding: 12,
 		marginBottom: 12,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 6,
 	},
 	sectionBadgeText: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontSize: 11,
 		fontWeight: '800',
 	},

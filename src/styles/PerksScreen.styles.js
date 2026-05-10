@@ -18,7 +18,7 @@ const styles = StyleSheet.create({
 	searchWrap: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 10,
 		borderWidth: 1,
 		borderColor: '#D1D5DB',
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	card: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		padding: 10,
 		shadowColor: '#BFC6D3',
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
 		borderRadius: 999,
 	},
 	retryButtonText: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontSize: 14,
 		fontWeight: '700',
 	},

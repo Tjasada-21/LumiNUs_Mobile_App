@@ -7,11 +7,11 @@ const styles = StyleSheet.create({
 	},
 	container: {
 		flex: 1,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	scrollContent: {
 		paddingBottom: 24,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	searchRow: {
 		flexDirection: 'row',
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
 		borderRadius: 10,
 		borderWidth: 1,
 		borderColor: '#D1D5DB',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		flexDirection: 'row',
 		alignItems: 'center',
 		paddingLeft: 10,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
 	featuredEventCard: {
 		width: 252,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		marginRight: 12,
 		shadowColor: '#000',
 		shadowOpacity: 0.08,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
 		width: 190,
 		marginRight: 12,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		shadowColor: '#000',
 		shadowOpacity: 0.08,
 		shadowRadius: 12,
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
 		width: '100%',
 		maxWidth: 360,
 		borderRadius: 22,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		padding: 18,
 		shadowColor: '#000',
 		shadowOpacity: 0.18,
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
 		maxWidth: 360,
 		maxHeight: '72%',
 		borderRadius: 22,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		padding: 18,
 		shadowColor: '#000',
 		shadowOpacity: 0.18,
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
 		color: '#31429B',
 	},
 	calendarDayTextSelected: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	calendarEventDot: {
 		position: 'absolute',

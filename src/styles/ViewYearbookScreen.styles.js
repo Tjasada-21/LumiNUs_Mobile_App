@@ -10,10 +10,10 @@ const styles = StyleSheet.create({
 	},
 	container: {
 		flex: 1,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	titleStrip: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
@@ -92,13 +92,13 @@ const styles = StyleSheet.create({
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 26, 22, 32),
 		lineHeight: responsiveFontSize(SCREEN_WIDTH, 30, 24, 36),
 		fontWeight: '900',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	coverLevels: {
 		marginTop: 5,
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 11, 15),
 		lineHeight: responsiveFontSize(SCREEN_WIDTH, 16, 13, 19),
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		textAlign: 'right',
 	},
 	coverFooterText: {
@@ -110,11 +110,11 @@ const styles = StyleSheet.create({
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 11, 10, 13),
 		lineHeight: responsiveFontSize(SCREEN_WIDTH, 14, 12, 16),
 		fontStyle: 'italic',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontWeight: '600',
 	},
 	pageControls: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		alignItems: 'center',
 		paddingTop: responsiveSpacing(SCREEN_HEIGHT, 8, 6, 12),
 		paddingBottom: responsiveSpacing(SCREEN_HEIGHT, 8, 6, 12),
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
 	},
 	navbar: {
 		height: responsiveHeight(SCREEN_HEIGHT, 0.085, 60, 74),
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderTopWidth: 1,
 		borderTopColor: '#E2E8F0',
 		position: 'absolute',

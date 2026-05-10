@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
   },
   page: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   brandHeader: {
     backgroundColor: '#31429B',
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   nulipaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#B8B8B8',
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     fontSize: 15,
     color: '#111827',

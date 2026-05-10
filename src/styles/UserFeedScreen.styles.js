@@ -19,7 +19,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingHorizontal: 16,
 		paddingVertical: 18,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderBottomWidth: 1,
 		borderBottomColor: '#D9D9D9',
 	},
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
 	},
 	searchResultsContainer: {
 		maxHeight: 500,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderBottomWidth: 1,
 		borderBottomColor: '#D9D9D9',
 		paddingHorizontal: 16,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
 	createPostCard: {
 		marginHorizontal: 6,
 		marginTop: 10,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		borderWidth: 1,
 		borderColor: '#DCDDE4',
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
 		color: '#8A94A6',
 	},
 	feedStateCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingVertical: 18,
 		paddingHorizontal: 16,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 	},
 	postCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 20,
 		borderWidth: 0,
 		paddingHorizontal: 14,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
 		width: 38,
 		height: 38,
 		borderRadius: 19,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		marginRight: 10,
 	},
 	postHeaderTextWrap: {
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		borderRadius: 16,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#DDE3F0',
 	},
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 0,
 		borderRadius: 16,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#DDE3F0',
 	},
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 0,
 		borderRadius: 16,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#DDE3F0',
 	},
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
 		fontSize: 28,
 		lineHeight: 32,
 		fontWeight: '900',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		textShadowColor: 'rgba(0, 0, 0, 0.35)',
 		textShadowOffset: { width: 0, height: 1 },
 		textShadowRadius: 4,
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
 		fontSize: 20,
 		lineHeight: 24,
 		fontWeight: '500',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	viewerAuthorMetaRow: {
 		flexDirection: 'row',
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
 	viewerActionLabel: {
 		fontSize: 13,
 		fontWeight: '600',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	viewerCountsRow: {
 		flexDirection: 'row',
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
 	viewerDotActive: {
 		width: 18,
 		borderRadius: 5,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	repostModalBackdrop: {
 		flex: 1,
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
 		height: '88%',
 		borderTopLeftRadius: 24,
 		borderTopRightRadius: 24,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		paddingHorizontal: 18,
 		paddingTop: 16,
 		paddingBottom: 24,
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
 		marginHorizontal: 12,
 		marginTop: 4,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#D9E2FF',
 		paddingVertical: 6,
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
 		marginHorizontal: 12,
 		marginTop: 4,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#D9E2FF',
 		paddingVertical: 6,
@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
 	repostSubmitButtonText: {
 		fontSize: 13,
 		fontWeight: '900',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	themedAlertBackdrop: {
 		flex: 1,
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
 		borderRadius: 18,
 		paddingHorizontal: 18,
 		paddingVertical: 16,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#DCE3F5',
 	},
@@ -929,7 +929,7 @@ const styles = StyleSheet.create({
 	themedAlertButtonText: {
 		fontSize: 13,
 		fontWeight: '900',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	themedAlertButtonTextNeutral: {
 		color: '#334155',
@@ -964,7 +964,7 @@ const styles = StyleSheet.create({
 	deleteLoadingCard: {
 		width: '100%',
 		maxWidth: 320,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 22,
 		paddingVertical: 24,
 		paddingHorizontal: 20,
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
 	},
 	postActionsCard: {
 		width: '100%',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderTopLeftRadius: 20,
 		borderTopRightRadius: 20,
 		paddingTop: 12,
@@ -1091,7 +1091,7 @@ const styles = StyleSheet.create({
 		fontWeight: '800',
 	},
 	commentsSheet: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderTopLeftRadius: 28,
 		borderTopRightRadius: 28,
 		paddingHorizontal: 16,
@@ -1367,7 +1367,7 @@ const styles = StyleSheet.create({
 		borderRadius: 14,
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	commentInputWrap: {
 		minHeight: 46,
@@ -1416,7 +1416,7 @@ const styles = StyleSheet.create({
 		fontSize: 13,
 		lineHeight: 18,
 		fontWeight: '800',
-		color: '#ffffff',
+		color: '#F9FAFB',
 	},
 	postSingleImage: {
 		width: '100%',

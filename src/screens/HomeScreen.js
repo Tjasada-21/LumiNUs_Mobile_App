@@ -11,6 +11,7 @@ import { getCurrentUser } from '../services/supabaseAuth';
 import { getAllEvents } from '../services/eventQueries';
 import { getUserPosts } from '../services/postQueries';
 import { getAlumniProfile, getAlumniByEmail } from '../services/alumniQueries';
+import AvatarProgressRing from '../components/AvatarProgressRing';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
@@ -18,6 +19,7 @@ import { responsiveHeight, responsiveWidth } from '../utils/responsive';
 import styles from '../styles/HomeScreen.styles';
 import { clearAuthCredentials } from '../services/authStorage';
 import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
+import { getActiveForms, getUserTracerResponses } from '../services/tracerQueries';
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) {
@@ -133,6 +135,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLoadingFeaturedEvents, setIsLoadingFeaturedEvents] = useState(false);
     const [isRefreshingHome, setIsRefreshingHome] = useState(false);
   const [isIdFlipped, setIsIdFlipped] = useState(false);
+  const [tracerProgress, setTracerProgress] = useState(0);
   const flipAnimation = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
 
@@ -167,9 +170,8 @@ const HomeScreen = ({ navigation }) => {
     const fetchNotifications = useCallback(async () => {
       try {
         setIsLoadingNotifications(true);
-        setNotifications([]);
 
-        const currentProfile = currentUserProfile ?? userData ?? await getCurrentUser().catch(() => null);
+        const currentProfile = currentUserProfile ?? await getCurrentUser().catch(() => null);
         const currentUserId = currentProfile?.id ?? null;
 
         if (!currentUserId) {
@@ -325,7 +327,7 @@ const HomeScreen = ({ navigation }) => {
       } finally {
         setIsLoadingNotifications(false);
       }
-    }, [currentUserProfile, userData]);
+    }, [currentUserProfile]);
 
     const fetchFeaturedEvents = useCallback(async () => {
       try {
@@ -343,14 +345,47 @@ const HomeScreen = ({ navigation }) => {
       }
     }, []);
 
+    const fetchTracerProgress = useCallback(async () => {
+      try {
+        const currentProfile = currentUserProfile ?? await getCurrentUser().catch(() => null);
+        const currentUserId = currentProfile?.id ?? null;
+
+        if (!currentUserId) {
+          setTracerProgress(0);
+          return;
+        }
+
+        const [activeForms, tracerResponses] = await Promise.all([
+          getActiveForms().catch(() => []),
+          getUserTracerResponses(currentUserId).catch(() => []),
+        ]);
+
+        const totalForms = Array.isArray(activeForms) ? activeForms.length : 0;
+        const completedFormIds = new Set(
+          (Array.isArray(tracerResponses) ? tracerResponses : [])
+            .map((response) => response?.form?.id || response?.form_id)
+            .filter(Boolean)
+        );
+
+        const percentage = totalForms > 0
+          ? Math.round((completedFormIds.size / totalForms) * 100)
+          : 0;
+
+        setTracerProgress(Math.max(0, Math.min(100, percentage)));
+      } catch (error) {
+        console.error('[HomeScreen] Failed to fetch tracer progress:', error?.message || error);
+        setTracerProgress(0);
+      }
+    }, [currentUserProfile]);
+
     const refreshHomeContent = useCallback(async () => {
       try {
         setIsRefreshingHome(true);
-        await Promise.all([fetchNotifications(), fetchFeaturedEvents()]);
+        await Promise.all([fetchNotifications(), fetchFeaturedEvents(), fetchTracerProgress()]);
       } finally {
         setIsRefreshingHome(false);
       }
-    }, [fetchFeaturedEvents, fetchNotifications]);
+    }, [fetchFeaturedEvents, fetchNotifications, fetchTracerProgress]);
 
   	// HANDLER: Open the side menu
     const openMenu = () => {
@@ -404,12 +439,13 @@ const HomeScreen = ({ navigation }) => {
 
         fetchUserData();
         fetchFeaturedEvents();
+        fetchTracerProgress();
 
         return () => {
           isActive = false;
         };
 
-		}, [fetchFeaturedEvents])
+		}, [fetchFeaturedEvents, fetchTracerProgress])
   	);
 
   useEffect(() => {
@@ -417,6 +453,9 @@ const HomeScreen = ({ navigation }) => {
   }, [fetchNotifications]);
 
 	const activeUserData = currentUserProfile ?? userData;
+  const isVerified = tracerProgress === 100;
+	// We simply check if their tracer progress hit the maximum!
+  
 
 	// HANDLER: Open the NU website
   const openNUWebsite = async () => {
@@ -432,6 +471,11 @@ const HomeScreen = ({ navigation }) => {
 	// HANDLER: Open the yearbook screen
   const openViewYearbook = () => {
     navigation.navigate('ViewYearbook');
+  };
+
+	// HANDLER: Open the tracer dashboard
+  const openTracerDashboard = () => {
+    navigation.navigate('AlumniTracer');
   };
 
 	// HANDLER: Open the events screen
@@ -866,22 +910,31 @@ const HomeScreen = ({ navigation }) => {
           {/* SECTION: User profile and ID card */}
           <View style={styles.profileCardWrapper}>
             <View style={styles.profileSection}>
-              <TouchableOpacity style={styles.profileInfo} activeOpacity={0.8} onPress={openMenu}>
-                <Image
-                  source={{
-                    uri: getAvatarUri(`${activeUserData?.first_name ?? ''} ${activeUserData?.last_name ?? ''}`.trim() || 'Alumni', activeUserData?.alumni_photo),
-                  }}
-                  style={styles.avatar}
-                />
-                <View>
-                  <Text style={styles.greeting}>
-                    Hi, {userData ? `${userData.first_name}` : 'Loading...'}!
-                  </Text>
+              <View style={styles.profileInfo}>
+                <TouchableOpacity style={styles.avatarRingTouchable} activeOpacity={0.85} onPress={openTracerDashboard}>
+                  <AvatarProgressRing
+                    imageUrl={getAvatarUri(`${activeUserData?.first_name ?? ''} ${activeUserData?.last_name ?? ''}`.trim() || 'Alumni', activeUserData?.alumni_photo)}
+                    percentage={tracerProgress}
+                    size={72}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} onPress={openMenu} style={styles.profileTextWrap}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.greeting}>
+                      Hi, {activeUserData ? `${activeUserData.first_name}` : 'Loading...'}!
+                    </Text>
+                    {isVerified ? (
+                      <Ionicons name="checkmark-circle" size={20} color="#31429B" style={styles.badge} />
+                    ) : null}
+                  </View>
                   <Text style={styles.studentId}>
-                    Student {userData ? userData.student_id_number : '...'}
+                    Student {activeUserData ? activeUserData.student_id_number : '...'}
                   </Text>
-                </View>
-              </TouchableOpacity>
+                  <Text style={styles.profileStrengthText}>
+                    Profile Strength: <Text style={isVerified ? styles.statusComplete : styles.statusHighlight}>{isVerified ? 'All-Star Alumni' : 'Intermediate'}</Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity style={styles.bellIcon} onPress={openNotifications}>
                 <View style={styles.bellIconInner}>

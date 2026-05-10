@@ -12,7 +12,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginTop: 30,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     padding: 24,
     borderRadius: 16,
     shadowColor: '#000',
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#A0AABF',
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 16,
     fontWeight: '700',
   },

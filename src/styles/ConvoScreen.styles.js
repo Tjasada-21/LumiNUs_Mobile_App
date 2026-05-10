@@ -5,7 +5,7 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
 	safeArea: {
 		flex: 1,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	container: {
 		flex: 1,
@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 12,
 		paddingTop: 8,
 		paddingBottom: 10,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderBottomWidth: 1,
 		borderBottomColor: '#D9E2FF',
 		zIndex: 2,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
 		borderBottomRightRadius: 24,
 	},
 	messageBubbleIncoming: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderBottomLeftRadius: 24,
 		borderWidth: 1,
 		borderColor: '#D9E2FF',
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
 		fontWeight: '500',
 	},
 	messageTextOutgoing: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	messageTextIncoming: {
 		color: '#24346F',
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 12,
 		paddingTop: 10,
 		paddingBottom: 12,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderTopWidth: 1,
 		borderTopColor: '#D9E2FF',
 	},
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
 	composerBar: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 28,
 		paddingHorizontal: 10,
 		paddingVertical: 8,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
 		marginHorizontal: 12,
 		marginTop: 4,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#D9E2FF',
 		paddingVertical: 6,

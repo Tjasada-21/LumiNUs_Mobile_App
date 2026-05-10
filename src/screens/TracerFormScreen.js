@@ -525,7 +525,7 @@ const TracerFormScreen = ({ route, navigation }) => {
 						disabled={submitting || alreadySubmitted || checkingSubmission || !currentQuestion}
 						accessibilityRole="button"
 					>
-						{submitting || savingDraft ? <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} /> : null}
+						{submitting || savingDraft ? <ActivityIndicator size="small" color="#F9FAFB" style={{ marginRight: 8 }} /> : null}
 						<Text style={styles.nextButtonText}>
 							{submitting ? 'Submitting...' : savingDraft ? 'Saving draft...' : currentStep >= totalSteps ? 'Submit' : 'Next'}
 						</Text>

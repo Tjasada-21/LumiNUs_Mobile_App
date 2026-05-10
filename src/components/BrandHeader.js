@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 24,
     padding: 16,
     alignItems: 'center',
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   modalCloseText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 14,
     fontWeight: '800',
   },

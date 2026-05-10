@@ -9,7 +9,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#31429B',
   },
   bottomSafeArea: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   container: {
     flex: 1,
@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     height: responsiveHeight(SCREEN_HEIGHT, 0.047, 34, 46),
   },
   badgeContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 20,
     paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 7, 6, 10),
     paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 12, 10, 16),

@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     overflow: 'hidden',
     shadowColor: '#000000',
     shadowOpacity: 0.22,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
   },
   secondaryButtonText: {
     color: '#31429B',

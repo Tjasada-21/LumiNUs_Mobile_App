@@ -2,10 +2,10 @@ import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
   safeAreaTop: { flex: 1, backgroundColor: '#31429B' },
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   mainScrollContent: {
     paddingBottom: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   brandHeader: {
     backgroundColor: '#31429B',
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   nulipaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -45,9 +45,16 @@ const styles = StyleSheet.create({
   nulipaText: { color: '#31429B', fontWeight: '800', fontSize: 14, letterSpacing: 0.3 },
   profileSection: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8, paddingTop: 12, paddingBottom: 5, alignItems: 'center' },
   profileInfo: { flexDirection: 'row', alignItems: 'center' },
+  avatarRingTouchable: { marginRight: 12 },
+  profileTextWrap: { flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12, borderWidth: 2, borderColor: '#F2C919' },
   greeting: { fontSize: 17, fontWeight: '800', color: '#0A1142' },
+  badge: { marginLeft: 6 },
   studentId: { fontSize: 10, color: '#666', marginTop: 1 },
+  profileStrengthText: { fontSize: 10, color: '#6B7280', marginTop: 3 },
+  statusHighlight: { color: '#F59E0B', fontWeight: '800' },
+  statusComplete: { color: '#10B981', fontWeight: '800' },
   bellIcon: { backgroundColor: '#F2C919', padding: 7, borderRadius: 18 },
   bellIconInner: {
     position: 'relative',
@@ -69,7 +76,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   notificationBadgeText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 9,
     fontWeight: '800',
     lineHeight: 10,
@@ -77,7 +84,7 @@ const styles = StyleSheet.create({
   idSection: { paddingHorizontal: 0, paddingVertical: 0, marginTop: 10, marginBottom: 10 },
   profileCardWrapper: {
     marginTop: -8,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F9FAFB',
     paddingVertical: 8,
     paddingHorizontal: 14,
     elevation: 8,
@@ -157,19 +164,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start', //
   },
   idName: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 16,
     fontWeight: '900',
     lineHeight: 18,
     marginTop: 44,
   },
   idCourse: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 12,
     marginTop: 6,
   },
   idClass: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 12,
     marginTop: 2,
   },
@@ -192,7 +199,7 @@ const styles = StyleSheet.create({
     width: 252,
     height: 280,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#D1D5DB',
     marginRight: 12,
@@ -312,7 +319,7 @@ const styles = StyleSheet.create({
   quickLinkBox: {
     width: 192,
     minHeight: 64,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingVertical: 16,
     paddingHorizontal: 14,
     borderRadius: 6,
@@ -494,7 +501,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   notifFollowAcceptButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
   },
   notifFollowDeclineButtonText: {
     color: '#B91C1C',

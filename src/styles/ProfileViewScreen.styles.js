@@ -7,12 +7,12 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   content: {
     flexGrow: 1,
     paddingBottom: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   backButton: {
     width: 24,
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   heroCard: {
     marginTop: 0,
     marginHorizontal: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderBottomLeftRadius: 38,
     borderBottomRightRadius: 38,
     padding: 16,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
   },
   addConnectionButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.2,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#C7D2FE',
     paddingHorizontal: 12,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   createPostButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   aboutSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 32,
     paddingBottom: 12,
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   bioSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 22,
     paddingBottom: 12,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   workSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 22,
     paddingBottom: 12,
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   workCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 10,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     shadowColor: '#111827',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#31429B',
   },
   postsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 22,
     padding: 16,
     minHeight: 84,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DCE3F5',
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
   profilePostImageOverlayText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 20,
     fontWeight: '900',
   },
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   actionButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 14,
     fontWeight: '700',
   },

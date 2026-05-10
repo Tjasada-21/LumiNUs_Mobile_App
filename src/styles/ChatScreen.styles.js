@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
 		height: responsiveHeight(SCREEN_HEIGHT, 0.055, 38, 52),
 	},
 	nulipaPill: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 999,
 		paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 7, 6, 10),
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 14, 12, 18),
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
 		borderColor: '#CAD4F6',
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		marginLeft: 8,
 		shadowColor: '#31429B',
 		shadowOpacity: 0.08,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
 		fontWeight: '700',
 	},
 	segmentTextActive: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontWeight: '800',
 	},
 	segmentInnerRow: {
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
 	contactCard: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingVertical: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
 	groupCard: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingVertical: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 	},
 	contactUnreadText: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 10, 14),
 		fontWeight: '800',
 	},
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
 		overflow: 'hidden',
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingVertical: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 10, 8, 12),
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
 		alignItems: 'stretch',
 	},
 	actionSheet: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderTopLeftRadius: 24,
 		borderTopRightRadius: 24,
 		paddingVertical: 0,

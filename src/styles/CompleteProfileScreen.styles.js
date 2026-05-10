@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 12,
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   },
   dropdownButton: {
     minHeight: 54,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 12,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
   },
   datePickerConfirmText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 15,
     fontFamily: 'Poppins_600SemiBold',
   },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 16,
     fontFamily: 'Poppins_700Bold',
     letterSpacing: 0.2,

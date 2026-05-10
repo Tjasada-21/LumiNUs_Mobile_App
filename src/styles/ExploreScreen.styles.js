@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     height: 54,
   },
   itemLabel: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 13,
     lineHeight: 16,
     textAlign: 'center',

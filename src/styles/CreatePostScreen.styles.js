@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
 		paddingBottom: 28,
 	},
 	card: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 22,
 		padding: 18,
 		borderWidth: 1,
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
 		marginTop: -6,
 		marginBottom: 12,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#D9E2FF',
 		overflow: 'hidden',
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: '#E5E7EB',
 		overflow: 'hidden',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		marginBottom: 18,
 	},
 	previewImageWrap: {
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 18,
 		fontWeight: '800',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	uploadModalBackdrop: {
 		flex: 1,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
 	uploadModalCard: {
 		width: '100%',
 		maxWidth: 320,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 22,
 		paddingHorizontal: 22,
 		paddingVertical: 24,

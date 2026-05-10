@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   brandHeader: {
     backgroundColor: '#31429B',
@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
   nulipaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingBottom: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   stateWrap: {
     minHeight: 420,
@@ -73,14 +73,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   actionButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 14,
     fontWeight: '700',
   },
   heroCard: {
     marginTop: 0,
     marginHorizontal: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderBottomLeftRadius: 38,
     borderBottomRightRadius: 38,
     padding: 16,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   createPostButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   aboutSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 32,
     paddingBottom: 12,
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   bioSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 22,
     paddingBottom: 12,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   workSectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     paddingTop: 22,
     paddingBottom: 12,
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   editPillText: {
     color: '#404040',
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     width: '85%',
     maxWidth: 550,
     maxHeight: '85%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 22,
     padding: 18,
     shadowColor: '#111827',
@@ -397,12 +397,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#31429B',
   },
   modalSaveButtonText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 13,
     fontWeight: '800',
   },
   workCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 10,
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     shadowColor: '#111827',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#31429B',
   },
   postsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 22,
     padding: 16,
     minHeight: 84,
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DCE3F5',
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
   profilePostImageOverlayText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 20,
     fontWeight: '900',
   },
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   postActionCard: {
     width: '100%',
     maxWidth: 440,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 22,
     padding: 18,
     shadowColor: '#111827',

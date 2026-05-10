@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
 	},
 	container: {
 		flex: 1,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	content: {
 		flexGrow: 1,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
 		paddingVertical: 8,
 		paddingHorizontal: 10,
 		borderRadius: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#E6ECFF',
 	},
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
 		...StyleSheet.absoluteFillObject,
 	},
 	modalCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 24,
 		paddingHorizontal: 16,
 		paddingTop: 16,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		lineHeight: 16,
 		fontWeight: '700',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	modalList: {
 		paddingBottom: 6,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 18,
 		fontWeight: '700',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 });
 

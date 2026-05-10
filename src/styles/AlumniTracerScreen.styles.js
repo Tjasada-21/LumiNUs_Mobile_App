@@ -6,14 +6,14 @@ const styles = StyleSheet.create({
 		backgroundColor: '#31429B',
 	},
 	bottomSafe: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	container: {
 		flex: 1,
 		alignItems: 'stretch',
 		justifyContent: 'flex-start',
 		paddingHorizontal: 0,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	backRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2 },
 	backButton: { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 2 },
@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 		paddingHorizontal: 16,
 		paddingTop: 12,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	title: {
 		fontSize: 28,
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
 	},
 	listItem: {
 		flexDirection: 'column',
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 12,
 		overflow: 'hidden',
 		marginBottom: 10,
@@ -120,14 +120,14 @@ const styles = StyleSheet.create({
 		borderRadius: 8,
 	},
 	refreshButtonText: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontWeight: '700',
 	},
 
 	modalContent: {
 		flex: 1,
 		padding: 16,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		justifyContent: 'flex-start',
 	},
 	modalImage: {
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 	},
 	modalActionTextDisabled: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 	modalCloseButton: {
 		alignSelf: 'stretch',
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#31429B',
 	},
 	modalCloseText: {
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		fontWeight: '700',
 	},
 	sectionHeader: {

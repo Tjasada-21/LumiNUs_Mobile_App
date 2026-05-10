@@ -16,7 +16,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingTop: 12,
 		paddingBottom: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	backButton: {
 		flexDirection: 'row',
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
 	contentCard: {
 		marginHorizontal: 10,
 		marginTop: 14,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 20,
 		paddingHorizontal: 16,
 		paddingVertical: 18,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
 		lineHeight: 20,
 		fontWeight: '800',
 		fontFamily: 'Poppins_700Bold',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 });
 

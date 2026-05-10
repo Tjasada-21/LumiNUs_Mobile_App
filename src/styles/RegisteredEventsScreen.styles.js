@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
 		paddingBottom: 24,
 	},
 	headerCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingHorizontal: 16,
 		paddingVertical: 16,
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
 		color: '#5A5A5A',
 	},
 	stateCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		paddingHorizontal: 16,
 		paddingVertical: 20,
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 12,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		padding: 12,
 		shadowColor: '#111827',

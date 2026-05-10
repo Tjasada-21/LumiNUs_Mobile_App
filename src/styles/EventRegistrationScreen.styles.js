@@ -10,10 +10,10 @@ const styles = StyleSheet.create({
 	},
 	container: {
 		flex: 1,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 	},
 	pageHeaderCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 22, 16, 28),
 		paddingTop: responsiveSpacing(SCREEN_HEIGHT, 18, 14, 24),
 		paddingBottom: responsiveSpacing(SCREEN_HEIGHT, 18, 14, 24),
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 12, 10, 16),
 	},
 	formSurface: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#E4E4E4',
 		borderRadius: 18,
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
 		elevation: 3,
 	},
 	eventCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 16,
 		paddingHorizontal: 4,
 		paddingTop: 4,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
 	eventBannerFallbackText: {
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 10, 9, 12),
 		fontFamily: 'Poppins_600SemiBold',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 		letterSpacing: 0.3,
 	},
 	eventTitle: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
 	},
 	privacyCard: {
 		marginTop: 10,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#C7C7C7',
 		borderRadius: 12,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
 	},
 	inputCard: {
 		marginTop: 10,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#C7C7C7',
 		borderRadius: 12,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
 	},
 	confirmationCard: {
 		marginTop: 10,
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderWidth: 1,
 		borderColor: '#C7C7C7',
 		borderRadius: 12,

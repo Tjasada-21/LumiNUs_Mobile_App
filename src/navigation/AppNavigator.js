@@ -29,7 +29,7 @@ const AppNavigator = ({ initialRouteName = 'Login' }) => {
         headerShown: false,
         animation: 'fade_from_bottom',
         animationTypeForReplace: 'push',
-        contentStyle: { backgroundColor: '#FFFFFF' },
+        contentStyle: { backgroundColor: '#F9FAFB' },
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />

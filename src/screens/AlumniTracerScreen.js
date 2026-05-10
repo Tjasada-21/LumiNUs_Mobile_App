@@ -298,7 +298,7 @@ const AlumniTracerScreen = () => {
 							accessibilityRole="button"
 							hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
 						>
-							{checkingResponse ? <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} /> : null}
+							{checkingResponse ? <ActivityIndicator size="small" color="#F9FAFB" style={{ marginRight: 8 }} /> : null}
 							<Text style={[styles.modalActionText, hasAnswered && styles.modalActionTextDisabled]}>
 								{checkingResponse ? 'Checking...' : hasAnswered ? '✓ Response Recorded' : hasDraftInProgress ? 'Continue Answering Tracer' : 'Answer Tracer'}
 							</Text>
@@ -318,7 +318,7 @@ const AlumniTracerScreen = () => {
 				{error ? <Text style={styles.emptyText}>{error}</Text> : null}
 				<Text style={styles.emptyText}>No tracer forms found.</Text>
 				<Pressable onPress={handleRefresh} style={{ marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#31429B', borderRadius: 8 }} accessibilityRole="button" hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
-					<Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Refresh</Text>
+					<Text style={{ color: '#F9FAFB', fontWeight: '700' }}>Refresh</Text>
 				</Pressable>
 			</View>
 		),

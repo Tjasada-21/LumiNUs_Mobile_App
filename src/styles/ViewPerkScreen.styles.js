@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
 		paddingBottom: 28,
 	},
 	heroCard: {
-		backgroundColor: '#FFFFFF',
+		backgroundColor: '#F9FAFB',
 		borderRadius: 24,
 		padding: 14,
 		shadowColor: '#BFC6D3',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
 	backButtonText: {
 		fontSize: 15,
 		fontWeight: '700',
-		color: '#FFFFFF',
+		color: '#F9FAFB',
 	},
 });
 

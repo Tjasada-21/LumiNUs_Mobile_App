@@ -24,13 +24,13 @@ const styles = StyleSheet.create({
     marginBottom: 35,
   },
   label: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 10,
     paddingHorizontal: 15,
     paddingVertical: 12,
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 10,
     marginBottom: 15,
   },
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2C919',
   },
   optionText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 12,
   },
   button: {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   signUpText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB',
     fontSize: 13,
     fontWeight: 'bold',
   },

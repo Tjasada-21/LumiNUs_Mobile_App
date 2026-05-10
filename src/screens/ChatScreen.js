@@ -106,6 +106,7 @@ const ChatScreen = ({ navigation }) => {
 	const [isGroupActionModalVisible, setIsGroupActionModalVisible] = useState(false);
 	const [modalGroup, setModalGroup] = useState(null);
 	const [favoriteContactIds, setFavoriteContactIds] = useState(new Set());
+	const [conversationViewTimestamps, setConversationViewTimestamps] = useState({});
 	const tabAnimationValuesRef = useRef({
 		all: new Animated.Value(1),
 		channels: new Animated.Value(0),
@@ -183,6 +184,14 @@ const ChatScreen = ({ navigation }) => {
 	const openConversation = (contact) => {
 		const contactName = `${contact?.first_name ?? ''} ${contact?.last_name ?? ''}`.trim() || 'Alumni';
 		const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
+		const conversationId = contact?.id;
+
+		// Track when this conversation was viewed
+		setConversationViewTimestamps((prev) => ({
+			...prev,
+			[conversationId]: Date.now(),
+		}));
+
 		const parentNavigator = navigation.getParent?.();
 
 		if (parentNavigator?.navigate) {
@@ -207,6 +216,14 @@ const ChatScreen = ({ navigation }) => {
 			? groupChat.avatar_url
 			: `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}&background=31429B&color=fff`;
 		const groupMembers = Array.isArray(groupChat?.members) ? groupChat.members : [];
+		const conversationId = groupChat?.id;
+
+		// Track when this conversation was viewed
+		setConversationViewTimestamps((prev) => ({
+			...prev,
+			[conversationId]: Date.now(),
+		}));
+
 		const parentNavigator = navigation.getParent?.();
 
 		const conversationParams = {
@@ -342,15 +359,49 @@ const ChatScreen = ({ navigation }) => {
 		return getAvatarUri(displayName, currentUserProfile?.alumni_photo ?? userData?.alumni_photo);
 	}, [currentUserProfile?.alumni_photo, displayName, userData?.alumni_photo]);
 
+	const sortChatsByLatestMessage = (chats) => {
+		return chats.sort((firstItem, secondItem) => {
+			const firstConversationId = firstItem?.group_chat_id ?? firstItem?.connection_id ?? firstItem?.id;
+			const secondConversationId = secondItem?.group_chat_id ?? secondItem?.connection_id ?? secondItem?.id;
+
+			const firstViewedAt = conversationViewTimestamps[firstConversationId] ?? 0;
+			const secondViewedAt = conversationViewTimestamps[secondConversationId] ?? 0;
+
+			const firstTimestamp = Math.max(
+				firstViewedAt,
+				new Date(
+					firstItem?.updated_at
+						?? firstItem?.latest_message?.created_at
+						?? firstItem?.created_at
+						?? 0
+				).getTime()
+			);
+
+			const secondTimestamp = Math.max(
+				secondViewedAt,
+				new Date(
+					secondItem?.updated_at
+						?? secondItem?.latest_message?.created_at
+						?? secondItem?.created_at
+						?? 0
+				).getTime()
+			);
+
+			return secondTimestamp - firstTimestamp;
+		});
+	};
+
 	const activeChats = useMemo(() => {
 		if (selectedTab === 'channels') {
-			return groupChats.map((groupChat) => ({ ...groupChat, __chatType: 'group' }));
+			const channelChats = groupChats.map((groupChat) => ({ ...groupChat, __chatType: 'group' }));
+			return sortChatsByLatestMessage(channelChats);
 		}
 
 		if (selectedTab === 'favorites') {
-			return contacts
+			const favoriteChats = contacts
 				.filter((item) => favoriteContactIds.has(item?.id))
 				.map((contact) => ({ ...contact, __chatType: 'contact', is_favorite: true }));
+			return sortChatsByLatestMessage(favoriteChats);
 		}
 
 		const mergedChats = [
@@ -362,23 +413,8 @@ const ChatScreen = ({ navigation }) => {
 			})),
 		];
 
-		return mergedChats.sort((firstItem, secondItem) => {
-			const firstTimestamp = new Date(
-				firstItem?.updated_at
-					?? firstItem?.latest_message?.created_at
-					?? firstItem?.created_at
-					?? 0
-			).getTime();
-			const secondTimestamp = new Date(
-				secondItem?.updated_at
-					?? secondItem?.latest_message?.created_at
-					?? secondItem?.created_at
-					?? 0
-			).getTime();
-
-			return secondTimestamp - firstTimestamp;
-		});
-	}, [contacts, groupChats, selectedTab, favoriteContactIds]);
+		return sortChatsByLatestMessage(mergedChats);
+	}, [contacts, groupChats, selectedTab, favoriteContactIds, conversationViewTimestamps]);
 
 	const tabCounts = useMemo(() => {
 		const favoritesCount = contacts.filter((item) => favoriteContactIds.has(item?.id)).length;

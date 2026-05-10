@@ -1,5 +1,6 @@
 import supabase from './supabase';
 import { decryptMessage, encryptMessage } from '../utils/cryptoUtils';
+import { sendPushNotification } from './NotificationSender';
 
 const toDecryptedMessage = (message) => {
   if (!message || typeof message !== 'object') {
@@ -82,6 +83,28 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       await Promise.all(
         attachments.map(att => uploadMessageAttachment(data.id, att))
       );
+    }
+
+    // Send a push notification (sniper) to the receiver if they have a token
+    try {
+      const { data: receiverRow, error: receiverError } = await supabase
+        .from('alumnis')
+        .select('push_token, first_name, last_name')
+        .eq('id', receiverId)
+        .maybeSingle();
+
+      if (!receiverError && receiverRow && receiverRow.push_token) {
+        const sender = await supabase.from('alumnis').select('first_name, last_name').eq('id', senderId).maybeSingle().then(r => r.data || null);
+        const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+        await sendPushNotification(
+          [receiverRow.push_token],
+          'New Message',
+          `${senderName} sent you a message.`,
+          { type: 'message', messageId: data.id }
+        );
+      }
+    } catch (notifErr) {
+      console.error('[messages] Failed to send push notification for direct message:', notifErr);
     }
 
     return toDecryptedMessage(data);
@@ -413,6 +436,40 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
       .single();
 
     if (error) throw error;
+    // Notify group members (except sender)
+    try {
+      const { data: membersData, error: membersError } = await supabase
+        .from('group_chat_members')
+        .select('alumni_id')
+        .eq('group_chat_id', groupChatId);
+
+      if (!membersError && Array.isArray(membersData) && membersData.length > 0) {
+        const memberIds = membersData.map(m => m.alumni_id).filter(id => id && id !== senderId);
+
+        if (memberIds.length > 0) {
+          const { data: alumniRows, error: alumniError } = await supabase
+            .from('alumnis')
+            .select('push_token')
+            .in('id', memberIds)
+            .not('push_token', 'is', null);
+
+          if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
+            const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
+            if (tokens.length > 0) {
+              await sendPushNotification(
+                tokens,
+                'New Group Message',
+                'You have a new group message.',
+                { type: 'group_message', groupChatId, messageId: data.id }
+              );
+            }
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error('[group_messages] Failed to send push notifications for group message:', notifErr);
+    }
+
     return toDecryptedMessage(data);
   } catch (error) {
     console.error('[group_messages] Send message error:', error.message);

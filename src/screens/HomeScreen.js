@@ -21,6 +21,7 @@ import { clearAuthCredentials } from '../services/authStorage';
 import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
 import { DRAFT_SUBMITTED_AT_SENTINEL } from '../services/tracerQueries';
 import { subscribeTracerProgressRefresh } from '../services/tracerProgressEvents';
+import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) {
@@ -461,6 +462,17 @@ const HomeScreen = ({ navigation }) => {
 
     return unsubscribe;
   }, [fetchTracerProgress]);
+
+  useEffect(() => {
+    const setupNotifications = async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        await saveTokenToSupabase(token);
+      }
+    };
+
+    setupNotifications();
+  }, []);
 
 	const activeUserData = currentUserProfile ?? userData;
   const isVerified = tracerProgress === 100;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import notificationService from '../services/notificationService';
+import * as Notifications from 'expo-notifications';
+import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
 
 const NotificationContext = createContext();
 
@@ -11,18 +12,12 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     const initializeNotifications = async () => {
       try {
-        // Request permissions
-        const permissionGranted = await notificationService.requestPermissions();
-        setIsPermissionGranted(permissionGranted);
+        const token = await registerForPushNotificationsAsync();
+        setIsPermissionGranted(Boolean(token));
 
-        if (permissionGranted) {
-          // Get push token
-          const token = await notificationService.getPushToken();
-          if (token) {
-            setPushToken(token);
-            // Save token to backend
-            await notificationService.savePushTokenToBackend(token);
-          }
+        if (token) {
+          setPushToken(token);
+          await saveTokenToSupabase(token);
         }
       } catch (error) {
         console.error('Error initializing notifications:', error);
@@ -33,14 +28,17 @@ export const NotificationProvider = ({ children }) => {
 
     // Cleanup
     return () => {
-      notificationService.cleanup();
+      // No persistent notification subscription is created here.
     };
   }, []);
 
   const sendNotification = useCallback(async (title, body, data = {}) => {
     try {
       if (isPermissionGranted) {
-        await notificationService.sendLocalNotification(title, body, data);
+        await Notifications.scheduleNotificationAsync({
+          content: { title, body, data },
+          trigger: null,
+        });
       }
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -51,7 +49,6 @@ export const NotificationProvider = ({ children }) => {
     isPermissionGranted,
     pushToken,
     sendNotification,
-    notificationService,
   };
 
   return (

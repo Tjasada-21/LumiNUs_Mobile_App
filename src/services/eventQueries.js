@@ -1,5 +1,6 @@
 import supabase from './supabase';
 import { normalizeEvents, normalizeEvent, normalizeEventRegistrations } from './schemaMapper';
+import { sendPushNotification } from './NotificationSender';
 
 /**
  * Events & Registrations Queries
@@ -134,6 +135,28 @@ export const createEvent = async (adminId, eventData) => {
       await Promise.all(
         eventData.images.map(imageUri => uploadEventImage(data.id, imageUri))
       );
+    }
+
+    // Send a blast notification to all alumni who have a push token
+    try {
+      const { data: alumniRows, error: alumniError } = await supabase
+        .from('alumnis')
+        .select('push_token')
+        .not('push_token', 'is', null);
+
+      if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
+        const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
+        if (tokens.length > 0) {
+          await sendPushNotification(
+            tokens,
+            '🚨 New Event Posted!',
+            `Check out the new event: ${data.title}`,
+            { type: 'event', eventId: data.id }
+          );
+        }
+      }
+    } catch (notifErr) {
+      console.error('[events] Failed to send blast notifications for new event:', notifErr);
     }
 
     return data;

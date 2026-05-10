@@ -542,22 +542,24 @@ const HomeScreen = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user?.email) {
+        // 1. Wipe push token and set offline status before signing out
+        // This ensures they won't receive notifications while logged out
         await supabase
           .from('alumnis')
-          .update({ is_online: false })
+          .update({ is_online: false, push_token: null })
           .eq('email', user.email);
       }
 
-      // Sign out from Supabase and clear any stored credentials
+      // 2. Sign out from Supabase and clear any stored credentials
       try {
         await supabase.auth.signOut();
       } catch (err) {
-        console.warn('[HomeScreen] signOut error:', err?.message || err);
+        // Silently handle sign out errors
       }
 
       await clearAuthCredentials();
     } catch (err) {
-      console.error('Failed to clear secure store during sign out', err);
+      // Silently handle logout errors
     }
 
     const parent = navigation.getParent?.();

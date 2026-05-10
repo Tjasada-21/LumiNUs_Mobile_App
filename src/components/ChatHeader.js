@@ -44,12 +44,12 @@ const ChatHeader = ({
         </Pressable>
 
         <View style={styles.headerActions}>
-          {/* <Pressable style={styles.headerIconButton} onPress={onCallPress} hitSlop={8}>
+          <Pressable style={styles.headerIconButton} onPress={onCallPress} hitSlop={8}>
             <Ionicons name="call-outline" size={22} color="#31429B" />
           </Pressable>
           <Pressable style={styles.headerIconButton} onPress={onVideoPress} hitSlop={8}>
             <Ionicons name="videocam-outline" size={22} color="#31429B" />
-          </Pressable> */}
+          </Pressable>
           <Pressable style={styles.headerIconButton} onPress={handleInfoPress} hitSlop={8}>
             <Ionicons name="information-circle-outline" size={24} color="#31429B" />
           </Pressable>

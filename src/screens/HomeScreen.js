@@ -325,7 +325,16 @@ const HomeScreen = ({ navigation }) => {
           .filter((item) => !dismissedNotificationKeySet.has(String(item?.id ?? '')))
           .sort((firstItem, secondItem) => new Date(secondItem.created_at || 0).getTime() - new Date(firstItem.created_at || 0).getTime());
 
-        setNotifications(visibleNotifications);
+        // Deduplicate by id to prevent key errors
+        const seenIds = new Set();
+        const deduplicatedNotifications = visibleNotifications.filter(notif => {
+          const id = String(notif?.id ?? '');
+          if (seenIds.has(id)) return false;
+          seenIds.add(id);
+          return true;
+        });
+
+        setNotifications(deduplicatedNotifications);
       } finally {
         setIsLoadingNotifications(false);
       }
@@ -1180,7 +1189,7 @@ const HomeScreen = ({ navigation }) => {
               ) : null}
               <FlatList
                 data={notifData}
-                keyExtractor={(item, index) => String(item?.id ?? index)}
+                keyExtractor={(item) => String(item?.id || '')}
                 contentContainerStyle={styles.notifList}
                 ListEmptyComponent={renderEmptyNotifications}
                 renderItem={renderNotificationItem}

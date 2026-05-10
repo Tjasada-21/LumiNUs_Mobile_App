@@ -85,12 +85,13 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       );
     }
 
-    // Send a push notification (sniper) to the receiver if they have a token
+    // Send a push notification (sniper) to the receiver if they are logged in and have a token
     try {
       const { data: receiverRow, error: receiverError } = await supabase
         .from('alumnis')
         .select('push_token, first_name, last_name')
         .eq('id', receiverId)
+        .eq('is_online', true)
         .maybeSingle();
 
       if (!receiverError && receiverRow && receiverRow.push_token) {
@@ -104,7 +105,7 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
         );
       }
     } catch (notifErr) {
-      console.error('[messages] Failed to send push notification for direct message:', notifErr);
+      // Silently fail if push notification cannot be sent
     }
 
     return toDecryptedMessage(data);
@@ -451,7 +452,9 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
             .from('alumnis')
             .select('push_token')
             .in('id', memberIds)
-            .not('push_token', 'is', null);
+            .not('push_token', 'is', null)
+            .eq('is_online', true)
+            .neq('id', senderId);
 
           if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
             const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
@@ -467,7 +470,7 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
         }
       }
     } catch (notifErr) {
-      console.error('[group_messages] Failed to send push notifications for group message:', notifErr);
+      // Silently fail if push notifications cannot be sent
     }
 
     return toDecryptedMessage(data);

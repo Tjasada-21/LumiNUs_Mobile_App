@@ -137,12 +137,14 @@ export const createEvent = async (adminId, eventData) => {
       );
     }
 
-    // Send a blast notification to all alumni who have a push token
+    // Send a blast notification to all alumni EXCEPT the event creator who are currently logged in
     try {
       const { data: alumniRows, error: alumniError } = await supabase
         .from('alumnis')
         .select('push_token')
-        .not('push_token', 'is', null);
+        .not('push_token', 'is', null)
+        .eq('is_online', true)
+        .neq('id', adminId);
 
       if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
         const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
@@ -156,7 +158,7 @@ export const createEvent = async (adminId, eventData) => {
         }
       }
     } catch (notifErr) {
-      console.error('[events] Failed to send blast notifications for new event:', notifErr);
+      // Silently fail if blast notifications cannot be sent
     }
 
     return data;

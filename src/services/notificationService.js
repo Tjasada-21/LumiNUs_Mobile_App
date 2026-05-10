@@ -24,7 +24,6 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (finalStatus !== 'granted') {
-    console.log('Failed to get push token for push notification!');
     return null;
   }
 
@@ -33,7 +32,6 @@ export async function registerForPushNotificationsAsync() {
   try {
     token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch (error) {
-    console.error('Failed to get Expo push token:', error);
     return null;
   }
 
@@ -67,7 +65,7 @@ export async function saveTokenToSupabase(pushToken) {
     if (error) throw error;
 
   } catch (error) {
-    console.error('Error saving push token to Supabase:', error);
+    // Silently fail if unable to save token
   }
 }
 

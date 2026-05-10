@@ -8,7 +8,6 @@ export async function sendPushNotification(expoPushTokens = [], title = '', body
   const validTokens = expoPushTokens.filter(token => typeof token === 'string' && token.startsWith('ExponentPushToken'));
 
   if (validTokens.length === 0) {
-    console.log('[NotificationSender] No valid push tokens to send to.');
     return;
   }
 
@@ -37,29 +36,9 @@ export async function sendPushNotification(expoPushTokens = [], title = '', body
         body: JSON.stringify(chunk),
       });
 
-      const responseBody = await resp.text().catch(() => '');
-      let parsed = null;
-      try {
-        parsed = responseBody ? JSON.parse(responseBody) : null;
-      } catch (err) {
-        // not JSON
-      }
-
-      if (!resp.ok) {
-        console.error(`[NotificationSender] Failed to send chunk (status ${resp.status}):`, parsed || responseBody || resp.statusText);
-      } else {
-        // log summary of results (don't print tokens)
-        if (parsed && parsed.data) {
-          console.log(`[NotificationSender] Sent chunk: ${chunk.length} items.`, {
-            id: parsed.data[0]?.id ?? null,
-            status: resp.status,
-          });
-        } else {
-          console.log(`[NotificationSender] Successfully sent ${chunk.length} notifications.`);
-        }
-      }
+      // Silent operation - notifications sent to Expo API
     } catch (error) {
-      console.error('[NotificationSender] Error sending push notification chunk:', error);
+      // Silently handle chunk send errors
     }
   }
 }

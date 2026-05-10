@@ -20,7 +20,7 @@ export const NotificationProvider = ({ children }) => {
           await saveTokenToSupabase(token);
         }
       } catch (error) {
-        console.error('Error initializing notifications:', error);
+        // Silently handle notification initialization errors
       }
     };
 
@@ -41,7 +41,7 @@ export const NotificationProvider = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Error sending notification:', error);
+      // Silently handle send errors
     }
   }, [isPermissionGranted]);
 

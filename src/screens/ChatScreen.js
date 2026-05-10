@@ -105,6 +105,7 @@ const ChatScreen = ({ navigation }) => {
 	const [modalContact, setModalContact] = useState(null);
 	const [isGroupActionModalVisible, setIsGroupActionModalVisible] = useState(false);
 	const [modalGroup, setModalGroup] = useState(null);
+	const [favoriteContactIds, setFavoriteContactIds] = useState(new Set());
 	const tabAnimationValuesRef = useRef({
 		all: new Animated.Value(1),
 		channels: new Animated.Value(0),
@@ -348,13 +349,17 @@ const ChatScreen = ({ navigation }) => {
 
 		if (selectedTab === 'favorites') {
 			return contacts
-				.filter((item) => item?.is_favorite || item?.favorite || item?.is_starred)
-				.map((contact) => ({ ...contact, __chatType: 'contact' }));
+				.filter((item) => favoriteContactIds.has(item?.id))
+				.map((contact) => ({ ...contact, __chatType: 'contact', is_favorite: true }));
 		}
 
 		const mergedChats = [
 			...groupChats.map((groupChat) => ({ ...groupChat, __chatType: 'group' })),
-			...contacts.map((contact) => ({ ...contact, __chatType: 'contact' })),
+			...contacts.map((contact) => ({
+				...contact,
+				__chatType: 'contact',
+				is_favorite: favoriteContactIds.has(contact?.id),
+			})),
 		];
 
 		return mergedChats.sort((firstItem, secondItem) => {
@@ -373,17 +378,17 @@ const ChatScreen = ({ navigation }) => {
 
 			return secondTimestamp - firstTimestamp;
 		});
-	}, [contacts, groupChats, selectedTab]);
+	}, [contacts, groupChats, selectedTab, favoriteContactIds]);
 
 	const tabCounts = useMemo(() => {
-		const favoritesCount = contacts.filter((item) => item?.is_favorite || item?.favorite || item?.is_starred).length;
+		const favoritesCount = contacts.filter((item) => favoriteContactIds.has(item?.id)).length;
 
 		return {
 			all: contacts.length + groupChats.length,
 			channels: groupChats.length,
 			favorites: favoritesCount,
 		};
-	}, [contacts, groupChats]);
+	}, [contacts, groupChats, favoriteContactIds]);
 
 	const renderEmptyState = useCallback((title, description) => {
 		return (
@@ -464,7 +469,7 @@ const ChatScreen = ({ navigation }) => {
 			|| item?.created_at;
 		const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
 
-		const isFavorited = !!(item?.is_favorite || item?.favorite || item?.is_starred);
+		const isFavorited = favoriteContactIds.has(item?.id);
 
 		return (
 			<Pressable
@@ -631,31 +636,23 @@ const ChatScreen = ({ navigation }) => {
 	};
 
 	const handleToggleFavorite = async (contactId) => {
-		// Optimistically update local state and cache
-		setContacts((prev) => {
-			const next = prev.map((c) => {
-				if (String(c?.id) === String(contactId)) {
-					const currently = !!(c?.is_favorite || c?.favorite || c?.is_starred);
-					return { ...c, is_favorite: !currently };
-				}
-				return c;
-			});
-			// update cachedContacts if used
-			cachedContacts = next;
-			cachedContactsLoadedAt = Date.now();
-			return next;
-		});
+        // 1. Determine the new state
+        const isFavorited = favoriteContactIds.has(contactId);
+        const nextState = !isFavorited;
 
-		// close modal
-		hideContactActions();
+        // 2. Update the favorites set immediately (optimistic UI)
+        setFavoriteContactIds((prev) => {
+            const next = new Set(prev);
+            if (nextState) {
+                next.add(contactId);
+            } else {
+                next.delete(contactId);
+            }
+            return next;
+        });
 
-		// call backend toggle endpoint (best-effort)
-		try {
-			await api.post(`/contacts/${contactId}/favorite`);
-		} catch (e) {
-			console.warn('Favorite API failed', e?.message || e);
-		}
-	};
+        hideContactActions();
+    };
 
 		const hideGroupActions = () => {
 			setIsGroupActionModalVisible(false);

@@ -1,7 +1,7 @@
 import supabase from './supabase';
 import { normalizeTracerForms, normalizeTracerForm } from './schemaMapper';
 
-const DRAFT_SUBMITTED_AT_SENTINEL = '1970-01-01T00:00:00.000Z';
+export const DRAFT_SUBMITTED_AT_SENTINEL = '1970-01-01T00:00:00.000Z';
 
 /**
  * Tracer Forms & Surveys Queries

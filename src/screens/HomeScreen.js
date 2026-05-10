@@ -19,7 +19,8 @@ import { responsiveHeight, responsiveWidth } from '../utils/responsive';
 import styles from '../styles/HomeScreen.styles';
 import { clearAuthCredentials } from '../services/authStorage';
 import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
-import { getActiveForms, getUserTracerResponses } from '../services/tracerQueries';
+import { DRAFT_SUBMITTED_AT_SENTINEL } from '../services/tracerQueries';
+import { subscribeTracerProgressRefresh } from '../services/tracerProgressEvents';
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) {
@@ -347,36 +348,37 @@ const HomeScreen = ({ navigation }) => {
 
     const fetchTracerProgress = useCallback(async () => {
       try {
-        const currentProfile = currentUserProfile ?? await getCurrentUser().catch(() => null);
-        const currentUserId = currentProfile?.id ?? null;
+        const { data: { user } } = await supabase.auth.getUser();
 
-        if (!currentUserId) {
+        if (!user) {
           setTracerProgress(0);
           return;
         }
 
-        const [activeForms, tracerResponses] = await Promise.all([
-          getActiveForms().catch(() => []),
-          getUserTracerResponses(currentUserId).catch(() => []),
+        const [{ count: totalFormsCount }, { count: userResponsesCount }] = await Promise.all([
+          supabase
+            .from('tracer_forms')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 1),
+          supabase
+            .from('tracer_responses')
+            .select('*', { count: 'exact', head: true })
+            .eq('alumni_id', user.id)
+            .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL),
         ]);
 
-        const totalForms = Array.isArray(activeForms) ? activeForms.length : 0;
-        const completedFormIds = new Set(
-          (Array.isArray(tracerResponses) ? tracerResponses : [])
-            .map((response) => response?.form?.id || response?.form_id)
-            .filter(Boolean)
-        );
+        if (totalFormsCount && totalFormsCount > 0) {
+          const percentage = Math.round(((userResponsesCount || 0) / totalFormsCount) * 100);
+          setTracerProgress(Math.max(0, Math.min(100, percentage)));
+          return;
+        }
 
-        const percentage = totalForms > 0
-          ? Math.round((completedFormIds.size / totalForms) * 100)
-          : 0;
-
-        setTracerProgress(Math.max(0, Math.min(100, percentage)));
+        setTracerProgress(0);
       } catch (error) {
-        console.error('[HomeScreen] Failed to fetch tracer progress:', error?.message || error);
+        console.error('[HomeScreen] Error fetching tracer progress:', error?.message || error);
         setTracerProgress(0);
       }
-    }, [currentUserProfile]);
+    }, []);
 
     const refreshHomeContent = useCallback(async () => {
       try {
@@ -451,6 +453,14 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTracerProgressRefresh(() => {
+      fetchTracerProgress();
+    });
+
+    return unsubscribe;
+  }, [fetchTracerProgress]);
 
 	const activeUserData = currentUserProfile ?? userData;
   const isVerified = tracerProgress === 100;

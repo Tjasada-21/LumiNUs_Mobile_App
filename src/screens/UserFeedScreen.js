@@ -2509,12 +2509,12 @@ const UserFeedScreen = ({ navigation }) => {
 										{activeCommentPost?.comment_count ?? comments.length} comments
 									</Text>
 									<Pressable style={styles.commentsHeaderFilter}>
-										<Ionicons name="options-outline" size={16} color="#111827" />
+										<Ionicons name="options-outline" size={16} color="#1F2937" />
 									</Pressable>
 								</View>
 
 								<Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
-									<Ionicons name="close" size={20} color="#111827" />
+									<Ionicons name="close" size={20} color="#1F2937" />
 								</Pressable>
 							</View>
 
@@ -2626,3 +2626,4 @@ const UserFeedScreen = ({ navigation }) => {
 };
 
 export default UserFeedScreen;
+

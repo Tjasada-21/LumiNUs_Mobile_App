@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
     marginBottom: -24,
     position: 'relative',
     zIndex: 2,
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.10,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 12,
     minHeight: 150,
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     minHeight: 150,
     borderRadius: 22,
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingBottom: 12,
     borderRadius: 22,
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 10,
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F9FAFB',
-    shadowColor: '#111827',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -538,3 +538,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

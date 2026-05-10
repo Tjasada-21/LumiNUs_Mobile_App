@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   textIncoming: {
-    color: '#000000',
+    color: '#1F2937',
   },
   mentionText: {
     fontWeight: '900',
@@ -375,3 +375,4 @@ const styles = StyleSheet.create({
 });
 
 export default React.memo(MessageBubble, areMessageBubblePropsEqual);
+

@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
 	searchInput: {
 		flex: 1,
 		marginLeft: 8,
-		color: '#0F172A',
+		color: '#1F2937',
 		fontSize: 14,
 	},
 	loadingWrap: {
@@ -211,3 +211,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

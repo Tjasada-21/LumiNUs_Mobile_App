@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: '#F9FAFB',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#1F2937',
     shadowOpacity: 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
@@ -206,3 +206,4 @@ const styles = StyleSheet.create({
 });
 
 export default BrandedAlertHost;
+

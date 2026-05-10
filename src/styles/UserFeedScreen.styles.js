@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
 		paddingBottom: 12,
 		marginBottom: 14,
 		marginHorizontal: 6,
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.08,
 		shadowRadius: 14,
 		shadowOffset: { width: 0, height: 6 },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		lineHeight: 22,
 		fontWeight: '800',
-		color: '#111827',
+		color: '#1F2937',
 		marginBottom: 4,
 	},
 	repostedOriginalCard: {
@@ -587,13 +587,13 @@ const styles = StyleSheet.create({
 	},
 	viewerBackdrop: {
 		flex: 1,
-		backgroundColor: '#000000',
+		backgroundColor: '#1F2937',
 		alignItems: 'stretch',
 		justifyContent: 'flex-start',
 	},
 	viewerContent: {
 		flex: 1,
-		backgroundColor: '#000000',
+		backgroundColor: '#1F2937',
 		position: 'relative',
 	},
 	viewerPager: {
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
 		height: '100%',
 		borderRadius: 0,
 		overflow: 'hidden',
-		backgroundColor: '#000000',
+		backgroundColor: '#1F2937',
 		padding: 0,
 		shadowColor: 'transparent',
 		shadowOpacity: 0,
@@ -1377,7 +1377,7 @@ const styles = StyleSheet.create({
 		borderColor: '#D7DDF1',
 		borderRadius: 14,
 		backgroundColor: '#F8FAFC',
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.12,
 		shadowRadius: 10,
 		shadowOffset: { width: 0, height: 4 },
@@ -1435,3 +1435,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

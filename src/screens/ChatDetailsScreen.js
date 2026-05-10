@@ -384,7 +384,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               <View style={styles.modalHeaderRow}>
                 <Text style={styles.modalTitle}>Add Group Member</Text>
                 <TouchableOpacity onPress={() => setIsAddMemberModalVisible(false)}>
-                  <Ionicons name="close" size={20} color="#374151" />
+                  <Ionicons name="close" size={20} color="#1F2937" />
                 </TouchableOpacity>
               </View>
 
@@ -454,30 +454,31 @@ const styles = StyleSheet.create({
   dmContainer: { flexGrow: 1 },
   dmCenterHeader: { alignItems: 'center', marginTop: 12, marginBottom: 20, paddingVertical: 12 },
   bigAvatar: { width: Math.max(120, Math.min(160, SCREEN_WIDTH * 0.36)), height: Math.max(120, Math.min(160, SCREEN_WIDTH * 0.36)), borderRadius: Math.max(60, Math.min(80, SCREEN_WIDTH * 0.18)), marginBottom: 12 },
-  dmName: { fontWeight: '800', fontSize: Math.max(18, Math.min(22, SCREEN_WIDTH * 0.06)), color: '#111827' },
+  dmName: { fontWeight: '800', fontSize: Math.max(18, Math.min(22, SCREEN_WIDTH * 0.06)), color: '#1F2937' },
   dmUsername: { color: '#6B7280', marginTop: 4, fontSize: 14 },
   dmActionsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 12 },
   dmActionButton: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#31429B', alignItems: 'center', justifyContent: 'center' },
   dmActionSecondary: { backgroundColor: '#EEF2FF' },
   dmOptionsList: { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 0 },
   dmOptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  dmOptionText: { marginLeft: 12, fontSize: 15, color: '#111827', fontWeight: '500' },
+  dmOptionText: { marginLeft: 12, fontSize: 15, color: '#1F2937', fontWeight: '500' },
   dmDivider: { height: 8, backgroundColor: '#F9FAFB', marginVertical: 4 },
   dmDestructive: { borderBottomColor: '#FEE2E2' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(17,24,39,0.4)', justifyContent: 'center', padding: 20 },
   modalCard: { backgroundColor: '#FFFFFF', borderRadius: 14, maxHeight: SCREEN_HEIGHT * 0.65, padding: 14 },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   modalLoadingWrap: { paddingVertical: 24, alignItems: 'center' },
   modalEmptyText: { fontSize: 13, color: '#6B7280', paddingVertical: 12 },
   candidateList: { maxHeight: SCREEN_HEIGHT * 0.48 },
   candidateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
   candidateInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
   candidateAvatar: { width: 34, height: 34, borderRadius: 17, marginRight: 10 },
-  candidateName: { fontSize: 14, color: '#111827', fontWeight: '500', flexShrink: 1 },
+  candidateName: { fontSize: 14, color: '#1F2937', fontWeight: '500', flexShrink: 1 },
   candidateAddButton: { backgroundColor: '#31429B', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
   candidateAddButtonDisabled: { opacity: 0.7 },
   candidateAddButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
 });
 
 export default ChatDetailsScreen;
+

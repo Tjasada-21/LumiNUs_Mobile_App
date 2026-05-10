@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     paddingHorizontal: 14,
     fontSize: 15,
-    color: '#111827',
+    color: '#1F2937',
     marginBottom: 22,
     fontFamily: 'Poppins_400Regular',
   },
@@ -101,3 +101,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

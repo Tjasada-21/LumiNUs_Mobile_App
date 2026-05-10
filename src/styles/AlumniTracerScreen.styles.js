@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
 	},
 	modalDescription: {
 		fontSize: 14,
-		color: '#374151',
+		color: '#1F2937',
 		marginBottom: 12,
 	},
 	modalActionButton: {
@@ -235,3 +235,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

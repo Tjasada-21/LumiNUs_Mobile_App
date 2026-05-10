@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
 	galleryModalContent: {
 		width: '100%',
 		height: '100%',
-		backgroundColor: '#0F172A',
+		backgroundColor: '#1F2937',
 		overflow: 'hidden',
 	},
 	galleryModalStage: {
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 		width: '100%',
 		height: '100%',
-		backgroundColor: '#0F172A',
+		backgroundColor: '#1F2937',
 	},
 	infoRow: {
 		marginTop: 18,
@@ -339,3 +339,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 16,
 		marginBottom: 12,
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.08,
 		shadowRadius: 12,
 		shadowOffset: { width: 0, height: 6 },
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		gap: 10,
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.08,
 		shadowRadius: 12,
 		shadowOffset: { width: 0, height: 6 },
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#F9FAFB',
 		borderRadius: 18,
 		padding: 12,
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.08,
 		shadowRadius: 12,
 		shadowOffset: { width: 0, height: 6 },
@@ -119,3 +119,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

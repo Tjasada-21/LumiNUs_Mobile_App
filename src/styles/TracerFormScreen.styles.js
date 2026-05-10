@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1F2937',
   },
   headerSpacer: {
     width: 72,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#24346F', marginBottom: 8 },
-  cardText: { fontSize: 14, color: '#374151', lineHeight: 20 },
+  cardText: { fontSize: 14, color: '#1F2937', lineHeight: 20 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   checkboxInner: {
     borderRadius: 2,
   },
-  optionText: { fontSize: 14, color: '#374151' },
+  optionText: { fontSize: 14, color: '#1F2937' },
   textInput: {
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#111827',
+    color: '#1F2937',
     backgroundColor: '#F9FAFB',
     marginTop: 6,
   },
@@ -176,3 +176,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

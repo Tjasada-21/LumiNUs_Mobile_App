@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
 		marginTop: 1,
 	},
 	groupPreview: {
-		color: '#374151',
+		color: '#1F2937',
 		fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
 		marginTop: 3,
 	},
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
 		maxHeight: SCREEN_HEIGHT * 0.85,
 		overflow: 'hidden',
 		elevation: 12,
-		shadowColor: '#111827',
+		shadowColor: '#1F2937',
 		shadowOpacity: 0.16,
 		shadowRadius: 18,
 		shadowOffset: { width: 0, height: -6 },
@@ -480,3 +480,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

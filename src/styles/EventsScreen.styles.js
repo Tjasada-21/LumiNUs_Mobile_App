@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 18,
 		fontWeight: '800',
-		color: '#111827',
+		color: '#1F2937',
 	},
 	registrationItemMeta: {
 		marginTop: 2,
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
 	calendarDayText: {
 		fontSize: 13,
 		fontWeight: '700',
-		color: '#111827',
+		color: '#1F2937',
 	},
 	calendarDayTextEvent: {
 		color: '#31429B',
@@ -612,3 +612,4 @@ const styles = StyleSheet.create({
 });
 
 export default styles;
+

@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#111827',
+    color: '#1F2937',
   },
   headerSubtitle: {
     marginTop: 2,

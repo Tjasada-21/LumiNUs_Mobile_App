@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Keyboard,
+  LogBox,
   Modal,
   Pressable,
   StyleSheet,
@@ -42,6 +43,10 @@ import { ThemedAlert } from '../components/ThemedAlert';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '👏'];
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+LogBox.ignoreLogs([
+  'VirtualizedList: You have a large list that is slow to update',
+]);
 
 const toMentionHandle = (firstName, lastName) => {
   const normalizedHandle = `${firstName ?? ''}_${lastName ?? ''}`

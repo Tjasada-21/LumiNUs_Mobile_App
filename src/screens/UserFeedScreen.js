@@ -75,6 +75,68 @@ const getTouchDistance = (touches) => {
 	return Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
 };
 
+const resolveFeedInteractionTarget = (post) => {
+	if (!post) {
+		return {
+			feedType: 'post',
+			postId: null,
+			announcementId: null,
+			originalPostId: null,
+		};
+	}
+
+	if (post.feed_type === 'announcement') {
+		return {
+			feedType: 'announcement',
+			postId: null,
+			announcementId: post.id ?? null,
+			originalPostId: null,
+		};
+	}
+
+	if (post.feed_type === 'repost') {
+		const originalPost = post.original_post ?? null;
+		const originalPostId = originalPost?.id ?? post.original_post_id ?? post.post_id ?? null;
+
+		return {
+			feedType: 'repost',
+			postId: originalPostId,
+			announcementId: null,
+			originalPostId,
+		};
+	}
+
+	return {
+		feedType: 'post',
+		postId: post.id ?? null,
+		announcementId: null,
+		originalPostId: post.id ?? null,
+	};
+};
+
+const getFeedItemTimestamp = (item) => {
+	const rawValue = item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
+
+	if (!rawValue) {
+		return 0;
+	}
+
+	const timestamp = new Date(rawValue).getTime();
+	return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const getFeedJitter = (itemId, refreshNonce) => {
+	const seed = `${String(itemId ?? '')}:${String(refreshNonce ?? 0)}`;
+	let hash = 0;
+
+	for (let index = 0; index < seed.length; index += 1) {
+		hash = ((hash << 5) - hash) + seed.charCodeAt(index);
+		hash |= 0;
+	}
+
+	return (Math.abs(hash) % 1000) / 1000;
+};
+
 const ZoomableViewer = ({
 	images = [],
 	initialIndex = 0,
@@ -347,6 +409,8 @@ const UserFeedScreen = ({ navigation }) => {
 	const [searchResults, setSearchResults] = useState([]);
 	const [isSearching, setIsSearching] = useState(false);
 	const [connections, setConnections] = useState([]);
+	const [feedSortMode, setFeedSortMode] = useState('relevant');
+	const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
 	const reactionPulseScale = useRef(new Animated.Value(1)).current;
 
 	// SECTION: Rubber banding and animated refs for modals
@@ -517,6 +581,25 @@ const UserFeedScreen = ({ navigation }) => {
 			setIsSearching(false);
 		}
 	}, []);
+
+	const displayedPosts = useMemo(() => {
+		const sourcePosts = Array.isArray(posts) ? [...posts] : [];
+
+		if (feedSortMode === 'newest') {
+			return sourcePosts.sort((firstItem, secondItem) => getFeedItemTimestamp(secondItem) - getFeedItemTimestamp(firstItem));
+		}
+
+		return sourcePosts.sort((firstItem, secondItem) => {
+			const firstScore = (Number(firstItem?.relevance_score ?? 0) || 0) + (getFeedJitter(firstItem?.id ?? firstItem?.feed_id, feedRefreshNonce) * 0.08);
+			const secondScore = (Number(secondItem?.relevance_score ?? 0) || 0) + (getFeedJitter(secondItem?.id ?? secondItem?.feed_id, feedRefreshNonce) * 0.08);
+
+			if (secondScore !== firstScore) {
+				return secondScore - firstScore;
+			}
+
+			return getFeedItemTimestamp(secondItem) - getFeedItemTimestamp(firstItem);
+		});
+	}, [feedRefreshNonce, feedSortMode, posts]);
 
 	// SECTION: Load profile data
 	useEffect(() => {
@@ -1270,6 +1353,8 @@ const UserFeedScreen = ({ navigation }) => {
 			return;
 		}
 
+		const target = resolveFeedInteractionTarget(activeCommentPost);
+
 		if (editingComment?.id) {
 			const previousCommentText = editingComment.comment ?? editingComment.body ?? editingComment.text ?? '';
 
@@ -1351,9 +1436,8 @@ const UserFeedScreen = ({ navigation }) => {
 
 		resolveActiveAlumniId()
 			.then((alumniId) => {
-				const isAnnouncement = activeCommentPost?.feed_type === 'announcement';
-				const announcementId = isAnnouncement ? activeCommentPost.id : null;
-				const postId = isAnnouncement ? null : activeCommentPost.id;
+				const announcementId = target.announcementId;
+				const postId = target.postId;
 				return addComment(postId, alumniId, trimmedComment, pendingComment.parent_id, announcementId);
 			})
 			.then((response) => {
@@ -1368,7 +1452,8 @@ const UserFeedScreen = ({ navigation }) => {
 				)));
 
 				setPosts((currentPosts) => currentPosts.map((currentPost) => {
-					if (currentPost.id !== activeCommentPost.id) {
+					const currentTarget = resolveFeedInteractionTarget(currentPost);
+					if (String(currentTarget.postId ?? '') !== String(target.postId ?? '')) {
 						return currentPost;
 					}
 
@@ -1380,7 +1465,8 @@ const UserFeedScreen = ({ navigation }) => {
 
 				// Update viewer modal if viewing this post
 				setViewerPost((currentViewerPost) => {
-					if (currentViewerPost?.id === activeCommentPost.id) {
+					const viewerTarget = resolveFeedInteractionTarget(currentViewerPost);
+					if (String(viewerTarget.postId ?? '') === String(target.postId ?? '')) {
 						return {
 							...currentViewerPost,
 							comment_count: savedComment.comment_count ?? currentViewerPost.comment_count ?? 0,
@@ -1393,7 +1479,8 @@ const UserFeedScreen = ({ navigation }) => {
 				console.error('Failed to save comment:', error);
 				setComments((currentComments) => currentComments.filter((comment) => comment.id !== pendingCommentId));
 				setPosts((currentPosts) => currentPosts.map((currentPost) => {
-					if (currentPost.id !== activeCommentPost.id) {
+					const currentTarget = resolveFeedInteractionTarget(currentPost);
+					if (String(currentTarget.postId ?? '') !== String(target.postId ?? '')) {
 						return currentPost;
 					}
 
@@ -1405,7 +1492,8 @@ const UserFeedScreen = ({ navigation }) => {
 
 				// Update viewer modal if viewing this post
 				setViewerPost((currentViewerPost) => {
-					if (currentViewerPost?.id === activeCommentPost.id) {
+					const viewerTarget = resolveFeedInteractionTarget(currentViewerPost);
+					if (String(viewerTarget.postId ?? '') === String(target.postId ?? '')) {
 						return {
 							...currentViewerPost,
 							comment_count: Math.max(0, (currentViewerPost.comment_count ?? 1) - 1),
@@ -1610,10 +1698,10 @@ const UserFeedScreen = ({ navigation }) => {
 	const handlePostReaction = async (post) => {
 		playReactionPulse(post.id);
 
+		const target = resolveFeedInteractionTarget(post);
 		const nextReaction = post.my_reaction ? null : 'like';
-		const isAnnouncement = post.feed_type === 'announcement';
-		const announcementId = isAnnouncement ? post.id : null;
-		const postId = isAnnouncement ? null : post.id;
+		const announcementId = target.announcementId;
+		const postId = target.postId;
 		let alumniId = null;
 
 		const updatedPost = {
@@ -1623,13 +1711,15 @@ const UserFeedScreen = ({ navigation }) => {
 		};
 
 		setPosts((currentPosts) => currentPosts.map((currentPost) => {
-			if (currentPost.id !== post.id || currentPost.feed_type !== post.feed_type) return currentPost;
+			const currentTarget = resolveFeedInteractionTarget(currentPost);
+			if (String(currentTarget.postId ?? '') !== String(target.postId ?? '')) return currentPost;
 			return { ...currentPost, my_reaction: nextReaction, reaction_count: Math.max(0, (currentPost.reaction_count ?? 0) + (nextReaction ? 1 : -1)) };
 		}));
 
 		// Update viewer modal if viewing this post
 		setViewerPost((currentViewerPost) => {
-			if (currentViewerPost?.id === post.id && currentViewerPost?.feed_type === post.feed_type) {
+			const viewerTarget = resolveFeedInteractionTarget(currentViewerPost);
+			if (String(viewerTarget.postId ?? '') === String(target.postId ?? '')) {
 				return { ...currentViewerPost, my_reaction: nextReaction, reaction_count: Math.max(0, (currentViewerPost.reaction_count ?? 0) + (nextReaction ? 1 : -1)) };
 			}
 			return currentViewerPost;
@@ -1645,42 +1735,71 @@ const UserFeedScreen = ({ navigation }) => {
 				await removeReaction(postId, alumniId, 'like', announcementId);
 			}
 
-			if (!isAnnouncement) {
-				const refreshed = await getPostById(post.id, alumniId).catch(() => null);
+			if (postId) {
+				const refreshed = await getPostById(postId, alumniId).catch(() => null);
 				if (refreshed) {
-					setPosts((currentPosts) => currentPosts.map((currentPost) => (currentPost.id !== post.id || currentPost.feed_type !== post.feed_type ? currentPost : { ...currentPost, reaction_count: refreshed.reactions_count ?? currentPost.reaction_count, my_reaction: nextReaction })));
+					setPosts((currentPosts) => currentPosts.map((currentPost) => {
+						const currentTarget = resolveFeedInteractionTarget(currentPost);
+						if (String(currentTarget.postId ?? '') !== String(target.postId ?? '')) return currentPost;
+						return { ...currentPost, reaction_count: refreshed.reactions_count ?? currentPost.reaction_count, my_reaction: nextReaction };
+					}));
 				}
 			}
 		} catch (error) {
 			console.error('Failed to react to post:', error);
-			setPosts((currentPosts) => currentPosts.map((currentPost) => (currentPost.id !== post.id || currentPost.feed_type !== post.feed_type ? currentPost : { ...currentPost, my_reaction: post.my_reaction ?? null, reaction_count: post.reaction_count ?? 0 })));
+			setPosts((currentPosts) => currentPosts.map((currentPost) => {
+				const currentTarget = resolveFeedInteractionTarget(currentPost);
+				if (String(currentTarget.postId ?? '') !== String(target.postId ?? '')) return currentPost;
+				return { ...currentPost, my_reaction: post.my_reaction ?? null, reaction_count: post.reaction_count ?? 0 };
+			}));
 		}
 	};
 
 	const handlePostRepost = async (post, caption = '') => {
+		const target = resolveFeedInteractionTarget(post);
 		const nextRepostState = !post.my_repost;
+		const targetPostId = target.postId;
 
-		setPosts((currentPosts) => currentPosts.map((currentPost) => (currentPost.id !== post.id ? currentPost : { ...currentPost, my_repost: nextRepostState, repost_count: Math.max(0, (currentPost.repost_count ?? 0) + (nextRepostState ? 1 : -1)) })));
+		setPosts((currentPosts) => currentPosts.map((currentPost) => {
+			const currentTarget = resolveFeedInteractionTarget(currentPost);
+			if (String(currentTarget.postId ?? '') !== String(targetPostId ?? '')) {
+				return currentPost;
+			}
+
+			return {
+				...currentPost,
+				my_repost: nextRepostState,
+				repost_count: Math.max(0, (currentPost.repost_count ?? 0) + (nextRepostState ? 1 : -1)),
+			};
+		}));
 
 		try {
 			const alumniId = await resolveActiveAlumniId();
 			if (!alumniId) throw new Error('No alumni profile');
 
 			if (nextRepostState) {
-				await createRepost(post.id, alumniId, caption);
+				await createRepost(targetPostId, alumniId, caption);
 			} else {
-				await supabase.from('reposts').delete().eq('post_id', post.id).eq('alumni_id', alumniId);
+				await supabase.from('reposts').delete().eq('post_id', targetPostId).eq('alumni_id', alumniId);
 			}
 
-			const refreshed = await getPostById(post.id, alumniId).catch(() => null);
+			const refreshed = await getPostById(targetPostId, alumniId).catch(() => null);
 			if (refreshed) {
-				setPosts((currentPosts) => currentPosts.map((currentPost) => (currentPost.id !== post.id ? currentPost : { ...currentPost, repost_count: refreshed.reposts_count ?? currentPost.repost_count, my_repost: nextRepostState })));
+				setPosts((currentPosts) => currentPosts.map((currentPost) => {
+					const currentTarget = resolveFeedInteractionTarget(currentPost);
+					if (String(currentTarget.postId ?? '') !== String(targetPostId ?? '')) return currentPost;
+					return { ...currentPost, repost_count: refreshed.reposts_count ?? currentPost.repost_count, my_repost: nextRepostState };
+				}));
 			}
 
 			return true;
 		} catch (error) {
 			console.error('Failed to repost post:', error);
-			setPosts((currentPosts) => currentPosts.map((currentPost) => (currentPost.id !== post.id ? currentPost : { ...currentPost, my_repost: post.my_repost ?? false, repost_count: post.repost_count ?? 0 })));
+			setPosts((currentPosts) => currentPosts.map((currentPost) => {
+				const currentTarget = resolveFeedInteractionTarget(currentPost);
+				if (String(currentTarget.postId ?? '') !== String(targetPostId ?? '')) return currentPost;
+				return { ...currentPost, my_repost: post.my_repost ?? false, repost_count: post.repost_count ?? 0 };
+			}));
 			showThemedAlert({ title: 'Repost', message: 'Unable to repost right now. Please try again.' });
 			return false;
 		}
@@ -1882,6 +2001,7 @@ const UserFeedScreen = ({ navigation }) => {
 	};
 
 	const handleRefreshPosts = () => {
+		setFeedRefreshNonce((currentValue) => currentValue + 1);
 		fetchPosts({ showLoadingState: true });
 	};
 
@@ -2002,7 +2122,26 @@ const UserFeedScreen = ({ navigation }) => {
 					{searchQuery.trim().length === 0 && (
 						<View style={styles.feedSection}>
 							<View style={styles.feedHeaderRow}>
-								<Text style={styles.feedTitle}>Latest Posts</Text>
+								<View>
+									<Text style={styles.feedTitle}>Latest Posts</Text>
+									<Text style={styles.feedSubtitle}>
+										{feedSortMode === 'relevant' ? 'Ranked by relevance' : 'Sorted by newest'}
+									</Text>
+								</View>
+								<View style={styles.feedSortToggle}>
+									<Pressable
+										style={[styles.feedSortPill, feedSortMode === 'relevant' ? styles.feedSortPillActive : null]}
+										onPress={() => setFeedSortMode('relevant')}
+									>
+										<Text style={[styles.feedSortPillText, feedSortMode === 'relevant' ? styles.feedSortPillTextActive : null]}>Most Relevant</Text>
+									</Pressable>
+									<Pressable
+										style={[styles.feedSortPill, feedSortMode === 'newest' ? styles.feedSortPillActive : null]}
+										onPress={() => setFeedSortMode('newest')}
+									>
+										<Text style={[styles.feedSortPillText, feedSortMode === 'newest' ? styles.feedSortPillTextActive : null]}>Newest</Text>
+									</Pressable>
+								</View>
 							</View>
 
 							{isLoadingPosts ? (
@@ -2021,7 +2160,7 @@ const UserFeedScreen = ({ navigation }) => {
 									<Text style={styles.feedStateText}>No posts yet.</Text>
 								</View>
 							) : (
-								posts.map((post) => {
+								displayedPosts.map((post) => {
 								const postAuthorName = renderPostAuthorName(post);
 								const avatarUri = renderPostAvatarUri(post);
 								const postImages = post.images ?? [];
@@ -2032,7 +2171,19 @@ const UserFeedScreen = ({ navigation }) => {
 								const originalAvatarUri = renderPostAvatarUri({ alumni: originalPost?.alumni });
 
 								return (
-									<View key={getFeedItemKey(post)} style={styles.postCard}>
+									<View key={getFeedItemKey(post)} style={[
+										styles.postCard,
+										isRepostFeedItem ? styles.repostFeedCard : null,
+									]}>
+										{isRepostFeedItem ? (
+											<View style={styles.repostFeedBanner}>
+												<Ionicons name="repeat" size={14} color="#1F7A4D" />
+												<Text style={styles.repostFeedBannerText}>
+													{post.alumni?.first_name ? `${post.alumni.first_name} reposted this` : 'Reposted'}
+												</Text>
+											</View>
+										) : null}
+
 										{isAnnouncementFeedItem ? (
 											<View style={styles.postHeader}>
 												<Image
@@ -2096,6 +2247,10 @@ const UserFeedScreen = ({ navigation }) => {
 
 										{isRepostFeedItem && originalPost ? (
 											<View style={styles.repostedOriginalCard}>
+												<View style={styles.repostedOriginalTopLabel}>
+													<Ionicons name="link-outline" size={12} color="#2F855A" />
+													<Text style={styles.repostedOriginalTopLabelText}>Original post</Text>
+												</View>
 												<View style={styles.repostedOriginalHeader}>
 													<Image source={{ uri: originalAvatarUri }} style={styles.repostedOriginalAvatar} />
 													<View style={styles.repostedOriginalTextWrap}>

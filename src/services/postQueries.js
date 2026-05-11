@@ -51,6 +51,7 @@ const normalizePost = (post) => {
 
   return {
     ...rest,
+    feed_type: post.feed_type ?? 'post',
     alumnis: alumnis ?? alumni ?? author ?? null,
     alumni: alumni ?? alumnis ?? author ?? null,
     author: author ?? alumni ?? alumnis ?? null,
@@ -63,6 +64,43 @@ const normalizePost = (post) => {
     comments_count: commentCount,
     reactions_count: reactionCount,
     reposts_count: repostCount,
+  };
+};
+
+const normalizeRepostFeedItem = (repost, userHasRepostedOriginal = false) => {
+  if (!repost) {
+    return null;
+  }
+
+  const { alumni, alumnis, author, original_post, post, ...rest } = repost;
+  const reposter = alumni ?? alumnis ?? author ?? null;
+  const originalPost = normalizePost(original_post ?? post ?? null);
+
+  if (!originalPost) {
+    return null;
+  }
+
+  return {
+    ...rest,
+    id: repost.id,
+    feed_id: repost.feed_id ?? `repost-${repost.id}`,
+    feed_type: 'repost',
+    caption: repost.caption ?? '',
+    created_at: repost.created_at ?? originalPost.created_at ?? null,
+    moderation_status: repost.moderation_status ?? null,
+    alumni: reposter,
+    author: reposter,
+    original_post: originalPost,
+    original_post_id: originalPost.id ?? repost.post_id ?? null,
+    images: Array.isArray(originalPost.images) ? originalPost.images : [],
+    comment_count: originalPost.comment_count ?? 0,
+    reaction_count: originalPost.reaction_count ?? 0,
+    repost_count: originalPost.repost_count ?? 0,
+    comments_count: originalPost.comments_count ?? 0,
+    reactions_count: originalPost.reactions_count ?? 0,
+    reposts_count: originalPost.reposts_count ?? 0,
+    my_reaction: originalPost.my_reaction ?? null,
+    my_repost: Boolean(userHasRepostedOriginal),
   };
 };
 
@@ -123,12 +161,38 @@ const applyUserReactions = (posts, reactions) => {
   }));
 };
 
+const getSafeTimestamp = (value) => {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const calculateFeedRelevanceScore = (item) => {
+  const createdAt = getSafeTimestamp(item?.created_at);
+  const ageInHours = Math.max((Date.now() - createdAt) / (1000 * 60 * 60), 0);
+
+  const reactionCount = Number(item?.reaction_count ?? item?.reactions_count ?? 0) || 0;
+  const commentCount = Number(item?.comment_count ?? item?.comments_count ?? 0) || 0;
+  const repostCount = Number(item?.repost_count ?? item?.reposts_count ?? 0) || 0;
+
+  const engagementScore = (reactionCount * 1.2) + (commentCount * 1.8) + (repostCount * 2.5);
+  const freshnessScore = 24 / (ageInHours + 6);
+  const recencyBonus = Math.max(0, 18 - ageInHours) * 0.5;
+  const repostBoost = item?.feed_type === 'repost' ? 4 : 0;
+  const announcementPenalty = item?.feed_type === 'announcement' ? 1.5 : 0;
+
+  return Number((engagementScore + freshnessScore + recencyBonus + repostBoost - announcementPenalty).toFixed(3));
+};
+
 /**
  * Get feed posts for user
  */
 export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
   try {
-    const [postsResult, announcementsResult] = await Promise.all([
+    const [postsResult, announcementsResult, repostsResult] = await Promise.all([
       supabase
       .from('posts')
       .select(`
@@ -157,10 +221,33 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
         `)
         .order('date_posted', { ascending: false })
         .range(offset, offset + limit - 1),
+        supabase
+          .from('reposts')
+          .select(`
+            id,
+            post_id,
+            alumni_id,
+            caption,
+            created_at,
+            moderation_status,
+            alumni:alumni_id(id, first_name, last_name, email, alumni_photo),
+            original_post:post_id(
+              *,
+              alumnis:alumni_id(id, first_name, last_name, email, alumni_photo),
+              images_posts(id, image_path),
+              comments_count:comments(count),
+              reactions_count:reactions(count),
+              reposts_count:reposts(count)
+            )
+          `)
+          .neq('moderation_status', 'rejected')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1),
     ]);
 
     const { data: postsData, error: postsError } = postsResult;
     const { data: announcementsData, error: announcementsError } = announcementsResult;
+      const { data: repostsData, error: repostsError } = repostsResult;
 
     if (postsError) {
       console.error('[posts] Feed query error:', postsError.code || postsError.message);
@@ -170,13 +257,32 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
     if (announcementsError) {
       console.warn('[posts] Announcement feed query warning:', announcementsError.code || announcementsError.message);
     }
+    if (repostsError) {
+      console.warn('[posts] Repost feed query warning:', repostsError.code || repostsError.message);
+    }
 
     const postIds = (postsData || []).map((post) => post?.id).filter(Boolean);
     const announcementIds = (announcementsData || []).map((a) => a?.id).filter(Boolean);
+    const repostOriginalPostIds = (repostsData || [])
+      .map((repost) => repost?.original_post?.id ?? repost?.post_id ?? null)
+      .filter(Boolean);
+    const allPostIds = Array.from(new Set([...postIds, ...repostOriginalPostIds]));
+
+    const userRepostLookup = alumniId && allPostIds.length > 0
+      ? await supabase
+        .from('reposts')
+        .select('id, post_id')
+        .eq('alumni_id', alumniId)
+        .in('post_id', allPostIds)
+      : { data: [], error: null };
+
+    if (userRepostLookup.error) {
+      console.warn('[posts] User repost lookup warning:', userRepostLookup.error.code || userRepostLookup.error.message);
+    }
 
     const [postReactionsResult, announcementReactionsResult] = await Promise.all([
-      alumniId && postIds.length > 0
-        ? supabase.from('reactions').select('post_id, reaction').eq('alumni_id', alumniId).in('post_id', postIds)
+      alumniId && allPostIds.length > 0
+        ? supabase.from('reactions').select('post_id, reaction').eq('alumni_id', alumniId).in('post_id', allPostIds)
         : Promise.resolve({ data: [], error: null }),
       alumniId && announcementIds.length > 0
         ? supabase.from('reactions').select('announcement_id, reaction').eq('alumni_id', alumniId).in('announcement_id', announcementIds)
@@ -204,6 +310,10 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
       (announcementReactionsResult.data || []).map((r) => [String(r?.announcement_id), r?.reaction ?? 'like'])
     );
 
+    const userRepostByPostId = new Map(
+      (userRepostLookup.data || []).map((row) => [String(row?.post_id), row?.id ?? true])
+    );
+
     const announcementReactionCountById = (announcementReactionCountsResult.data || []).reduce((countMap, reaction) => {
       const announcementId = String(reaction?.announcement_id);
 
@@ -215,7 +325,18 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
       return countMap;
     }, new Map());
 
-    const normalizedPosts = applyUserReactions((postsData || []).map(normalizePost), postReactionsResult.data);
+    const normalizedPosts = applyUserReactions((postsData || []).map(normalizePost), postReactionsResult.data)
+      .map((post) => ({
+        ...post,
+        my_repost: userRepostByPostId.has(String(post?.id ?? '')),
+      }));
+    const normalizedReposts = (repostsData || [])
+      .map((repost) => normalizeRepostFeedItem(repost, userRepostByPostId.has(String(repost?.original_post?.id ?? repost?.post_id ?? ''))))
+      .filter(Boolean)
+      .map((repost) => ({
+        ...repost,
+        my_reaction: postReactionsResult.data?.find((reaction) => String(reaction?.post_id) === String(repost.original_post_id))?.reaction ?? null,
+      }));
     const normalizedAnnouncements = (announcementsData || [])
       .map((announcement) => normalizeAnnouncementFeedItem(announcement, announcementReactionCountById.get(String(announcement?.id)) ?? 0))
       .filter(Boolean)
@@ -224,8 +345,20 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
         my_reaction: announcementReactionByAnnouncementId.get(String(announcement.id)) ?? null,
       }));
 
-    return [...normalizedPosts, ...normalizedAnnouncements]
-      .sort((firstItem, secondItem) => new Date(secondItem.created_at || 0).getTime() - new Date(firstItem.created_at || 0).getTime())
+    const rankedFeed = [...normalizedPosts, ...normalizedReposts, ...normalizedAnnouncements]
+      .map((item) => ({
+        ...item,
+        relevance_score: calculateFeedRelevanceScore(item),
+      }))
+      .sort((firstItem, secondItem) => {
+        if ((secondItem.relevance_score ?? 0) !== (firstItem.relevance_score ?? 0)) {
+          return (secondItem.relevance_score ?? 0) - (firstItem.relevance_score ?? 0);
+        }
+
+        return getSafeTimestamp(secondItem.created_at) - getSafeTimestamp(firstItem.created_at);
+      });
+
+    return rankedFeed
       .slice(0, limit);
   } catch (error) {
     console.error('[posts] Get feed exception:', error.message || error);
@@ -292,7 +425,7 @@ export const getPostById = async (postId, alumniId = null) => {
     const { data: userReactionData, error: userReactionError } = reactionResult;
 
     if (error) throw error;
-    if (userReactionError) {
+    if (userReactionError && userReactionError.code !== 'PGRST116') {
       console.warn('[posts] Post reaction lookup warning:', userReactionError.code || userReactionError.message);
     }
 

@@ -137,13 +137,12 @@ export const createEvent = async (adminId, eventData) => {
       );
     }
 
-    // Send a blast notification to all alumni EXCEPT the event creator who are currently logged in
+    // Send a blast notification to all alumni except the event creator.
     try {
       const { data: alumniRows, error: alumniError } = await supabase
         .from('alumnis')
         .select('push_token')
         .not('push_token', 'is', null)
-        .eq('is_online', true)
         .neq('id', adminId);
 
       if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
@@ -153,7 +152,12 @@ export const createEvent = async (adminId, eventData) => {
             tokens,
             '🚨 New Event Posted!',
             `Check out the new event: ${data.title}`,
-            { type: 'event', eventId: data.id }
+            {
+              type: 'event',
+              eventId: data.id,
+              screen: 'Home',
+              targetScreen: 'EventsScreen',
+            }
           );
         }
       }

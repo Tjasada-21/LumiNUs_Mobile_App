@@ -11,7 +11,6 @@ import { getCurrentUser } from '../services/supabaseAuth';
 import { getAllEvents } from '../services/eventQueries';
 import { getUserPosts } from '../services/postQueries';
 import { getAlumniProfile, getAlumniByEmail } from '../services/alumniQueries';
-import AvatarProgressRing from '../components/AvatarProgressRing';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
@@ -19,8 +18,6 @@ import { responsiveHeight, responsiveWidth } from '../utils/responsive';
 import styles from '../styles/HomeScreen.styles';
 import { clearAuthCredentials } from '../services/authStorage';
 import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
-import { DRAFT_SUBMITTED_AT_SENTINEL } from '../services/tracerQueries';
-import { subscribeTracerProgressRefresh } from '../services/tracerProgressEvents';
 import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
 
 const formatEventDateRange = (startDate, endDate) => {
@@ -137,7 +134,6 @@ const HomeScreen = ({ navigation }) => {
   const [isLoadingFeaturedEvents, setIsLoadingFeaturedEvents] = useState(false);
     const [isRefreshingHome, setIsRefreshingHome] = useState(false);
   const [isIdFlipped, setIsIdFlipped] = useState(false);
-  const [tracerProgress, setTracerProgress] = useState(0);
   const flipAnimation = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
 
@@ -356,48 +352,14 @@ const HomeScreen = ({ navigation }) => {
       }
     }, []);
 
-    const fetchTracerProgress = useCallback(async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-          setTracerProgress(0);
-          return;
-        }
-
-        const [{ count: totalFormsCount }, { count: userResponsesCount }] = await Promise.all([
-          supabase
-            .from('tracer_forms')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 1),
-          supabase
-            .from('tracer_responses')
-            .select('*', { count: 'exact', head: true })
-            .eq('alumni_id', user.id)
-            .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL),
-        ]);
-
-        if (totalFormsCount && totalFormsCount > 0) {
-          const percentage = Math.round(((userResponsesCount || 0) / totalFormsCount) * 100);
-          setTracerProgress(Math.max(0, Math.min(100, percentage)));
-          return;
-        }
-
-        setTracerProgress(0);
-      } catch (error) {
-        console.error('[HomeScreen] Error fetching tracer progress:', error?.message || error);
-        setTracerProgress(0);
-      }
-    }, []);
-
     const refreshHomeContent = useCallback(async () => {
       try {
         setIsRefreshingHome(true);
-        await Promise.all([fetchNotifications(), fetchFeaturedEvents(), fetchTracerProgress()]);
+        await Promise.all([fetchNotifications(), fetchFeaturedEvents()]);
       } finally {
         setIsRefreshingHome(false);
       }
-    }, [fetchFeaturedEvents, fetchNotifications, fetchTracerProgress]);
+    }, [fetchFeaturedEvents, fetchNotifications]);
 
   	// HANDLER: Open the side menu
     const openMenu = () => {
@@ -451,26 +413,17 @@ const HomeScreen = ({ navigation }) => {
 
         fetchUserData();
         fetchFeaturedEvents();
-        fetchTracerProgress();
 
         return () => {
           isActive = false;
         };
 
-		}, [fetchFeaturedEvents, fetchTracerProgress])
+		}, [fetchFeaturedEvents])
   	);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
-
-  useEffect(() => {
-    const unsubscribe = subscribeTracerProgressRefresh(() => {
-      fetchTracerProgress();
-    });
-
-    return unsubscribe;
-  }, [fetchTracerProgress]);
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -484,8 +437,7 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
 	const activeUserData = currentUserProfile ?? userData;
-  const isVerified = tracerProgress === 100;
-	// We simply check if their tracer progress hit the maximum!
+	
   
 
 	// HANDLER: Open the NU website
@@ -502,11 +454,6 @@ const HomeScreen = ({ navigation }) => {
 	// HANDLER: Open the yearbook screen
   const openViewYearbook = () => {
     navigation.navigate('ViewYearbook');
-  };
-
-	// HANDLER: Open the tracer dashboard
-  const openTracerDashboard = () => {
-    navigation.navigate('AlumniTracer');
   };
 
 	// HANDLER: Open the events screen
@@ -944,11 +891,10 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.profileCardWrapper}>
             <View style={styles.profileSection}>
               <View style={styles.profileInfo}>
-                <TouchableOpacity style={styles.avatarRingTouchable} activeOpacity={0.85} onPress={openTracerDashboard}>
-                  <AvatarProgressRing
-                    imageUrl={getAvatarUri(`${activeUserData?.first_name ?? ''} ${activeUserData?.last_name ?? ''}`.trim() || 'Alumni', activeUserData?.alumni_photo)}
-                    percentage={tracerProgress}
-                    size={72}
+                <TouchableOpacity style={styles.avatarRingTouchable} activeOpacity={0.85} onPress={openMenu}>
+                  <Image
+                    source={{ uri: getAvatarUri(`${activeUserData?.first_name ?? ''} ${activeUserData?.last_name ?? ''}`.trim() || 'Alumni', activeUserData?.alumni_photo) }}
+                    style={styles.avatar}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity activeOpacity={0.8} onPress={openMenu} style={styles.profileTextWrap}>
@@ -956,15 +902,9 @@ const HomeScreen = ({ navigation }) => {
                     <Text style={styles.greeting}>
                       Hi, {activeUserData ? `${activeUserData.first_name}` : 'Loading...'}!
                     </Text>
-                    {isVerified ? (
-                      <Ionicons name="checkmark-circle" size={20} color="#31429B" style={styles.badge} />
-                    ) : null}
                   </View>
                   <Text style={styles.studentId}>
                     Student {activeUserData ? activeUserData.student_id_number : '...'}
-                  </Text>
-                  <Text style={styles.profileStrengthText}>
-                    Profile Strength: <Text style={isVerified ? styles.statusComplete : styles.statusHighlight}>{isVerified ? 'All-Star Alumni' : 'Intermediate'}</Text>
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -8,7 +8,6 @@ import { getTracerFormById, hasSubmittedForm, getOrCreateDraftResponse, getDraft
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
 import { ThemedAlert } from '../components/ThemedAlert';
-import { emitTracerProgressRefresh } from '../services/tracerProgressEvents';
 
 const normalizeType = (type, hasOptions) => {
 	const t = String(type || '').toLowerCase();
@@ -379,7 +378,6 @@ const TracerFormScreen = ({ route, navigation }) => {
 				await submitTracerForm(alumni.id, formId, answerArray);
 			}
 
-			emitTracerProgressRefresh();
 			ThemedAlert.alert('Submitted', 'Your responses have been submitted successfully.', [
 				{ text: 'OK', onPress: () => navigation.replace('AlumniTracer') },
 			]);

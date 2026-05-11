@@ -188,6 +188,50 @@ export const subscribeToCommentsUpdates = (postId, callback) => {
 };
 
 /**
+ * Setup realtime listener for new announcements
+ */
+export const subscribeToAnnouncementsUpdates = (callback) => {
+  if (!supabase) {
+    return null;
+  }
+
+  const subscription = supabase
+    .channel('announcements')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'announcements',
+    }, payload => {
+      callback(payload);
+    })
+    .subscribe();
+
+  return subscription;
+};
+
+/**
+ * Setup realtime listener for new events
+ */
+export const subscribeToNewEventsUpdates = (callback) => {
+  if (!supabase) {
+    return null;
+  }
+
+  const subscription = supabase
+    .channel('new_events')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'events',
+    }, payload => {
+      callback(payload);
+    })
+    .subscribe();
+
+  return subscription;
+};
+
+/**
  * Unsubscribe from channel
  */
 export const unsubscribeFromChannel = async (subscription) => {

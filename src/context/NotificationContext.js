@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
+import { startAnnouncementNotifier } from '../services/announcementNotifier';
+import { startEventNotifier } from '../services/eventNotifier';
 
 const NotificationContext = createContext();
 
@@ -26,9 +28,25 @@ export const NotificationProvider = ({ children }) => {
 
     initializeNotifications();
 
+    // Start listening for new announcements and events
+    let stopAnnouncements = null;
+    let stopEvents = null;
+
+    (async () => {
+      try {
+        [stopAnnouncements, stopEvents] = await Promise.all([
+          startAnnouncementNotifier(),
+          startEventNotifier(),
+        ]);
+      } catch (error) {
+        // Silently handle initialization errors
+      }
+    })();
+
     // Cleanup
     return () => {
-      // No persistent notification subscription is created here.
+      if (stopAnnouncements) stopAnnouncements();
+      if (stopEvents) stopEvents();
     };
   }, []);
 

@@ -1,23 +1,39 @@
 // Master Notification Sender utility
 // Sends push messages to Expo Push API in chunks (max 100 per request)
 
+const isValidExpoPushToken = (token) => {
+  if (typeof token !== 'string') {
+    return false;
+  }
+
+  return /^Expo(nent)?PushToken\[[^\]]+\]$/i.test(token.trim());
+};
+
 export async function sendPushNotification(expoPushTokens = [], title = '', body = '', data = {}) {
   if (!Array.isArray(expoPushTokens)) expoPushTokens = [];
 
-  // 1. Clean the list (Remove nulls, undefined, or empty tokens)
-  const validTokens = expoPushTokens.filter(token => typeof token === 'string' && token.startsWith('ExponentPushToken'));
+  // 1. Clean and dedupe tokens.
+  const validTokens = Array.from(
+    new Set(
+      expoPushTokens
+        .map((token) => (typeof token === 'string' ? token.trim() : token))
+        .filter(isValidExpoPushToken)
+    )
+  );
 
   if (validTokens.length === 0) {
     return;
   }
 
-  // 2. Format the messages for Expo
+  // 2. Format the messages for Expo.
   const messages = validTokens.map(token => ({
     to: token,
     sound: 'default',
     title: title || '',
     body: body || '',
     data: data || {},
+    // include image for rich notifications where supported
+    ...(data && data.image ? { image: data.image } : {}),
   }));
 
   // 3. Chunk into groups of 100 (Expo limit)
@@ -35,10 +51,8 @@ export async function sendPushNotification(expoPushTokens = [], title = '', body
         },
         body: JSON.stringify(chunk),
       });
-
-      // Silent operation - notifications sent to Expo API
     } catch (error) {
-      // Silently handle chunk send errors
+      // Silently handle send errors
     }
   }
 }

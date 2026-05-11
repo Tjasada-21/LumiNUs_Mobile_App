@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   profileSection: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8, paddingTop: 12, paddingBottom: 5, alignItems: 'center' },
   profileInfo: { flexDirection: 'row', alignItems: 'center' },
   avatarRingTouchable: { marginRight: 12 },
-  profileTextWrap: { flexShrink: 1 },
+  profileTextWrap: { flexShrink: 1, marginLeft: -20 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12, borderWidth: 2, borderColor: '#F2C919' },
   greeting: { fontSize: 17, fontWeight: '800', color: '#0A1142' },

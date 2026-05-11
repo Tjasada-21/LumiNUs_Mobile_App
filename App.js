@@ -85,11 +85,41 @@ export default function App() {
   // Handle notification responses
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
-      
-      if (navigationRef.current && data.screen) {
+      const data = response.notification.request.content.data ?? {};
+
+      if (!navigationRef.current) {
+        return;
+      }
+
+      // Prefer explicit screen payloads when available.
+      if (data.screen) {
+        if (data.targetScreen) {
+          navigationRef.current.navigate(data.screen, {
+            screen: data.targetScreen,
+            params: { ...data },
+          });
+          return;
+        }
+
         navigationRef.current.navigate(data.screen, {
           ...data,
+        });
+        return;
+      }
+
+      // Fallback mappings for payloads that only include notification type.
+      if (data.type === 'event') {
+        navigationRef.current.navigate('Home', {
+          screen: 'EventsScreen',
+          params: { ...data },
+        });
+        return;
+      }
+
+      if (data.type === 'announcement') {
+        navigationRef.current.navigate('Home', {
+          screen: 'Feed',
+          params: { ...data },
         });
       }
     });

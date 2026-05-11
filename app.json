@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "LumiNUs",
-    "slug": "LumiNUs",
+    "slug": "LumiNUsMobile_App",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/LumiNUs_Load.png",

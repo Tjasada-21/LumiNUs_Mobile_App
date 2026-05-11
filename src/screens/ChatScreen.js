@@ -261,12 +261,17 @@ const ChatScreen = ({ navigation }) => {
 				const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
 				const followingPromise = getFollowing(supaUser.id).catch(() => []);
 				const followersPromise = getFollowers(supaUser.id).catch(() => []);
+				const favoritesPromise = supabase
+					.from('favorite_chats')
+					.select('contact_id')
+					.eq('user_id', supaUser.id);
 
-				const [conversations, groupChatsData, followingRows, followerRows] = await Promise.all([
+				const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
 					conversationsPromise,
 					groupChatsPromise,
 					followingPromise,
 					followersPromise,
+					favoritesPromise,
 				]);
 
 				setUserData(supaUser);
@@ -324,6 +329,13 @@ const ChatScreen = ({ navigation }) => {
 
 				const nextContacts = Array.from(connectionsMap.values());
 				setContacts(nextContacts);
+				// Initialize favorites from the new table
+				try {
+					const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
+					setFavoriteContactIds(new Set(favoriteIds));
+				} catch (e) {
+					console.warn('[ChatScreen] Failed to map initial favorites', e);
+				}
 				const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
 				setGroupChats(nextGroupChats);
 				setAdmins([]); // no explicit admins table in Supabase schema by default
@@ -672,23 +684,44 @@ const ChatScreen = ({ navigation }) => {
 	};
 
 	const handleToggleFavorite = async (contactId) => {
-        // 1. Determine the new state
-        const isFavorited = favoriteContactIds.has(contactId);
-        const nextState = !isFavorited;
+		const isFavorited = favoriteContactIds.has(contactId);
+		const nextState = !isFavorited;
+		const prevSet = new Set(favoriteContactIds);
 
-        // 2. Update the favorites set immediately (optimistic UI)
-        setFavoriteContactIds((prev) => {
-            const next = new Set(prev);
-            if (nextState) {
-                next.add(contactId);
-            } else {
-                next.delete(contactId);
-            }
-            return next;
-        });
+		setFavoriteContactIds((prev) => {
+			const next = new Set(prev);
+			if (nextState) next.add(contactId);
+			else next.delete(contactId);
+			return next;
+		});
 
-        hideContactActions();
-    };
+		hideContactActions();
+
+		try {
+			if (!userData?.id) {
+				throw new Error('Missing current user id');
+			}
+
+			if (nextState) {
+				const { error } = await supabase
+					.from('favorite_chats')
+					.insert({ user_id: userData.id, contact_id: contactId });
+
+				if (error) throw error;
+			} else {
+				const { error } = await supabase
+					.from('favorite_chats')
+					.delete()
+					.eq('user_id', userData.id)
+					.eq('contact_id', contactId);
+
+				if (error) throw error;
+			}
+		} catch (e) {
+			console.warn('[ChatScreen] Failed to persist favorite state', e?.message || e);
+			setFavoriteContactIds(prevSet);
+		}
+	};
 
 		const hideGroupActions = () => {
 			setIsGroupActionModalVisible(false);

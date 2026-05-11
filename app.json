@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "LumiNUsMobile_App",
-    "slug": "LumiNUsMobile_App",
+    "name": "LumiNUs",
+    "slug": "LumiNUs",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/LumiNUs_Load.png",
@@ -9,7 +9,7 @@
     "backgroundColor": "#31429B",
     "splash": {
       "image": "./assets/images/LumiNUs_Load.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#31429B"
     },
     "ios": {

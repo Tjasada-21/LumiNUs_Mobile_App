@@ -10,6 +10,7 @@ import { getUserPosts } from '../services/postQueries';
 import { getFollowers, getFollowing, rejectFollowRequest, sendFollowRequest, unfollowUser } from '../services/connectionQueries';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { ThemedAlert } from '../components/ThemedAlert';
+import { getAvatarUri } from '../utils/imageUtils';
 
 const ProfileViewScreen = ({ navigation, route }) => {
 	const userId = route?.params?.userId;
@@ -41,21 +42,7 @@ const ProfileViewScreen = ({ navigation, route }) => {
 	}, [userData]);
 
 	const profileImageUri = useMemo(() => {
-		if (userData?.alumni_photo) {
-			const photoUrl = userData.alumni_photo;
-			
-			// If it's already a full HTTPS URL, return as-is
-			if (/^https?:\/\//i.test(photoUrl)) {
-				return photoUrl;
-			}
-			
-			// It's a relative path - construct the full Supabase public URL using luminus_assets bucket
-			const SUPABASE_URL = 'https://pmnirrvwibzqjlutbnwz.supabase.co';
-			const cleanPath = String(photoUrl).replace(/^\/+/, '');
-			return `${SUPABASE_URL}/storage/v1/object/public/luminus_assets/${cleanPath}`;
-		}
-
-		return `https://ui-avatars.com/api/?name=${encodeURIComponent(profileName)}&background=1F2F6E&color=fff&size=256`;
+		return getAvatarUri(profileName, userData?.alumni_photo);
 	}, [profileName, userData]);
 
 	const postsCount = useMemo(

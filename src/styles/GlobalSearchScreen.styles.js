@@ -10,7 +10,6 @@ const styles = StyleSheet.create({
 		backgroundColor: '#F5F7FB',
 	},
 	content: {
-		flexGrow: 1,
 		paddingHorizontal: 16,
 		paddingBottom: 24,
 	},
@@ -26,24 +25,9 @@ const styles = StyleSheet.create({
 		shadowRadius: 10,
 		shadowOffset: { width: 0, height: 4 },
 	},
-	title: {
-		color: '#31429B',
-		fontSize: 24,
-		lineHeight: 28,
-		fontWeight: '900',
-	},
 	titleRow: {
 		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	globalSearchButton: {
-		width: 30,
-		height: 30,
-		borderRadius: 15,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginLeft: 8,
-		backgroundColor: '#EEF2FF',
+		alignItems: 'flex-start',
 	},
 	backButton: {
 		width: 30,
@@ -51,8 +35,17 @@ const styles = StyleSheet.create({
 		borderRadius: 15,
 		alignItems: 'center',
 		justifyContent: 'center',
-		marginRight: 8,
+		marginRight: 10,
 		backgroundColor: '#EEF2FF',
+	},
+	titleWrap: {
+		flex: 1,
+	},
+	title: {
+		color: '#31429B',
+		fontSize: 24,
+		lineHeight: 28,
+		fontWeight: '900',
 	},
 	subtitle: {
 		marginTop: 6,
@@ -77,6 +70,24 @@ const styles = StyleSheet.create({
 		color: '#1F2937',
 		fontSize: 14,
 	},
+	helperRow: {
+		marginTop: 10,
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		gap: 12,
+	},
+	helperText: {
+		flex: 1,
+		color: '#6B7280',
+		fontSize: 12,
+		lineHeight: 17,
+	},
+	helperCount: {
+		color: '#31429B',
+		fontSize: 12,
+		fontWeight: '800',
+	},
 	loadingWrap: {
 		paddingVertical: 24,
 		alignItems: 'center',
@@ -91,6 +102,7 @@ const styles = StyleSheet.create({
 		color: '#31429B',
 		fontSize: 16,
 		fontWeight: '800',
+		textAlign: 'center',
 	},
 	emptyText: {
 		marginTop: 6,
@@ -99,29 +111,7 @@ const styles = StyleSheet.create({
 		lineHeight: 18,
 		textAlign: 'center',
 	},
-	contactList: {
-		paddingBottom: 8,
-	},
-	suggestionsSection: {
-		marginTop: 4,
-	},
-	sectionHeaderRow: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 8,
-	},
-	sectionHeading: {
-		color: '#31429B',
-		fontSize: 18,
-		fontWeight: '800',
-	},
-	sectionCaption: {
-		color: '#64748B',
-		fontSize: 12,
-		fontWeight: '600',
-	},
-	contactCard: {
+	resultCard: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		backgroundColor: '#F9FAFB',
@@ -134,90 +124,59 @@ const styles = StyleSheet.create({
 		shadowRadius: 8,
 		shadowOffset: { width: 0, height: 3 },
 	},
-	contactAvatar: {
-		width: 48,
-		height: 48,
-		borderRadius: 24,
+	resultCardPressed: {
+		opacity: 0.88,
+		transform: [{ scale: 0.99 }],
+	},
+	avatar: {
+		width: 52,
+		height: 52,
+		borderRadius: 26,
 		marginRight: 12,
 		backgroundColor: '#E5E7EB',
 	},
-	contactTextWrap: {
+	resultBody: {
 		flex: 1,
+		marginRight: 10,
 	},
-	contactName: {
+	resultName: {
 		color: '#31429B',
 		fontSize: 15,
 		fontWeight: '800',
 	},
-	contactMeta: {
+	resultMeta: {
+		marginTop: 2,
+		color: '#374151',
+		fontSize: 12,
+		fontWeight: '700',
+	},
+	resultSubmeta: {
 		marginTop: 2,
 		color: '#6B7280',
 		fontSize: 12,
 	},
-	connectButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
+	actionButton: {
+		paddingHorizontal: 14,
+		height: 34,
+		borderRadius: 17,
 		backgroundColor: '#31429B',
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	contactCardInner: {
-		flex: 1,
-		flexDirection: 'row',
-		alignItems: 'center',
+	actionButtonPressed: {
+		opacity: 0.84,
 	},
-	requestActions: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 6,
+	actionButtonDisabled: {
+		backgroundColor: '#E2E8F0',
 	},
-	acceptButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: '#31429B',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	declineButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: '#F1F5F9',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	pendingBadge: {
-		backgroundColor: '#EEF2FF',
-		borderRadius: 10,
-		paddingHorizontal: 10,
-		paddingVertical: 4,
-	},
-	pendingBadgeText: {
-		color: '#31429B',
-		fontSize: 11,
-		fontWeight: '700',
-	},
-	pendingSection: {
-		marginTop: 4,
-		marginBottom: 4,
-	},
-	sectionBadge: {
-		backgroundColor: '#31429B',
-		borderRadius: 10,
-		minWidth: 22,
-		height: 22,
-		alignItems: 'center',
-		justifyContent: 'center',
-		paddingHorizontal: 6,
-	},
-	sectionBadgeText: {
-		color: '#F9FAFB',
-		fontSize: 11,
+	actionButtonText: {
+		color: '#FFFFFF',
+		fontSize: 12,
 		fontWeight: '800',
+	},
+	actionButtonTextDisabled: {
+		color: '#64748B',
 	},
 });
 
 export default styles;
-

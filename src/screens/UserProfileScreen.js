@@ -9,7 +9,9 @@ import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniProfile, getAlumniEmployment, addEmploymentRecord, updateEmploymentRecord, deleteEmploymentRecord, updateAlumniProfile } from '../services/alumniQueries';
 import { getUserPosts, updatePost, deletePost } from '../services/postQueries';
 import { getFollowers, getFollowing } from '../services/connectionQueries';
-import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
+import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
+import { getAvatarUri } from '../utils/imageUtils';
+
 import { ThemedAlert } from '../components/ThemedAlert';
 
 const UserProfileScreen = ({ navigation }) => {
@@ -66,22 +68,7 @@ const UserProfileScreen = ({ navigation }) => {
 	// DERIVED VALUE: Profile image URI
   const profileImageUri = useMemo(() => {
     const photoUri = currentUserProfile?.alumni_photo ?? userData?.alumni_photo;
-
-    if (photoUri) {
-      const photoUrl = photoUri;
-      
-      // If it's already a full HTTPS URL, return as-is
-      if (/^https?:\/\//i.test(photoUrl)) {
-        return photoUrl;
-      }
-      
-      // It's a relative path - construct the full Supabase public URL using luminus_assets bucket
-      const SUPABASE_URL = 'https://pmnirrvwibzqjlutbnwz.supabase.co';
-      const cleanPath = String(photoUrl).replace(/^\/+/, '');
-      return `${SUPABASE_URL}/storage/v1/object/public/luminus_assets/${cleanPath}`;
-    }
-
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(profileName)}&background=1F2F6E&color=fff&size=256`;
+    return getAvatarUri(profileName, photoUri);
   }, [currentUserProfile?.alumni_photo, profileName, userData?.alumni_photo]);
 
   const openConnectionsScreen = () => {

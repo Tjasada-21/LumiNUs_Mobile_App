@@ -18,6 +18,8 @@ import ChatDetailsScreen from '../screens/ChatDetailsScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import VerifyResetOtpScreen from '../screens/VerifyResetOtpScreen';
 import CompleteProfileScreen from '../screens/CompleteProfileScreen';
+import DraftsScreen from '../screens/DraftScreen';
+import GlobalSearchScreen from '../screens/GlobalSearchScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +48,8 @@ const AppNavigator = ({ initialRouteName = 'Login' }) => {
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="SearchMessage" component={SearchMessageScreen} />
       <Stack.Screen name="CreatePostScreen" component={CreatePostScreen} />
+      <Stack.Screen name="DraftsScreen" component={DraftsScreen} />
+      <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
       <Stack.Screen name="ViewEventsScreen" component={ViewEventsScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />

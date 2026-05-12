@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import supabase from '../services/supabase';
 import { getCurrentUser } from '../services/supabaseAuth';
@@ -30,6 +31,7 @@ import {
   deleteMessage as deleteDirectMessage,
   deleteGroupMessage,
   updateGroupMessageReactions,
+  getMessageAttachments,
 } from '../services/messageQueries';
 import { subscribeToDirectMessages, subscribeToGroupMessages } from '../services/realtimeMessageService';
 import { getAvatarUri } from '../utils/imageUtils';
@@ -208,6 +210,7 @@ export default function ConvoScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [draft, setDraft] = useState('');
+  const [selectedAttachmentUri, setSelectedAttachmentUri] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
@@ -218,43 +221,62 @@ export default function ConvoScreen() {
   const typingDebounceRef = useRef(null);
 
   const hasConversation = Boolean(contactId || groupId);
-  const allowMentions = isGroup;
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const allowMentions = true; // Enabled for both DMs and Groups!
   const headerSubtitle = isGroup
     ? (groupMembers.map((member) => member?.name).filter(Boolean).join(', ') || 'Group chat')
     : (conversationStatus || 'Active now');
 
   const mentionContext = useMemo(() => (allowMentions ? extractMentionQuery(draft) : null), [allowMentions, draft]);
 
-  const mentionSuggestions = useMemo(() => {
-    if (!allowMentions || !mentionContext) {
-      return [];
+  // Combine connections and group members so you can tag anyone relevant
+  const mentionableUsers = useMemo(() => {
+    const usersMap = new Map();
+
+    // 1. Add all followed connections
+    (connections || []).forEach((c) => {
+      if (c?.id) usersMap.set(c.id, c);
+    });
+
+    // 2. Add all group members if in a group
+    if (isGroup && Array.isArray(groupMembers)) {
+      groupMembers.forEach((member) => {
+        const alumniData = member?.alumni ?? member; // Adapt to your exact schema
+        if (alumniData?.id) usersMap.set(alumniData.id, alumniData);
+      });
     }
+
+    return Array.from(usersMap.values());
+  }, [connections, groupMembers, isGroup]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (!allowMentions || !mentionContext) return [];
 
     const query = mentionContext.query.toLowerCase();
 
-    return connections
-      .map((connection) => {
-        const firstName = connection?.first_name ?? '';
-        const lastName = connection?.last_name ?? '';
+    // Swap 'connections' for 'mentionableUsers' here!
+    return (mentionableUsers || [])
+      .map((user) => {
+        const firstName = user?.first_name ?? '';
+        const lastName = user?.last_name ?? '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Alumni';
-        const avatar = getAvatarUri(fullName, connection?.alumni_photo);
+        const avatar = getAvatarUri(fullName, user?.alumni_photo);
 
         return {
-          id: connection?.id,
+          id: user?.id,
           name: fullName,
           handle: toMentionHandle(firstName, lastName),
           avatar,
         };
       })
       .filter((item) => {
-        if (!query) {
-          return true;
-        }
-
+        if (!query) return true;
         return item.name.toLowerCase().includes(query) || item.handle.includes(query);
       })
       .slice(0, 5);
-  }, [allowMentions, connections, mentionContext]);
+  }, [allowMentions, mentionableUsers, mentionContext]);
 
   const typingLabel = useMemo(() => {
     if (!typingUsers.length) {
@@ -340,36 +362,55 @@ export default function ConvoScreen() {
     });
   }, [allowMentions, mentionContext]);
 
-  const handleMentionPress = useCallback((token) => {
-    if (!allowMentions) {
-      return;
-    }
+  const handleMentionPress = useCallback(async (token) => {
+    if (!allowMentions) return;
 
     const mentionHandle = String(token ?? '').replace(/^@/, '').toLowerCase();
+    if (!mentionHandle) return;
 
-    if (!mentionHandle) {
-      return;
-    }
-
-    const matchedConnection = connections.find((connection) => {
-      const connectionHandle = toMentionHandle(connection?.first_name, connection?.last_name);
-      return connectionHandle === mentionHandle;
+    // 1. Check our local unified list first
+    const matchedLocal = (mentionableUsers || []).find((user) => {
+      return toMentionHandle(user?.first_name, user?.last_name) === mentionHandle;
     });
 
-    if (!matchedConnection?.id) {
-      ThemedAlert.alert('Mention unavailable', `No profile found for @${mentionHandle}.`);
+    if (matchedLocal?.id) {
+      const parentNavigator = navigation.getParent?.();
+      if (parentNavigator?.navigate) {
+        parentNavigator.navigate('ProfileView', { userId: matchedLocal.id });
+        return;
+      }
+      navigation.navigate('ProfileView', { userId: matchedLocal.id });
       return;
     }
 
-    const parentNavigator = navigation.getParent?.();
+    // 2. If not in local connections/group, fetch their ID from Supabase!
+    try {
+      const parts = mentionHandle.split('_');
+      const first = parts[0] ? `${parts[0]}%` : '%';
+      const last = parts.length > 1 ? `${parts.slice(1).join(' ')}%` : '%';
 
-    if (parentNavigator?.navigate) {
-      parentNavigator.navigate('ProfileView', { userId: matchedConnection.id });
-      return;
+      const { data, error } = await supabase
+        .from('alumnis')
+        .select('id')
+        .ilike('first_name', first)
+        .ilike('last_name', last)
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.id) {
+        const parentNavigator = navigation.getParent?.();
+        if (parentNavigator?.navigate) {
+          parentNavigator.navigate('ProfileView', { userId: data.id });
+          return;
+        }
+        navigation.navigate('ProfileView', { userId: data.id });
+      } else {
+        ThemedAlert.alert('Mention unavailable', `No profile found for @${mentionHandle}.`);
+      }
+    } catch (e) {
+      console.error('Failed to fetch mentioned user:', e);
     }
-
-    navigation.navigate('ProfileView', { userId: matchedConnection.id });
-  }, [allowMentions, connections, navigation]);
+  }, [allowMentions, mentionableUsers, navigation]);
 
   const loadMessages = useCallback(async () => {
     if (!hasConversation) {
@@ -384,7 +425,8 @@ export default function ConvoScreen() {
       let messageList = [];
 
       if (isGroup) {
-        messageList = await getGroupMessages(groupId, 200, 0).catch(() => []);
+        // Pass currentUserId as the 2nd parameter
+        messageList = await getGroupMessages(groupId, currentUserId, 200, 0).catch(() => []);
       } else {
         if (!currentUserId) {
           setMessages([]);
@@ -461,20 +503,6 @@ export default function ConvoScreen() {
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (!hasConversation) {
-      return undefined;
-    }
-
-    const pollInterval = setInterval(() => {
-      loadTypingStatus();
-    }, 2000);
-
-    return () => {
-      clearInterval(pollInterval);
-    };
-  }, [hasConversation, loadTypingStatus]);
-
-  useEffect(() => {
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
       typingDebounceRef.current = null;
@@ -517,13 +545,47 @@ export default function ConvoScreen() {
       if (event === 'insert') {
         // New message received
         setMessages((currentMessages) => {
-          // Check if message already exists (optimistic update case)
-          const messageExists = currentMessages.some((msg) => msg.id === newMessage.id);
-          if (messageExists) {
+          // Check if message already exists by ID
+          const messageExistsById = currentMessages.some((msg) => msg.id === newMessage.id);
+          if (messageExistsById) {
             return currentMessages;
           }
+
+          // Check if this is an optimistic message confirmation by matching sender + content + approximate time
+          const optimisticDuplicate = currentMessages.some((msg) => 
+            msg.sender_id === newMessage.sender_id &&
+            msg.content === newMessage.content &&
+            Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000
+          );
+          if (optimisticDuplicate) {
+            // Replace the optimistic message with the real one (so it gets the actual ID)
+            return sortMessagesAscending(
+              currentMessages.map((msg) =>
+                msg.sender_id === newMessage.sender_id &&
+                msg.content === newMessage.content &&
+                Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000
+                  ? newMessage
+                  : msg
+              )
+            );
+          }
+
           return sortMessagesAscending([...currentMessages, newMessage]);
         });
+
+        // Load attachments if they exist (they may be inserted shortly after the message)
+        const loadAttachments = async () => {
+          const attachments = await getMessageAttachments(newMessage.id).catch(() => []);
+          if (attachments.length > 0) {
+            setMessages((currentMessages) =>
+              currentMessages.map((msg) =>
+                msg.id === newMessage.id ? { ...msg, attachments } : msg
+              )
+            );
+          }
+        };
+        setTimeout(loadAttachments, 500); // Wait 500ms for attachments to be inserted
+
         // Scroll to bottom when new message arrives
         setTimeout(() => scrollToBottom(true), 100);
       } else if (event === 'update') {
@@ -551,21 +613,6 @@ export default function ConvoScreen() {
       }
     };
   }, [hasConversation, isGroup, contactId, groupId, currentUserId, scrollToBottom]);
-
-  // Fallback polling if realtime isn't working
-  useEffect(() => {
-    if (!hasConversation) {
-      return;
-    }
-
-    const pollInterval = setInterval(() => {
-      loadMessages();
-    }, 3000); // Poll every 3 seconds
-
-    return () => {
-      clearInterval(pollInterval);
-    };
-  }, [hasConversation, contactId, groupId, loadMessages]);
 
   const openMessageActions = useCallback((message) => {
     setActionMessage(message);
@@ -642,15 +689,15 @@ export default function ConvoScreen() {
   }, [conversationName, currentUserId]);
 
   const handleDeleteMessage = useCallback(async () => {
-    if (!actionMessage) {
+    if (!actionMessage || !currentUserId) {
       return;
     }
 
     try {
       if (isGroup) {
-        await deleteGroupMessage(actionMessage.id);
+        await deleteGroupMessage(actionMessage.id, currentUserId);
       } else {
-        await deleteDirectMessage(actionMessage.id);
+        await deleteDirectMessage(actionMessage.id, currentUserId);
       }
 
       setMessages((currentMessages) => currentMessages.filter((message) => message.id !== actionMessage.id));
@@ -660,14 +707,39 @@ export default function ConvoScreen() {
     } finally {
       closeMessageActions();
     }
-  }, [actionMessage, closeMessageActions, groupId, isGroup]);
+  }, [actionMessage, closeMessageActions, currentUserId, groupId, isGroup]);
+
+  const handleAttach = useCallback(async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.status !== 'granted') {
+        ThemedAlert.alert('Permission required', 'Please allow access to your photos to send an image.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedAttachmentUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Failed to pick image:', error);
+      ThemedAlert.alert('Error', 'Could not open image library.');
+    }
+  }, []);
 
   const handleSend = useCallback(async () => {
     const trimmedDraft = draft.trim();
 
-    if (!trimmedDraft || isSending || !hasConversation) {
+    if ((!trimmedDraft && !selectedAttachmentUri) || isSending || !hasConversation) {
       return;
     }
+
+    const attachments = selectedAttachmentUri ? [selectedAttachmentUri] : [];
 
     const temporaryMessageId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const optimisticMessage = {
@@ -677,10 +749,12 @@ export default function ConvoScreen() {
       sender_id: currentUserId ?? 'local-user',
       created_at: new Date().toISOString(),
       localStatus: 'sending',
+      attachments: attachments.map((uri) => ({ attachment_path: uri, isLocal: true })),
     };
 
     setMessages((currentMessages) => sortMessagesAscending([...currentMessages, optimisticMessage]));
     setDraft('');
+    setSelectedAttachmentUri(null);
     setReplyTo(null);
     setIsSending(true);
     updateTypingStatus(false);
@@ -689,9 +763,9 @@ export default function ConvoScreen() {
       let sentMessage = null;
 
       if (isGroup) {
-        sentMessage = await sendGroupMessage(groupId, currentUserId, trimmedDraft);
+        sentMessage = await sendGroupMessage(groupId, currentUserId, trimmedDraft, attachments);
       } else {
-        sentMessage = await sendDirectMessage(currentUserId, contactId, trimmedDraft, []);
+        sentMessage = await sendDirectMessage(currentUserId, contactId, trimmedDraft, attachments);
       }
 
       // We explicitly set content: trimmedDraft so the sender sees their readable text, not the cipher!
@@ -719,7 +793,7 @@ export default function ConvoScreen() {
     } finally {
       setIsSending(false);
     }
-  }, [contactId, draft, groupId, hasConversation, isGroup, isSending, replyTo, updateTypingStatus]);
+  }, [contactId, currentUserId, draft, groupId, hasConversation, isGroup, isSending, replyTo, selectedAttachmentUri, updateTypingStatus]);
 
   const renderMessageItem = useCallback(({ item, index }) => {
     const senderId = item?.sender_id ?? item?.user_id ?? item?.sender?.id ?? item?.sender?.user_id ?? null;
@@ -727,7 +801,7 @@ export default function ConvoScreen() {
     const senderName = item?.sender?.first_name ?? item?.sender?.name ?? item?.sender_name ?? conversationName;
     const senderAvatar = getAvatarUri(senderName, item?.sender?.alumni_photo ?? item?.sender_avatar ?? conversationAvatar);
     const currentMessageDate = getMessageDate(item);
-    const previousMessageDate = getMessageDate(messages[index - 1]);
+    const previousMessageDate = getMessageDate(messagesRef.current[index - 1]);
     const showMessageTime = !isSameMinute(currentMessageDate, previousMessageDate);
     const messageTime = showMessageTime ? formatMessageTime(currentMessageDate) : '';
     const sendStatus = item?.localStatus ?? null;
@@ -742,13 +816,13 @@ export default function ConvoScreen() {
         senderAvatar={senderAvatar}
         onLongPress={() => openMessageActions(decryptedItem)} // Pass decrypted item so replies show readable text
         onSwipeReply={handleSwipeReply}
-        onMentionPress={allowMentions ? handleMentionPress : undefined}
+        onMentionPress={handleMentionPress}
         read={Boolean(item?.read_at)}
         messageTime={messageTime}
         sendStatus={sendStatus}
       />
     );
-  }, [allowMentions, conversationAvatar, conversationName, currentUserId, handleMentionPress, handleSwipeReply, messages, openMessageActions]);
+  }, [allowMentions, conversationAvatar, conversationName, currentUserId, handleMentionPress, handleSwipeReply, openMessageActions]);
 
   const renderEmptyState = useCallback(() => (
     <View style={styles.emptyConversationState}>
@@ -793,16 +867,16 @@ export default function ConvoScreen() {
           <View style={styles.composerFooterWrap}>
             {mentionContext && mentionSuggestions.length > 0 ? (
               <View style={styles.mentionPanel}>
-                {mentionSuggestions.map((item) => (
+                {mentionSuggestions.map((item, index) => (
                   <Pressable
-                    key={String(item.id ?? item.name)}
+                    key={`${String(item.id ?? item.name)}-${index}`}
                     style={styles.mentionItem}
                     onPress={() => handleMentionPick(item.handle)}
                   >
                     <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
                     <Text style={styles.mentionName} numberOfLines={1}>@{item.handle}</Text>
                   </Pressable>
-                ))}
+                ))} 
               </View>
             ) : null}
 
@@ -814,16 +888,34 @@ export default function ConvoScreen() {
               </View>
             ) : null}
 
+            {selectedAttachmentUri ? (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row' }}>
+                <View style={{ position: 'relative' }}>
+                  <Image
+                    source={{ uri: selectedAttachmentUri }}
+                    style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#E5E7EB' }}
+                  />
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#FFF', borderRadius: 12 }}
+                    onPress={() => setSelectedAttachmentUri(null)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+
             <MessageInputBar
               value={draft}
               onChangeText={setDraft}
               onSend={handleSend}
-              onAttach={() => ThemedAlert.alert('Attachments', 'Attachment picker is not implemented yet.')}
+              onAttach={handleAttach}
               onEmoji={() => setDraft((currentDraft) => `${currentDraft} 😊`)}
               disabled={isSending}
               isReplying={Boolean(replyTo)}
               onCancelReply={() => setReplyTo(null)}
               replyTo={replyTo}
+              hasAttachment={Boolean(selectedAttachmentUri)}
             />
           </View>
         )}
@@ -870,7 +962,7 @@ export default function ConvoScreen() {
               ref={flatListRef}
               data={messages}
               renderItem={renderMessageItem}
-              keyExtractor={(item, index) => String(item?.id ?? index)}
+              keyExtractor={(item, index) => String(item?.id ?? item?.tempId ?? item?.localId ?? item?.created_at ?? index)}
               initialNumToRender={14}
               maxToRenderPerBatch={10}
               updateCellsBatchingPeriod={50}
@@ -881,6 +973,12 @@ export default function ConvoScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               style={styles.chatBody}
+              onContentSizeChange={() => {
+                if (messages.length > 0) flatListRef.current?.scrollToEnd({ animated: false });
+              }}
+              onLayout={() => {
+                if (messages.length > 0) flatListRef.current?.scrollToEnd({ animated: false });
+              }}
             />
 
             <Modal

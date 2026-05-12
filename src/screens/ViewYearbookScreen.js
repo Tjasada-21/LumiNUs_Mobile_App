@@ -23,7 +23,7 @@ const pageTemplates = [
 	},
 ];
 
-const ViewYearbookScreen = () => {
+const ViewYearbookScreen = ({ navigation }) => {
 	// SECTION: Page state
 	const [pageIndex, setPageIndex] = React.useState(0);
 
@@ -62,9 +62,18 @@ const ViewYearbookScreen = () => {
 				<View style={screenStyles.content}>
 					<View style={screenStyles.titleStrip}>
 						<Text style={screenStyles.title}>Virtual Yearbook</Text>
-						<View style={screenStyles.homeButton}>
+						<Pressable
+							onPress={() => navigation.navigate('Home')}
+							hitSlop={10}
+							style={({ pressed }) => [
+								screenStyles.homeButton,
+								pressed && screenStyles.homeButtonPressed,
+							]}
+							accessibilityRole="button"
+							accessibilityLabel="Go to Home"
+						>
 							<Ionicons name="home-outline" size={28} color="#31429B" />
-						</View>
+						</Pressable>
 					</View>
 
 					<View style={screenStyles.coverArea}>
@@ -204,6 +213,15 @@ const screenStyles = StyleSheet.create({
 		backgroundColor: '#F2C919',
 		alignItems: 'center',
 		justifyContent: 'center',
+		shadowColor: '#31429B',
+		shadowOpacity: 0.12,
+		shadowRadius: 3,
+		shadowOffset: { width: 0, height: 1 },
+		elevation: 2,
+	},
+	homeButtonPressed: {
+		opacity: 0.72,
+		transform: [{ scale: 0.94 }],
 	},
 	coverArea: {
 		flex: 1,

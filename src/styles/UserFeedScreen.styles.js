@@ -23,6 +23,11 @@ const styles = StyleSheet.create({
 		borderBottomWidth: 1,
 		borderBottomColor: '#D9D9D9',
 	},
+	searchTouchable: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		flex: 1,
+	},
 	searchAvatar: {
 		width: 34,
 		height: 34,
@@ -41,12 +46,19 @@ const styles = StyleSheet.create({
 		paddingLeft: 18,
 		paddingRight: 14,
 	},
-	searchInput: {
+	searchTextWrap: {
 		flex: 1,
+		justifyContent: 'center',
+	},
+	searchPlaceholder: {
 		fontSize: 15,
+		fontWeight: '700',
 		color: '#5A5A5A',
-		paddingVertical: 0,
-		paddingRight: 10,
+	},
+	searchHint: {
+		marginTop: 1,
+		fontSize: 11,
+		color: '#8A94A6',
 	},
 	searchResultsContainer: {
 		maxHeight: 500,

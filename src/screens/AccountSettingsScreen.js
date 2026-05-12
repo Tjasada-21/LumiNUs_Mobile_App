@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, useWindowDimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, useWindowDimensions, Platform } from 'react-native';
 import SmartTextInput from '../components/SmartTextInput';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAlumniByEmail, uploadAlumniPhoto, updateAlumniProfile, removeAlumniPhoto, getAlumniPhotoFromStorage } from '../services/alumniQueries';
+import supabase from '../services/supabase';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { clearAuthCredentials } from '../services/authStorage';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/AccountSettingsScreen.styles';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { ThemedAlert } from '../components/ThemedAlert';
 
@@ -27,6 +29,21 @@ const formatDate = (value) => {
     day: 'numeric',
     year: 'numeric',
   }).format(parsedDate);
+};
+
+const normalizeDateOnly = (value) => {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+
+  const parsedDate = new Date(raw);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return raw;
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
 };
 
 // Helper function to resolve MIME types for the FormData object
@@ -70,6 +87,12 @@ const AccountSettingsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [pickingImage, setPickingImage] = useState(false);
+  const [dobPickerVisible, setDobPickerVisible] = useState(false);
+  const [dobDate, setDobDate] = useState(() => {
+    const initial = '';
+    return initial ? new Date(initial) : new Date(1990, 0, 1);
+  });
+  const [dobTouched, setDobTouched] = useState(false);
   const [photoCooldownUntil, setPhotoCooldownUntil] = useState(0);
   const [photoCooldownSeconds, setPhotoCooldownSeconds] = useState(0);
 
@@ -106,7 +129,7 @@ const AccountSettingsScreen = ({ navigation }) => {
         last_name: data?.last_name || '',
         phone_number: data?.phone_number || '',
         email: data?.email || userEmail,
-        date_of_birth: data?.date_of_birth ? String(data.date_of_birth).slice(0, 10) : '',
+        date_of_birth: normalizeDateOnly(data?.date_of_birth),
         sex: data?.sex || '',
         alumni_photo: resolvedPhoto,
       });
@@ -195,11 +218,9 @@ const AccountSettingsScreen = ({ navigation }) => {
       fields.forEach((f) => {
         const newVal = (formData[f] ?? '').trim();
         const oldValRaw = userData?.[f];
-        const oldVal = oldValRaw == null ? '' : String(oldValRaw).slice(0, 10);
 
-        // for date_of_birth we normalized to YYYY-MM-DD elsewhere; compare slices
         if (f === 'date_of_birth') {
-          const oldDate = userData?.date_of_birth ? String(userData.date_of_birth).slice(0, 10) : '';
+          const oldDate = normalizeDateOnly(userData?.date_of_birth);
           if (newVal !== oldDate) changes[f] = newVal;
         } else {
           if (newVal !== (oldValRaw ?? '')) changes[f] = newVal;
@@ -256,7 +277,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                   last_name: data.last_name || '',
                   phone_number: data.phone_number || '',
                   email: data.email || '',
-                  date_of_birth: data.date_of_birth ? String(data.date_of_birth).slice(0, 10) : '',
+                  date_of_birth: normalizeDateOnly(data.date_of_birth),
                   sex: data.sex || '',
                   alumni_photo: data.alumni_photo || '',
                 });
@@ -330,6 +351,34 @@ const AccountSettingsScreen = ({ navigation }) => {
       ],
       { cancelable: true }
     );
+  };
+
+  const handleEmailAction = async () => {
+    if (!formData.email) {
+      ThemedAlert.alert('No email', 'No email address is set for this account.');
+      return;
+    }
+
+    if (verificationStatus === 'verified') {
+      ThemedAlert.alert('Already verified', 'Your email is already verified.');
+      return;
+    }
+
+    try {
+      // Attempt to send a magic link / OTP to the user's email to prompt verification
+      const normalized = String(formData.email || '').trim().toLowerCase();
+      const { error } = await supabase.auth.signInWithOtp({ email: normalized });
+      if (error) {
+        console.error('[AccountSettings] Failed to send verification email:', error.message || error);
+        ThemedAlert.alert('Failed', 'Could not send verification email. Please try again later.');
+        return;
+      }
+
+      ThemedAlert.alert('Verification sent', 'A verification email has been sent to your address. Check your inbox and follow the instructions.');
+    } catch (err) {
+      console.error('[AccountSettings] Error sending verification:', err);
+      ThemedAlert.alert('Error', 'Unable to send verification email right now.');
+    }
   };
 
   const profileName = userData
@@ -540,7 +589,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                   numberOfLines={1}
                   editable={!formDisabled}
                 />
-                <TouchableOpacity activeOpacity={0.8} style={styles.verifyLinkButton}>
+                <TouchableOpacity activeOpacity={0.8} style={styles.verifyLinkButton} onPress={handleEmailAction}>
                   <Text style={styles.verifyLink}>{emailActionText}</Text>
                 </TouchableOpacity>
               </View>
@@ -555,14 +604,87 @@ const AccountSettingsScreen = ({ navigation }) => {
                 <Text style={styles.inputLabel}>Date of Birth</Text>
                 <View style={styles.dateInputRow}>
                   <Ionicons name="calendar-outline" size={16} color="#666" />
-                  <SmartTextInput
-                    value={formData.date_of_birth}
-                    onChangeText={(value) => updateField('date_of_birth', value)}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9A9A9A"
-                    style={[styles.inputValue, styles.dateValue]}
-                    editable={!formDisabled}
-                  />
+                    <TouchableOpacity
+                      style={[styles.inputValue, styles.dateValue, { paddingVertical: 8 }]}
+                      activeOpacity={0.8}
+                      disabled={formDisabled}
+                      onPress={() => {
+                        // Initialize picker date from current form value if present
+                        const current = formData.date_of_birth ? new Date(String(formData.date_of_birth)) : new Date(1990, 0, 1);
+                        if (!Number.isNaN(current.getTime())) setDobDate(current);
+                        setDobTouched(true);
+                        setDobPickerVisible(true);
+                      }}
+                    >
+                      <Text style={{ color: formData.date_of_birth ? '#111827' : '#9A9A9A' }}>
+                        {formData.date_of_birth ? formatDate(formData.date_of_birth) : 'YYYY-MM-DD'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {dobPickerVisible ? (
+                      <>
+                        <DateTimePicker
+                          value={dobDate}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                          maximumDate={new Date()}
+                          onChange={(event, selected) => {
+                            // Android: event.type === 'dismissed' when cancelled
+                            if (Platform.OS !== 'ios') {
+                              if (event?.type === 'dismissed') {
+                                setDobPickerVisible(false);
+                                return;
+                              }
+                              const picked = selected || dobDate;
+                              if (picked && !Number.isNaN(picked.getTime())) {
+                                const iso = picked.toISOString().slice(0, 10);
+                                updateField('date_of_birth', iso);
+                                setDobDate(picked);
+                              }
+                              setDobPickerVisible(false);
+                            } else {
+                              // iOS inline: update temp date only, commit on Done
+                              const picked = selected || dobDate;
+                              if (picked && !Number.isNaN(picked.getTime())) {
+                                setDobDate(picked);
+                              }
+                            }
+                          }}
+                        />
+
+                        {Platform.OS === 'ios' ? (
+                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity
+                              onPress={() => {
+                                // Clear DOB
+                                updateField('date_of_birth', '');
+                                setDobPickerVisible(false);
+                              }}
+                              style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                            >
+                              <Text style={{ color: '#B91C1C' }}>Clear</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => {
+                                // Commit selected date
+                                if (dobDate && !Number.isNaN(dobDate.getTime())) {
+                                  const iso = dobDate.toISOString().slice(0, 10);
+                                  updateField('date_of_birth', iso);
+                                }
+                                setDobPickerVisible(false);
+                              }}
+                              style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                            >
+                              <Text style={{ color: '#31429B', fontWeight: '700' }}>Done</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                      </>
+                    ) : null}
+
+                    {dobTouched && !formData.date_of_birth ? (
+                      <Text style={styles.helpText}>You cleared your date of birth — your profile will have no DOB.</Text>
+                    ) : null}
                 </View>
               </View>
 

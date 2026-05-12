@@ -21,6 +21,7 @@ import { getConversations, getUserGroupChats, getUnreadMessageCount } from '../s
 import { getFollowers, getFollowing } from '../services/connectionQueries';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
+import { useUnreadMessages } from '../context/UnreadMessagesContext';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/ChatScreen.styles';
 // authStorage no longer used; Supabase auth is used instead
@@ -82,6 +83,7 @@ const formatChatTimestamp = (value) => {
 
 const ChatScreen = ({ navigation }) => {
 	const { currentUserProfile } = useCurrentUserProfile();
+	const { refreshUnreadMessages } = useUnreadMessages();
 	// SECTION: Layout values
 	const { width } = useWindowDimensions();
 	const isCompactWidth = width < 375;
@@ -107,6 +109,10 @@ const ChatScreen = ({ navigation }) => {
 	const [modalGroup, setModalGroup] = useState(null);
 	const [favoriteContactIds, setFavoriteContactIds] = useState(new Set());
 	const [conversationViewTimestamps, setConversationViewTimestamps] = useState({});
+	const [pageOffset, setPageOffset] = useState(0);
+	const [isFetchingMore, setIsFetchingMore] = useState(false);
+	const [hasMoreChats, setHasMoreChats] = useState(true);
+	const CHAT_LIMIT = 50;
 	const tabAnimationValuesRef = useRef({
 		all: new Animated.Value(1),
 		channels: new Animated.Value(0),
@@ -212,9 +218,7 @@ const ChatScreen = ({ navigation }) => {
 
 	const openGroupConversation = (groupChat) => {
 		const groupName = groupChat?.name ?? 'Group Chat';
-		const groupAvatar = groupChat?.avatar_url
-			? groupChat.avatar_url
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}&background=31429B&color=fff`;
+		const groupAvatar = getAvatarUri(groupName, groupChat?.avatar_url);
 		const groupMembers = Array.isArray(groupChat?.members) ? groupChat.members : [];
 		const conversationId = groupChat?.id;
 
@@ -257,24 +261,30 @@ const ChatScreen = ({ navigation }) => {
 
 				// Load conversations (direct messages) and group chats from the server so
 				// unread badges clear as soon as the user has opened the conversation.
-				const conversationsPromise = getConversations(supaUser.id);
-				const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
-				const followingPromise = getFollowing(supaUser.id).catch(() => []);
-				const followersPromise = getFollowers(supaUser.id).catch(() => []);
-				const favoritesPromise = supabase
-					.from('favorite_chats')
-					.select('contact_id')
-					.eq('user_id', supaUser.id);
+			// Pass 0 offset and our limit for the initial load
+			const conversationsPromise = getConversations(supaUser.id, 0, CHAT_LIMIT);
+			
+			// Reset pagination state on full reload
+			setPageOffset(0);
+			setHasMoreChats(true);
+			
+			const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
+			const followingPromise = getFollowing(supaUser.id).catch(() => []);
+			const followersPromise = getFollowers(supaUser.id).catch(() => []);
+			const favoritesPromise = supabase
+				.from('favorite_chats')
+				.select('contact_id')
+				.eq('user_id', supaUser.id);
 
-				const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
-					conversationsPromise,
-					groupChatsPromise,
-					followingPromise,
-					followersPromise,
-					favoritesPromise,
-				]);
+			const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
+				conversationsPromise,
+				groupChatsPromise,
+				followingPromise,
+				followersPromise,
+				favoritesPromise,
+			]);
 
-				setUserData(supaUser);
+			setUserData(supaUser);
 
 				const connectionsMap = new Map();
 
@@ -334,15 +344,14 @@ const ChatScreen = ({ navigation }) => {
 					const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
 					setFavoriteContactIds(new Set(favoriteIds));
 				} catch (e) {
-					console.warn('[ChatScreen] Failed to map initial favorites', e);
 				}
 				const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
 				setGroupChats(nextGroupChats);
 				setAdmins([]); // no explicit admins table in Supabase schema by default
 				cachedContacts = nextContacts;
 				cachedContactsLoadedAt = Date.now();
+				void refreshUnreadMessages();
 			} catch (error) {
-				console.error('Failed to fetch chat screen data:', error);
 				setUserData(null);
 				setContacts([]);
 				setGroupChats([]);
@@ -351,6 +360,52 @@ const ChatScreen = ({ navigation }) => {
 				setIsLoadingAdmins(false);
 			}
 		}, []);
+
+	const handleLoadMore = async () => {
+		// Prevent overlapping fetches and stop if we reached the end
+		if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
+
+		try {
+			setIsFetchingMore(true);
+			const nextOffset = pageOffset + CHAT_LIMIT;
+			
+			// Fetch the next page of conversations
+			const newConversations = await getConversations(userData.id, nextOffset, CHAT_LIMIT);
+			
+			// If we got fewer than the limit, we hit the end of the database
+			if (!newConversations || newConversations.length < CHAT_LIMIT) {
+				setHasMoreChats(false);
+			}
+			
+			if (newConversations && newConversations.length > 0) {
+				setContacts(prevContacts => {
+					// Use a Map to cleanly merge new chats with existing connections
+					const connectionsMap = new Map(prevContacts.map(c => [c.id, c]));
+					
+					newConversations.forEach(conversation => {
+						if (!conversation?.id) return;
+						const baseContact = connectionsMap.get(conversation.id) || {};
+						connectionsMap.set(conversation.id, {
+							...baseContact,
+							...conversation,
+							id: conversation.id,
+							connection_id: conversation.connection_id ?? conversation.id,
+							first_name: conversation.first_name ?? baseContact.first_name,
+							last_name: conversation.last_name ?? baseContact.last_name,
+							email: conversation.email ?? baseContact.email,
+							alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+						});
+					});
+					
+					return Array.from(connectionsMap.values());
+				});
+				setPageOffset(nextOffset);
+			}
+		} catch (error) {
+		} finally {
+			setIsFetchingMore(false);
+		}
+	};
 
 	useFocusEffect(
 		useCallback(() => {
@@ -563,25 +618,34 @@ const ChatScreen = ({ navigation }) => {
 			setModalContact(null);
 		};
 
+		// Helper to safely upsert DM settings without crashing
+		const updateDMSettings = async (contactId, updates) => {
+			if (!userData?.id || !contactId) return;
+
+			try {
+				const { error } = await supabase
+					.from('dm_settings')
+					.upsert(
+						{ user_id: userData.id, contact_id: contactId, ...updates },
+						{ onConflict: 'user_id, contact_id' }
+					);
+
+				if (error) throw error;
+			} catch (e) {
+				
+			}
+		};
+
 		const handleArchive = async () => {
 			hideContactActions();
-			// console.log('Archive', modalContact?.id);
-			try {
-				// Best-effort: mark contact as archived in Supabase if table exists
-				await supabase.from('contacts').update({ archived: true }).eq('id', modalContact?.id);
-			} catch (e) {
-				console.warn('[ChatScreen] Archive operation failed or contacts table missing', e?.message || e);
-			}
+			await updateDMSettings(modalContact?.id, { is_archived: true });
+			ThemedAlert.alert('Archived', 'Conversation has been archived.');
 		};
 
 		const handleMute = async () => {
 			hideContactActions();
-			// console.log('Mute', modalContact?.id);
-			try {
-				await supabase.from('contacts').update({ muted: true }).eq('id', modalContact?.id);
-			} catch (e) {
-				console.warn('[ChatScreen] Mute operation failed or contacts table missing', e?.message || e);
-			}
+			await updateDMSettings(modalContact?.id, { is_muted: true });
+			ThemedAlert.alert('Muted', 'Notifications for this chat are now muted.');
 		};
 
 		const handleCreateGroup = async () => {
@@ -597,59 +661,61 @@ const ChatScreen = ({ navigation }) => {
 
 		const handleMarkUnread = async () => {
 			hideContactActions();
-			// console.log('Mark unread', modalContact?.id);
 			try {
-				// Best-effort: mark recent messages as unread for this contact
-				// Attempt to find messages between current user and contact and mark them unread
-				// If messages table/schema differs, this may no-op.
-				// No-op fallback: warn.
-				console.warn('[ChatScreen] mark-unread not implemented on Supabase; skipping');
+				const { data, error } = await supabase
+					.from('messages')
+					.select('id')
+					.eq('sender_id', modalContact?.id)
+					.eq('receiver_id', userData?.id)
+					.order('created_at', { ascending: false })
+					.limit(1);
+
+				if (error) throw error;
+
+				if (data && data.length > 0) {
+					const { error: updateError } = await supabase
+						.from('messages')
+						.update({ is_read: false })
+						.eq('id', data[0].id);
+
+					if (updateError) throw updateError;
+					void loadChatData();
+				}
 			} catch (e) {
-				console.warn('[ChatScreen] Mark unread operation failed', e?.message || e);
+				
 			}
 		};
 
 		const handleRestrict = async () => {
 			hideContactActions();
-			// console.log('Restrict', modalContact?.id);
-			try {
-				await supabase.from('contacts').update({ restricted: true }).eq('id', modalContact?.id);
-			} catch (e) {
-				console.warn('[ChatScreen] Restrict operation failed or contacts table missing', e?.message || e);
-			}
+			await updateDMSettings(modalContact?.id, { is_restricted: true });
+			ThemedAlert.alert('Restricted', 'This user has been restricted.');
 		};
 
 		const handleBlock = async () => {
 			hideContactActions();
-			// console.log('Block', modalContact?.id);
-			try {
-				await supabase.from('contacts').update({ blocked: true }).eq('id', modalContact?.id);
-			} catch (e) {
-				console.warn('[ChatScreen] Block operation failed or contacts table missing', e?.message || e);
-			}
+			await updateDMSettings(modalContact?.id, { is_blocked: true });
+			ThemedAlert.alert('Blocked', 'This user has been blocked.');
 		};
 
 		const handleDelete = async () => {
-			ThemedAlert.alert('Delete conversation', 'Are you sure you want to delete this conversation?', [
+			ThemedAlert.alert('Delete conversation', 'Are you sure you want to remove this conversation from your list?', [
 				{ text: 'Cancel', style: 'cancel' },
 				{ text: 'Delete', style: 'destructive', onPress: async () => {
 					hideContactActions();
-					// console.log('Delete', modalContact?.id);
-					try {
-						// Attempt to delete contact row from Supabase if table exists
-						await supabase.from('contacts').delete().eq('id', modalContact?.id);
-					} catch (e) {
-						console.warn('[ChatScreen] Delete operation failed or contacts table missing', e?.message || e);
-					}
+					
+					// Soft delete by hiding it for this user, instead of wiping messages for both users!
+					await updateDMSettings(modalContact?.id, { is_hidden: true });
+					
+					// Optimistically remove from the UI immediately
+					setContacts((prev) => prev.filter((c) => c.id !== modalContact?.id));
 				} }
 			]);
 		};
 
 	const renderGroupChatItem = ({ item }) => {
 		const groupName = item?.name ?? 'Group Chat';
-		const groupAvatar = item?.avatar_url
-			? item.avatar_url
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}&background=31429B&color=fff`;
+		const groupAvatar = getAvatarUri(groupName, item?.avatar_url);
 		const latestMessage = item?.latest_message?.content ?? 'No messages yet';
 		const memberCount = Array.isArray(item?.members) ? item.members.length : 0;
 		const unreadCount = Number(item?.unread_count ?? 0);
@@ -718,7 +784,7 @@ const ChatScreen = ({ navigation }) => {
 				if (error) throw error;
 			}
 		} catch (e) {
-			console.warn('[ChatScreen] Failed to persist favorite state', e?.message || e);
+			
 			setFavoriteContactIds(prevSet);
 		}
 	};
@@ -730,21 +796,19 @@ const ChatScreen = ({ navigation }) => {
 
 		const handleArchiveGroup = async () => {
 			hideGroupActions();
-			console.log('Archive group', modalGroup?.id);
 			try {
-				await api.post(`/group-chats/${modalGroup?.id}/archive`);
+				await supabase.from('group_chat_members').update({ archived: true }).eq('group_chat_id', modalGroup?.id).eq('alumni_id', userData?.id);
 			} catch (e) {
-				console.warn('Archive group API failed', e?.message || e);
+				
 			}
 		};
 
 		const handleIgnoreGroup = async () => {
 			hideGroupActions();
-			console.log('Ignore group', modalGroup?.id);
 			try {
-				await api.post(`/group-chats/${modalGroup?.id}/ignore`);
+				await supabase.from('group_chat_members').update({ ignored: true }).eq('group_chat_id', modalGroup?.id).eq('alumni_id', userData?.id);
 			} catch (e) {
-				console.warn('Ignore group API failed', e?.message || e);
+				
 			}
 		};
 
@@ -758,21 +822,21 @@ const ChatScreen = ({ navigation }) => {
 
 		const handleMuteGroup = async () => {
 			hideGroupActions();
-			console.log('Mute group', modalGroup?.id);
 			try {
-				await api.post(`/group-chats/${modalGroup?.id}/mute`);
+				await supabase.from('group_chat_members').update({ muted: true }).eq('group_chat_id', modalGroup?.id).eq('alumni_id', userData?.id);
 			} catch (e) {
-				console.warn('Mute group API failed', e?.message || e);
+				
 			}
 		};
 
 		const handleMarkGroupUnread = async () => {
 			hideGroupActions();
-			console.log('Mark group unread', modalGroup?.id);
 			try {
-				await api.post(`/group-chats/${modalGroup?.id}/mark-unread`);
+				// Resetting last_read_message_id recalculates the unread count
+				await supabase.from('group_chat_members').update({ last_read_message_id: 0 }).eq('group_chat_id', modalGroup?.id).eq('alumni_id', userData?.id);
+				loadChatData();
 			} catch (e) {
-				console.warn('Mark group unread API failed', e?.message || e);
+				
 			}
 		};
 
@@ -781,11 +845,13 @@ const ChatScreen = ({ navigation }) => {
 				{ text: 'Cancel', style: 'cancel' },
 				{ text: 'Leave', style: 'destructive', onPress: async () => {
 					hideGroupActions();
-					console.log('Leave group', modalGroup?.id);
 					try {
-						await api.post(`/group-chats/${modalGroup?.id}/leave`);
+						// Remove the user's membership row
+						await supabase.from('group_chat_members').delete().eq('group_chat_id', modalGroup?.id).eq('alumni_id', userData?.id);
+						// Optimistically update the UI to remove the group from the list
+						setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id));
 					} catch (e) {
-						console.warn('Leave group API failed', e?.message || e);
+						
 					}
 				} }
 			]);
@@ -796,11 +862,12 @@ const ChatScreen = ({ navigation }) => {
 				{ text: 'Cancel', style: 'cancel' },
 				{ text: 'Delete', style: 'destructive', onPress: async () => {
 					hideGroupActions();
-					console.log('Delete group', modalGroup?.id);
 					try {
-						await api.delete(`/group-chats/${modalGroup?.id}`);
+						// Delete the group record (ensure your RLS policies only allow creators/admins to do this)
+						await supabase.from('group_chats').delete().eq('id', modalGroup?.id);
+						setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id));
 					} catch (e) {
-						console.warn('Delete group API failed', e?.message || e);
+						
 					}
 				} }
 			]);
@@ -808,9 +875,7 @@ const ChatScreen = ({ navigation }) => {
 
 	const renderAdminItem = ({ item }) => {
 		const adminName = `${item?.admin_first_name ?? item?.first_name ?? ''} ${item?.admin_last_name ?? item?.last_name ?? ''}`.trim() || 'Admin';
-		const adminAvatar = item?.photo || item?.admin_photo
-			? (item.photo || item.admin_photo)
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(adminName)}&background=31429B&color=fff`;
+		const adminAvatar = getAvatarUri(adminName, item?.photo || item?.admin_photo);
 
 		return (
 			<Pressable
@@ -900,7 +965,7 @@ const ChatScreen = ({ navigation }) => {
 										style={({ pressed }) => [styles.contactCard, pressed ? styles.chatCardPressed : null]}
 										onPress={() => openConversation({ id: admins[0]?.id, first_name: admins[0]?.admin_first_name ?? admins[0]?.first_name, last_name: admins[0]?.admin_last_name ?? admins[0]?.last_name, alumni_photo: admins[0]?.photo ?? admins[0]?.admin_photo })}
 									>
-										<Image source={{ uri: admins[0]?.photo ?? admins[0]?.admin_photo ?? `https://ui-avatars.com/api/?name=${encodeURIComponent((admins[0]?.admin_first_name ?? admins[0]?.first_name) || 'Admin')}&background=31429B&color=fff` }} style={styles.contactAvatar} />
+										<Image source={{ uri: getAvatarUri((admins[0]?.admin_first_name ?? admins[0]?.first_name) || 'Admin', admins[0]?.photo ?? admins[0]?.admin_photo) }} style={styles.contactAvatar} />
 										<View style={styles.contactTextWrap}>
 											<Text style={styles.contactName} numberOfLines={1}>{`${admins[0]?.admin_first_name ?? admins[0]?.first_name ?? ''} ${admins[0]?.admin_last_name ?? admins[0]?.last_name ?? ''}`.trim() || 'Admin'}</Text>
 											<Text style={styles.contactMeta}>Message Admin</Text>
@@ -956,6 +1021,13 @@ const ChatScreen = ({ navigation }) => {
 							refreshing={isLoadingChatData}
 							onRefresh={loadChatData}
 							ListEmptyComponent={getListEmptyComponent}
+							onEndReached={handleLoadMore}
+							onEndReachedThreshold={0.5}
+							ListFooterComponent={
+								isFetchingMore ? (
+									<ActivityIndicator size="small" color="#31429B" style={{ marginVertical: 16 }} />
+								) : null
+							}
 						/>
 					</Animated.View>
 				</View>

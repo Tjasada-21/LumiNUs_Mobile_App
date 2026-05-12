@@ -482,6 +482,70 @@ export const createPost = async (alumniId, postData) => {
       throw new Error('Post creation returned no data');
     }
 
+    // --- NEW: Global Mention Resolution & Push Notifications ---
+    try {
+      const mentionPattern = /@([a-zA-Z0-9_.-]+)/g;
+      const foundHandles = new Set();
+      let match;
+      
+      // 1. Scan the raw text caption for any @handles
+      while ((match = mentionPattern.exec(postData.caption || '')) !== null) {
+        if (match[1]) foundHandles.add(match[1].toLowerCase());
+      }
+
+      if (foundHandles.size > 0) {
+        const handles = Array.from(foundHandles);
+        const mentionInserts = [];
+        const notifyTokens = [];
+
+        // 2. Intelligently search the ENTIRE alumni database for these handles
+        for (const handle of handles) {
+          const parts = handle.split('_');
+          const first = parts[0] ? `${parts[0]}%` : '%';
+          const last = parts.length > 1 ? `${parts.slice(1).join(' ')}%` : '%';
+
+          const { data: alumni } = await supabase
+            .from('alumnis')
+            .select('id, push_token')
+            .ilike('first_name', first)
+            .ilike('last_name', last)
+            .limit(1)
+            .maybeSingle();
+
+          // 3. If found, prepare the database insert and queue their notification token
+          if (alumni?.id) {
+            mentionInserts.push({ post_id: data.id, alumni_id: alumni.id });
+            if (alumni.id !== alumniId && alumni.push_token) {
+              notifyTokens.push(alumni.push_token);
+            }
+          }
+        }
+
+        // 4. Save to the database
+        if (mentionInserts.length > 0) {
+          await supabase.from('post_mentions').insert(mentionInserts).catch(() => null);
+        }
+
+        // 5. Fire Push Notifications to the tagged users!
+        if (notifyTokens.length > 0) {
+          const { data: sender } = await supabase.from('alumnis').select('first_name, last_name').eq('id', alumniId).maybeSingle();
+          const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+          
+          // Dynamically import your sender to avoid circular dependency issues at the top of the file
+          const { sendPushNotification } = await import('./NotificationSender');
+          await sendPushNotification(
+            notifyTokens,
+            'You were mentioned!',
+            `${senderName} mentioned you in a new post.`,
+            { type: 'post_mention', postId: data.id }
+          ).catch((e) => console.warn('[posts] Push notification failed:', e));
+        }
+      }
+    } catch (mentionErr) {
+      console.warn('[posts] Failed to process mentions:', mentionErr);
+    }
+    // -----------------------------------------------------------
+
     if (uploadedImagePaths.length > 0) {
       try {
         const imageRecords = uploadedImagePaths.map(imagePath => ({
@@ -587,6 +651,19 @@ export const updatePost = async (postId, updates) => {
       }
 
       return normalizePost(refreshedPost);
+    }
+
+    // If mentions provided in updates, update post_mentions table (best-effort)
+    try {
+      const mentionIds = Array.isArray(updates?.mentions) ? updates.mentions.map((id) => Number(id)).filter(Boolean) : [];
+      if (mentionIds.length > 0) {
+        // Remove existing mentions for this post then insert new ones
+        await supabase.from('post_mentions').delete().eq('post_id', postId).catch(() => null);
+        const mentionRows = mentionIds.map((mid) => ({ post_id: postId, alumni_id: mid }));
+        await supabase.from('post_mentions').insert(mentionRows).catch(() => null);
+      }
+    } catch (ignore) {
+      // ignore errors related to mentions
     }
 
     return normalizePost(data);
@@ -726,6 +803,23 @@ export const addComment = async (postId, alumniId, commentText, parentId = null,
       .single();
 
     if (error) throw error;
+    // Record mentions in comment_mentions table (best-effort)
+    try {
+      const mentionPattern = /@([a-zA-Z0-9_.-]+)/g;
+      const foundHandles = new Set();
+      let match;
+      while ((match = mentionPattern.exec(commentText)) !== null) {
+        if (match[1]) foundHandles.add(match[1].toLowerCase());
+      }
+      if (foundHandles.size > 0) {
+        // Try to resolve handles to alumni IDs using alumni info included in the inserted comment (best-effort not having connections here)
+        // If no reliable mapping exists on client, attempt to insert raw handles into comment_mentions.handles column when available
+        const handles = Array.from(foundHandles);
+        await supabase.from('comment_mentions').insert(handles.map(h => ({ comment_id: data.id, handle: h }))).catch(() => null);
+      }
+    } catch (ignore) {
+      // ignore mention recording errors
+    }
     return normalizeComment(data);
   } catch (error) {
     console.error('[comments] Add comment error:', error.message);
@@ -884,6 +978,47 @@ export const deleteRepost = async (repostId) => {
     if (error) throw error;
   } catch (error) {
     console.error('[reposts] Delete repost error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get all saved drafts for a user
+ */
+export const getUserDrafts = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        images:images_posts(id, image_path)
+      `)
+      .eq('alumni_id', userId)
+      .eq('is_draft', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('[postQueries] Get drafts error:', error.message);
+    return [];
+  }
+};
+
+/**
+ * Delete a specific post or draft
+ */
+export const deletePost = async (postId) => {
+  try {
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('[postQueries] Delete post error:', error.message);
     throw error;
   }
 };

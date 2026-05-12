@@ -16,6 +16,7 @@ import ConnectionsScreen from '../screens/ConnectionsScreen';
 import ProfileViewScreen from '../screens/ProfileViewScreen';
 import RegisteredEventsScreen from '../screens/RegisteredEventsScreen';
 import AlumniTracerScreen from '../screens/AlumniTracerScreen';
+import GlobalSearchScreen from '../screens/GlobalSearchScreen';
 import { useUnreadMessages } from '../context/UnreadMessagesContext';
 import { sharedScreenStyles } from '../styles/sharedStyles';
 
@@ -167,6 +168,14 @@ const MainTabNavigator = () => {
       <Tab.Screen
         name="RegisteredEventsScreen"
         component={RegisteredEventsScreen}
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      <Tab.Screen
+        name="GlobalSearch"
+        component={GlobalSearchScreen}
         options={{
           tabBarButton: () => null,
           tabBarItemStyle: { display: 'none' },

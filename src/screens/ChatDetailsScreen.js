@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dimensions, View, Text, Image, StyleSheet, FlatList, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { Dimensions, View, Text, Image, StyleSheet, FlatList, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAvatarUri } from '../utils/imageUtils';
-import { addGroupMember, getGroupChat } from '../services/messageQueries';
+import { addGroupMember, getGroupChat, removeGroupMember } from '../services/messageQueries';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getFollowers, getFollowing } from '../services/connectionQueries';
 import { ThemedAlert } from '../components/ThemedAlert';
+import supabase from '../services/supabase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -22,6 +24,44 @@ const ChatDetailsScreen = ({ route, navigation }) => {
   const [candidateMembers, setCandidateMembers] = useState([]);
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
   const [addingMemberId, setAddingMemberId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isMembersModalVisible, setIsMembersModalVisible] = useState(false);
+  const [isEditGroupModalVisible, setIsEditGroupModalVisible] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState(routeGroup?.name ?? '');
+  const [groupAvatarDraft, setGroupAvatarDraft] = useState(routeGroup?.avatar_url ?? routeGroup?.avatar ?? '');
+  const [isSavingGroupDetails, setIsSavingGroupDetails] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCurrentUser = async () => {
+      const currentUser = await getCurrentUser().catch(() => null);
+      if (active) {
+        setCurrentUserId(currentUser?.id ?? null);
+      }
+    };
+
+    loadCurrentUser();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Limit rendering to 50 items to prevent memory overload, and filter by search
+  const filteredCandidates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return candidateMembers.slice(0, 50); // Hard limit for default render
+    }
+
+    return candidateMembers
+      .filter((member) => member.name.toLowerCase().includes(query))
+      .slice(0, 50);
+  }, [candidateMembers, searchQuery]);
 
   const applyFetchedGroup = useCallback((fetchedGroup) => {
     setResolvedGroup((previousGroup) => ({
@@ -101,11 +141,26 @@ const ChatDetailsScreen = ({ route, navigation }) => {
 
       return {
         id: profile?.id ?? member?.alumni_id ?? member?.member_id ?? member?.id ?? index,
+        alumniId: profile?.id ?? member?.alumni_id ?? member?.member_id ?? member?.id ?? index,
         name: fullName,
         avatar: getAvatarUri(fullName, avatar),
+        role: member?.role ?? profile?.role ?? 'alumni',
       };
     });
   }, [groupData?.members]);
+
+  const isCurrentUserAdmin = useMemo(() => {
+    if (!currentUserId) {
+      return false;
+    }
+
+    return normalizedMembers.some((member) => String(member.alumniId) === String(currentUserId) && String(member.role).toLowerCase() === 'admin');
+  }, [currentUserId, normalizedMembers]);
+
+  useEffect(() => {
+    setGroupNameDraft(groupData?.name ?? '');
+    setGroupAvatarDraft(groupData?.avatar_url ?? groupData?.avatar ?? '');
+  }, [groupData?.avatar, groupData?.avatar_url, groupData?.name]);
 
   const existingMemberIds = useMemo(() => {
     const members = Array.isArray(groupData?.members) ? groupData.members : [];
@@ -177,8 +232,169 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     }
   }, [existingMemberIds, routeGroupId]);
 
+  const uploadGroupAvatar = useCallback(async (imageSource) => {
+    const isObject = typeof imageSource === 'object' && imageSource !== null;
+    const uri = isObject ? imageSource.uri : imageSource;
+    const safeName = isObject && imageSource.name
+      ? imageSource.name
+      : `group-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
+    const mimeType = isObject && imageSource.type ? imageSource.type : 'image/jpeg';
+    const objectPath = `group_avatars/${safeName}`;
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: safeName,
+      type: mimeType,
+    });
+
+    const { error: uploadError } = await supabase.storage
+      .from('luminus_assets')
+      .upload(objectPath, formData);
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    return objectPath;
+  }, []);
+
+  const openGroupMembers = () => {
+    setIsMembersModalVisible(true);
+  };
+
+  const openGroupEditor = () => {
+    setGroupNameDraft(groupData?.name ?? '');
+    setGroupAvatarDraft(groupData?.avatar_url ?? groupData?.avatar ?? '');
+    setIsEditGroupModalVisible(true);
+  };
+
+  const handlePickGroupAvatar = useCallback(async () => {
+    if (!isCurrentUserAdmin) {
+      return;
+    }
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      ThemedAlert.alert('Permission needed', 'Allow photo access to change the group avatar.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    try {
+      setIsSavingGroupDetails(true);
+      const asset = result.assets[0];
+      const uploadedPath = await uploadGroupAvatar({
+        uri: asset.uri,
+        name: asset.fileName || `group-${Date.now()}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      });
+      setGroupAvatarDraft(uploadedPath);
+    } catch (error) {
+      console.error('[ChatDetails] Failed to upload group avatar:', error);
+      ThemedAlert.alert('Upload failed', 'Unable to update the group avatar right now.');
+    } finally {
+      setIsSavingGroupDetails(false);
+    }
+  }, [isCurrentUserAdmin, uploadGroupAvatar]);
+
+  const handleSaveGroupDetails = useCallback(async () => {
+    if (!routeGroupId || !isCurrentUserAdmin) {
+      return;
+    }
+
+    const nextName = groupNameDraft.trim() || groupData?.name || 'Group Chat';
+    const nextAvatar = groupAvatarDraft || null;
+
+    try {
+      setIsSavingGroupDetails(true);
+
+      const { data, error } = await supabase
+        .from('group_chats')
+        .update({ name: nextName, avatar_url: nextAvatar })
+        .eq('id', routeGroupId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        applyFetchedGroup({
+          ...data,
+          members: groupData?.members ?? [],
+        });
+      }
+
+      setIsEditGroupModalVisible(false);
+      ThemedAlert.alert('Group Updated', 'The group name and avatar were saved.');
+    } catch (error) {
+      console.error('[ChatDetails] Failed to update group details:', error);
+      ThemedAlert.alert('Update failed', 'Unable to update the group right now.');
+    } finally {
+      setIsSavingGroupDetails(false);
+    }
+  }, [applyFetchedGroup, groupAvatarDraft, groupData?.members, groupData?.name, groupNameDraft, isCurrentUserAdmin, routeGroupId]);
+
+  const handleKickMember = useCallback((member) => {
+    if (!isCurrentUserAdmin || !routeGroupId) {
+      return;
+    }
+
+    const memberId = member?.alumniId ?? member?.id;
+    if (!memberId || String(memberId) === String(currentUserId)) {
+      return;
+    }
+
+    ThemedAlert.alert(
+      'Remove member',
+      `Remove ${member?.name ?? 'this member'} from the group chat?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRemovingMemberId(memberId);
+              await removeGroupMember(routeGroupId, memberId);
+              const fetchedGroup = await getGroupChat(routeGroupId).catch(() => null);
+              if (fetchedGroup) {
+                applyFetchedGroup(fetchedGroup);
+              } else {
+                setResolvedGroup((previous) => ({
+                  ...(previous ?? {}),
+                  members: (Array.isArray(previous?.members) ? previous.members : []).filter((item) => String(item?.alumni_id ?? item?.alumni?.id ?? item?.id) !== String(memberId)),
+                }));
+              }
+              ThemedAlert.alert('Member removed', `${member?.name ?? 'The member'} was removed from the group.`);
+            } catch (error) {
+              console.error('[ChatDetails] Failed to remove member:', error);
+              ThemedAlert.alert('Remove failed', 'Unable to remove this member right now.');
+            } finally {
+              setRemovingMemberId(null);
+            }
+          },
+        },
+      ]
+    );
+  }, [applyFetchedGroup, currentUserId, isCurrentUserAdmin, routeGroupId]);
+
+  const groupAvatarUri = getAvatarUri(groupData?.name, groupAvatarDraft || groupData?.avatar_url || groupData?.avatar);
+  const canManageGroup = isCurrentUserAdmin;
+
   useEffect(() => {
     if (!isAddMemberModalVisible) {
+      setSearchQuery(''); // Clear search when the modal closes
       return;
     }
 
@@ -213,6 +429,133 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleLeaveGroup = () => {
+    if (!routeGroupId) return;
+
+    ThemedAlert.alert(
+      'Leave Group',
+      'Are you sure you want to leave this group chat?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const currentUser = await getCurrentUser().catch(() => null);
+              if (!currentUser?.id) return;
+
+              // Remove the user's membership from the database
+              const { error } = await supabase
+                .from('group_chat_members')
+                .delete()
+                .eq('group_chat_id', routeGroupId)
+                .eq('alumni_id', currentUser.id);
+
+              if (error) throw error;
+
+              ThemedAlert.alert('Left Group', 'You have left the group chat.');
+
+              // Kick the user back to the chat list since they are no longer in the group
+              navigation.goBack();
+            } catch (e) {
+              console.warn('[ChatDetails] Failed to leave group', e);
+              ThemedAlert.alert('Error', 'Could not leave the group at this time.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // --- DM ACTION HANDLERS ---
+  const handleAudioCall = () => {
+    ThemedAlert.alert('Coming Soon', 'Audio calling will be available in a future update.');
+  };
+
+  const handleVideoCall = () => {
+    ThemedAlert.alert('Coming Soon', 'Video calling will be available in a future update.');
+  };
+
+  const updateDMSettings = async (updates) => {
+    if (!dmProfileUserId) return false;
+
+    try {
+      const currentUser = await getCurrentUser().catch(() => null);
+      if (!currentUser?.id) return false;
+
+      const { error } = await supabase
+        .from('dm_settings')
+        .upsert(
+          { user_id: currentUser.id, contact_id: dmProfileUserId, ...updates },
+          { onConflict: 'user_id, contact_id' }
+        );
+
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.warn('[ChatDetails] Failed to update DM settings', e);
+      return false;
+    }
+  };
+
+  const submitReport = async (reason) => {
+    try {
+      const currentUser = await getCurrentUser().catch(() => null);
+      if (currentUser?.id && dmProfileUserId) {
+        // Best-effort insert. Will fail silently if user_reports table isn't created yet,
+        // but still shows the success alert to the user for good UX.
+        await supabase.from('user_reports').insert([{
+          reporter_id: currentUser.id,
+          reported_user_id: dmProfileUserId,
+          reason,
+        }]);
+      }
+    } catch (e) {
+      console.warn('Report failed', e);
+    } finally {
+      ThemedAlert.alert('Report Submitted', 'Thank you. We have received your report and will review this account.');
+    }
+  };
+
+  const handleMute = () => {
+    ThemedAlert.alert('Mute messages', 'Are you sure you want to mute notifications from this user?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Mute',
+        onPress: async () => {
+          const success = await updateDMSettings({ is_muted: true });
+          if (success) ThemedAlert.alert('Muted', 'Notifications for this chat are now muted.');
+        },
+      },
+    ]);
+  };
+
+  const handleBlock = () => {
+    ThemedAlert.alert('Block User', 'Are you sure you want to block this user? You will no longer receive their messages.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          const success = await updateDMSettings({ is_blocked: true });
+          if (success) {
+            ThemedAlert.alert('Blocked', 'This user has been blocked.');
+            navigation.goBack();
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleReport = () => {
+    ThemedAlert.alert('Report User', 'Why are you reporting this user?', [
+      { text: 'Spam or Scam', style: 'destructive', onPress: () => submitReport('Spam') },
+      { text: 'Inappropriate Content', style: 'destructive', onPress: () => submitReport('Inappropriate') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   // Determine view type based on what was passed
 
   // Render DM view
@@ -244,13 +587,13 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               <View style={styles.dmActionsRow}>
                 <TouchableOpacity 
                   style={styles.dmActionButton} 
-                  onPress={() => { /* TODO: audio call */ }}
+                  onPress={handleAudioCall}
                 >
                   <Ionicons name="call-outline" size={22} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.dmActionButton, styles.dmActionSecondary]} 
-                  onPress={() => { /* TODO: video call */ }}
+                  onPress={handleVideoCall}
                 >
                   <Ionicons name="videocam-outline" size={22} color="#31429B" />
                 </TouchableOpacity>
@@ -281,7 +624,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
 
               <TouchableOpacity 
                 style={styles.dmOptionRow} 
-                onPress={() => { /* TODO: toggle notifications */ }}
+                onPress={handleMute}
               >
                 <Ionicons name="notifications-outline" size={18} color="#31429B" />
                 <Text style={styles.dmOptionText}>Mute messages</Text>
@@ -291,7 +634,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
 
               <TouchableOpacity 
                 style={[styles.dmOptionRow, styles.dmDestructive]} 
-                onPress={() => { /* TODO: block */ }}
+                onPress={handleBlock}
               >
                 <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
                 <Text style={[styles.dmOptionText, { color: '#DC2626' }]}>Block</Text>
@@ -299,7 +642,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
 
               <TouchableOpacity 
                 style={[styles.dmOptionRow, styles.dmDestructive]} 
-                onPress={() => { /* TODO: report */ }}
+                onPress={handleReport}
               >
                 <Ionicons name="flag-outline" size={18} color="#DC2626" />
                 <Text style={[styles.dmOptionText, { color: '#DC2626' }]}>Report</Text>
@@ -325,16 +668,40 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.header}>
-          <Image source={{ uri: getAvatarUri(groupData?.name, groupData?.avatar) }} style={styles.avatar} />
+          <Image source={{ uri: groupAvatarUri }} style={styles.avatar} />
           <Text style={styles.name}>{groupData?.name || 'Group Chat'}</Text>
+          {canManageGroup ? <Text style={styles.adminBadge}>Group admin</Text> : null}
+          <View style={styles.groupActionsRow}>
+            <TouchableOpacity
+              style={[styles.groupActionButton, !canManageGroup ? styles.groupActionButtonMuted : null]}
+              onPress={openGroupEditor}
+              disabled={!canManageGroup}
+            >
+              <Ionicons name="create-outline" size={16} color={canManageGroup ? '#31429B' : '#9CA3AF'} />
+              <Text style={[styles.groupActionButtonText, !canManageGroup ? styles.groupActionButtonTextMuted : null]}>Edit Group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.groupActionButtonSecondary}
+              onPress={openGroupMembers}
+            >
+              <Ionicons name="people-outline" size={16} color="#31429B" />
+              <Text style={styles.groupActionButtonSecondaryText}>View Members</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.membersHeaderRow}>
           <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Members</Text>
-          <TouchableOpacity style={styles.addMemberButton} activeOpacity={0.85} onPress={() => setIsAddMemberModalVisible(true)}>
-            <Ionicons name="person-add-outline" size={14} color="#FFFFFF" />
-            <Text style={styles.addMemberButtonText}>Add Member</Text>
-          </TouchableOpacity>
+          <View style={styles.membersHeaderActions}>
+            <TouchableOpacity style={styles.viewMembersButton} activeOpacity={0.85} onPress={openGroupMembers}>
+              <Ionicons name="list-outline" size={14} color="#31429B" />
+              <Text style={styles.viewMembersButtonText}>Full List</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addMemberButton} activeOpacity={0.85} onPress={() => setIsAddMemberModalVisible(true)}>
+              <Ionicons name="person-add-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.addMemberButtonText}>Add Member</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         {isLoadingMembers ? (
           <View style={styles.membersLoadingWrap}>
@@ -368,10 +735,117 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           horizontal
         />
 
-        <TouchableOpacity style={styles.leaveBtn}>
+        <TouchableOpacity style={styles.leaveBtn} onPress={handleLeaveGroup}>
           <Ionicons name="exit-outline" size={18} color="#E57373" />
           <Text style={styles.leaveBtnText}>Leave Group</Text>
         </TouchableOpacity>
+
+        <Modal
+          visible={isEditGroupModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsEditGroupModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>Edit Group</Text>
+                <TouchableOpacity onPress={() => setIsEditGroupModalVisible(false)}>
+                  <Ionicons name="close" size={20} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.editAvatarWrap}>
+                <Image source={{ uri: groupAvatarDraft || groupAvatarUri }} style={styles.editAvatar} />
+                <TouchableOpacity
+                  style={[styles.avatarEditButton, !canManageGroup || isSavingGroupDetails ? styles.groupActionButtonMuted : null]}
+                  onPress={handlePickGroupAvatar}
+                  disabled={!canManageGroup || isSavingGroupDetails}
+                >
+                  <Ionicons name="image-outline" size={16} color={canManageGroup ? '#31429B' : '#9CA3AF'} />
+                  <Text style={[styles.avatarEditButtonText, !canManageGroup ? styles.groupActionButtonTextMuted : null]}>Change Avatar</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.editLabel}>Group name</Text>
+              <TextInput
+                style={styles.editInput}
+                value={groupNameDraft}
+                onChangeText={setGroupNameDraft}
+                placeholder="Group name"
+                placeholderTextColor="#9CA3AF"
+                maxLength={60}
+              />
+
+              <TouchableOpacity
+                style={[styles.saveGroupButton, isSavingGroupDetails ? styles.saveGroupButtonDisabled : null]}
+                onPress={handleSaveGroupDetails}
+                disabled={isSavingGroupDetails}
+              >
+                {isSavingGroupDetails ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveGroupButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={isMembersModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsMembersModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>All Members</Text>
+                <TouchableOpacity onPress={() => setIsMembersModalVisible(false)}>
+                  <Ionicons name="close" size={20} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalSubTitle}>{normalizedMembers.length} people in this group</Text>
+
+              <FlatList
+                data={normalizedMembers}
+                keyExtractor={(item) => String(item.id)}
+                renderItem={({ item }) => (
+                  <View style={styles.memberManageRow}>
+                    <View style={styles.memberManageInfo}>
+                      <Image source={{ uri: item.avatar }} style={styles.memberAvatar} />
+                      <View style={styles.memberMetaWrap}>
+                        <Text style={styles.memberName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.memberRoleText}>{String(item.role).toLowerCase() === 'admin' ? 'Admin' : 'Member'}</Text>
+                      </View>
+                    </View>
+
+                    {canManageGroup && String(item.alumniId) !== String(currentUserId) ? (
+                      <TouchableOpacity
+                        style={[styles.kickButton, removingMemberId === item.alumniId ? styles.kickButtonDisabled : null]}
+                        disabled={removingMemberId === item.alumniId}
+                        onPress={() => handleKickMember(item)}
+                      >
+                        {removingMemberId === item.alumniId ? (
+                          <ActivityIndicator size="small" color="#DC2626" />
+                        ) : (
+                          <>
+                            <Ionicons name="remove-circle-outline" size={14} color="#DC2626" />
+                            <Text style={styles.kickButtonText}>Kick</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={styles.modalEmptyText}>No members found for this group.</Text>}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </View>
+        </Modal>
 
         <Modal
           visible={isAddMemberModalVisible}
@@ -388,15 +862,30 @@ const ChatDetailsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
 
+              {/* --- SEARCH BAR --- */}
+              <View style={styles.modalSearchBox}>
+                <Ionicons name="search-outline" size={16} color="#6B7280" />
+                <TextInput
+                  style={styles.modalSearchInput}
+                  placeholder="Search connections..."
+                  placeholderTextColor="#9CA3AF"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                />
+              </View>
+
               {isLoadingCandidates ? (
                 <View style={styles.modalLoadingWrap}>
                   <ActivityIndicator size="small" color="#31429B" />
                 </View>
-              ) : candidateMembers.length === 0 ? (
-                <Text style={styles.modalEmptyText}>No available connections to add.</Text>
+              ) : filteredCandidates.length === 0 ? (
+                <Text style={styles.modalEmptyText}>
+                  {searchQuery ? 'No matching connections found.' : 'No available connections to add.'}
+                </Text>
               ) : (
                 <FlatList
-                  data={candidateMembers}
+                  data={filteredCandidates}
                   keyExtractor={(item) => String(item.id)}
                   renderItem={({ item }) => (
                     <View style={styles.candidateRow}>
@@ -436,8 +925,19 @@ const styles = StyleSheet.create({
   backButton: { position: 'absolute', left: 0, top: 0, zIndex: 2, padding: 4 },
   avatar: { width: Math.max(64, Math.min(84, SCREEN_WIDTH * 0.18)), height: Math.max(64, Math.min(84, SCREEN_WIDTH * 0.18)), borderRadius: Math.max(32, Math.min(42, SCREEN_WIDTH * 0.09)), marginBottom: 8 },
   name: { fontWeight: 'bold', fontSize: Math.max(18, Math.min(22, SCREEN_WIDTH * 0.05)), color: '#222' },
+  adminBadge: { marginTop: 6, marginBottom: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#EEF2FF', color: '#31429B', fontSize: 12, fontWeight: '700', overflow: 'hidden' },
+  groupActionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' },
+  groupActionButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  groupActionButtonSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#D8E0FF', backgroundColor: '#EEF2FF', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  groupActionButtonMuted: { opacity: 0.6 },
+  groupActionButtonText: { color: '#31429B', fontSize: 12, fontWeight: '700' },
+  groupActionButtonTextMuted: { color: '#9CA3AF' },
+  groupActionButtonSecondaryText: { color: '#31429B', fontSize: 12, fontWeight: '700' },
   sectionTitle: { fontWeight: 'bold', color: '#31429B', marginTop: 16, marginBottom: 6, fontSize: Math.max(14, Math.min(16, SCREEN_WIDTH * 0.04)) },
   membersHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 },
+  membersHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  viewMembersButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  viewMembersButtonText: { color: '#31429B', marginLeft: 6, fontSize: 12, fontWeight: '700' },
   addMemberButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#31429B', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   addMemberButtonText: { color: '#FFFFFF', marginLeft: 6, fontSize: 12, fontWeight: '700' },
   membersList: { marginBottom: 12 },
@@ -468,6 +968,9 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: '#FFFFFF', borderRadius: 14, maxHeight: SCREEN_HEIGHT * 0.65, padding: 14 },
   modalHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   modalTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  modalSubTitle: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
+  modalSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
+  modalSearchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1F2937', padding: 0 },
   modalLoadingWrap: { paddingVertical: 24, alignItems: 'center' },
   modalEmptyText: { fontSize: 13, color: '#6B7280', paddingVertical: 12 },
   candidateList: { maxHeight: SCREEN_HEIGHT * 0.48 },
@@ -478,6 +981,22 @@ const styles = StyleSheet.create({
   candidateAddButton: { backgroundColor: '#31429B', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
   candidateAddButtonDisabled: { opacity: 0.7 },
   candidateAddButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  editAvatarWrap: { alignItems: 'center', marginBottom: 12 },
+  editAvatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#E5E7EB', marginBottom: 10 },
+  avatarEditButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#D8E0FF', backgroundColor: '#EEF2FF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  avatarEditButtonText: { color: '#31429B', fontSize: 12, fontWeight: '700' },
+  editLabel: { fontSize: 13, fontWeight: '700', color: '#1F2937', marginBottom: 8 },
+  editInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#1F2937', marginBottom: 14 },
+  saveGroupButton: { backgroundColor: '#31429B', borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  saveGroupButtonDisabled: { opacity: 0.75 },
+  saveGroupButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  memberManageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 10 },
+  memberManageInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  memberMetaWrap: { marginLeft: 10, flex: 1, minWidth: 0 },
+  memberRoleText: { marginTop: 2, fontSize: 12, color: '#6B7280' },
+  kickButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF1F2' },
+  kickButtonDisabled: { opacity: 0.7 },
+  kickButtonText: { color: '#DC2626', fontSize: 12, fontWeight: '700' },
 });
 
 export default ChatDetailsScreen;

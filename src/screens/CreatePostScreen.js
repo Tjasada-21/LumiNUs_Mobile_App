@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniProfile } from '../services/alumniQueries';
 import { createPost, updatePost } from '../services/postQueries';
@@ -11,7 +12,8 @@ import { getFollowing } from '../services/connectionQueries';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/CreatePostScreen.styles';
 import { getAvatarUri } from '../utils/imageUtils';
-import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
+import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
+
 import { ThemedAlert } from '../components/ThemedAlert';
 
 const extractMentionQuery = (value) => {
@@ -60,12 +62,29 @@ const CreatePostScreen = () => {
     const [removedExistingPhotoIds, setRemovedExistingPhotoIds] = useState([]);
     const [isPickingPhoto, setIsPickingPhoto] = useState(false);
     const [isPickingVideo, setIsPickingVideo] = useState(false);
+    const [locationModalVisible, setLocationModalVisible] = useState(false);
+    const [locationLoading, setLocationLoading] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitAction, setSubmitAction] = useState(null);
+    const [selection, setSelection] = useState({ start: 0, end: 0 });
 
     const canPost = postText.trim().length > 0 || selectedPhotoUris.length > 0;
 
-    const mentionContext = useMemo(() => extractMentionQuery(postText), [postText]);
+    const mentionContext = useMemo(() => {
+        const text = String(postText ?? '');
+        const cursor = (selection && typeof selection.start === 'number') ? selection.start : text.length;
+        const before = text.slice(0, cursor);
+        const match = before.match(/(^|\s)@([a-zA-Z0-9_.-]*)$/);
+
+        if (!match) return null;
+
+        const query = match[2] ?? '';
+        const mentionStart = cursor - (query.length) - 1;
+        const mentionEnd = cursor;
+
+        return { query, mentionStart, mentionEnd };
+    }, [postText, selection]);
 
     const mentionSuggestions = useMemo(() => {
         if (!mentionContext) {
@@ -83,9 +102,7 @@ const CreatePostScreen = () => {
                     id: connection?.id,
                     name,
                     handle: toMentionHandle(firstName, lastName),
-                    avatar: connection?.alumni_photo
-                        ? connection.alumni_photo
-                        : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=31429B&color=fff`,
+                        avatar: getAvatarUri(name, connection?.alumni_photo),
                     _index: index,
                 };
             })
@@ -224,6 +241,39 @@ const CreatePostScreen = () => {
 
     const handlePickVideo = () => handlePickMedia('videos', setIsPickingVideo, setSelectedVideoUris, 'Permission to access photos is required to choose a video.');
 
+    const handleRemoveLocation = () => setSelectedLocation(null);
+
+    const handlePickLocation = async () => {
+        try {
+            setLocationModalVisible(true);
+            setLocationLoading(true);
+
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                ThemedAlert.alert('Permission required', 'Location permission is required to pick your current location.', [{ text: 'OK' }], { variant: 'error' });
+                setLocationLoading(false);
+                setLocationModalVisible(false);
+                return;
+            }
+
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+            const rev = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => []);
+            const first = Array.isArray(rev) && rev.length > 0 ? rev[0] : null;
+
+            const pretty = first
+                ? [first.name, first.street, first.city, first.region].filter(Boolean).join(', ')
+                : `Lat ${pos.coords.latitude.toFixed(4)}, Lon ${pos.coords.longitude.toFixed(4)}`;
+
+            setSelectedLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, label: pretty });
+        } catch (error) {
+            console.error('[CreatePost] Failed to pick location:', error);
+            ThemedAlert.alert('Location failed', 'Unable to get current location.');
+        } finally {
+            setLocationLoading(false);
+            setLocationModalVisible(false);
+        }
+    };
+
     const handleRemovePhoto = (uriToRemove) => {
         setSelectedPhotoUris((currentUris) => currentUris.filter((uri) => uri !== uriToRemove));
         setSelectedPhotoFiles((currentFiles) => currentFiles.filter((file) => file.uri !== uriToRemove));
@@ -286,6 +336,17 @@ const CreatePostScreen = () => {
 
             const trimmedCaption = postText.trim();
 
+            // Extract mention handles from the caption and map to alumni IDs
+            const mentionPattern = /@([a-zA-Z0-9_.-]+)/g;
+            const foundHandles = new Set();
+            let match;
+            while ((match = mentionPattern.exec(trimmedCaption)) !== null) {
+                if (match[1]) foundHandles.add(match[1].toLowerCase());
+            }
+
+            const mentionMap = new Map((connections || []).map((c) => [toMentionHandle(c?.first_name ?? '', c?.last_name ?? ''), c?.id]));
+            const mentionedIds = Array.from(foundHandles).map((h) => mentionMap.get(h)).filter(Boolean);
+
             if (isEditMode) {
                 await updatePost(editingPost.id, {
                     caption: trimmedCaption,
@@ -293,6 +354,7 @@ const CreatePostScreen = () => {
                     is_draft: isDraft,
                     images: selectedPhotoFiles, // Now perfectly formatted for FormData
                     remove_image_ids: removedExistingPhotoIds,
+                    mentions: mentionedIds,
                 });
             } else {
                 try {
@@ -301,6 +363,7 @@ const CreatePostScreen = () => {
                         visibility: selectedAudience,
                         is_draft: isDraft,
                         images: selectedPhotoFiles, // Now perfectly formatted for FormData
+                        mentions: mentionedIds,
                     });
                 } catch (createErr) {
                     console.error('[CreatePost] Create post failed:', createErr?.message || createErr);
@@ -360,9 +423,14 @@ const CreatePostScreen = () => {
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
                         <View style={styles.card}>
-                            <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
-                                <Ionicons name="arrow-back" size={22} color="#31429B" />
-                            </Pressable>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+                                    <Ionicons name="arrow-back" size={22} color="#31429B" />
+                                </Pressable>
+                                <Pressable onPress={() => navigation.navigate('DraftsScreen')} style={{ padding: 6 }} hitSlop={8} accessibilityLabel="Open drafts">
+                                    <Ionicons name="document-text-outline" size={20} color="#31429B" />
+                                </Pressable>
+                            </View>
 
                             {isEditMode ? <Text style={styles.editNotice}>Editing this post. Keep the current images or add new ones below.</Text> : null}
 
@@ -396,7 +464,9 @@ const CreatePostScreen = () => {
 
                             <TextInput
                                 value={postText}
-                                onChangeText={setPostText}
+                                onChangeText={(t) => setPostText(t)}
+                                onSelectionChange={({ nativeEvent: { selection } }) => setSelection(selection)}
+                                selection={selection}
                                 placeholder="What's on your mind?"
                                 placeholderTextColor="#8A94A6"
                                 multiline
@@ -430,7 +500,7 @@ const CreatePostScreen = () => {
                                     <Text style={styles.toolbarButtonText}>Video</Text>
                                 </Pressable>
 
-                                <Pressable style={styles.toolbarButton} android_ripple={{ color: '#EAF0FF' }}>
+                                <Pressable style={styles.toolbarButton} onPress={handlePickLocation} android_ripple={{ color: '#EAF0FF' }}>
                                     <Ionicons name="location-outline" size={18} color="#31429B" />
                                     <Text style={styles.toolbarButtonText}>Location</Text>
                                 </Pressable>
@@ -438,6 +508,15 @@ const CreatePostScreen = () => {
 
                             <View style={styles.previewCard}>
                                 <View style={styles.previewImageWrap}>
+                                    {selectedLocation ? (
+                                        <View style={styles.locationPreviewRow}>
+                                            <Ionicons name="location-outline" size={18} color="#31429B" />
+                                            <Text style={styles.locationPreviewText} numberOfLines={1}>{selectedLocation.label}</Text>
+                                            <Pressable style={styles.previewRemoveButton} onPress={handleRemoveLocation}>
+                                                <Ionicons name="close" size={14} color="#FFFFFF" />
+                                            </Pressable>
+                                        </View>
+                                    ) : null}
                                     {previewPhotoItems.length > 0 ? (
                                         previewPhotoItems.length === 1 ? (
                                             <View style={styles.previewMediaItem}>
@@ -503,6 +582,16 @@ const CreatePostScreen = () => {
                                     <Text style={styles.saveDraftText}>Save Draft</Text>
                                 </Pressable>
 
+
+                                            <Modal visible={locationModalVisible} transparent animationType="fade" statusBarTranslucent>
+                                                <View style={styles.uploadModalBackdrop}>
+                                                    <View style={styles.uploadModalCard}>
+                                                        <ActivityIndicator size="large" color="#31429B" />
+                                                        <Text style={styles.uploadModalTitle}>Getting current location</Text>
+                                                        <Text style={styles.uploadModalText}>{locationLoading ? 'Please wait while we fetch your location.' : 'Preparing location...'}</Text>
+                                                    </View>
+                                                </View>
+                                            </Modal>
                                 <Pressable style={[styles.postButton, isPublishDisabled && styles.postButtonDisabled]} onPress={() => handleSubmitPost(false)} android_ripple={{ color: '#24346F' }} disabled={isPublishDisabled || isSubmitting}>
                                     <Text style={styles.postButtonText}>{isEditMode ? 'Update' : 'Post'}</Text>
                                 </Pressable>

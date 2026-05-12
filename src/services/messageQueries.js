@@ -1,6 +1,36 @@
 import supabase from './supabase';
 import { decryptMessage, encryptMessage } from '../utils/cryptoUtils';
+import * as FileSystem from 'expo-file-system';
 import { sendPushNotification } from './NotificationSender';
+
+/**
+ * Helper to send push notifications with a 1-time retry and robust error logging.
+ */
+const sendPushNotificationWithRetry = async (tokens, title, body, data) => {
+  try {
+    await sendPushNotification(tokens, title, body, data);
+  } catch (error) {
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    try {
+      await sendPushNotification(tokens, title, body, data);
+    } catch (retryError) {
+      console.error('[Notification] Retry also failed. Logging failure:', retryError?.message || retryError);
+
+      try {
+        await supabase.from('system_logs').insert([{
+          level: 'error',
+          context: 'push_notification_failed',
+          message: retryError?.message || 'Push failed after retry',
+          metadata: { tokens, title, data },
+        }]);
+      } catch (dbErr) {
+        // ignore db log failure
+      }
+    }
+  };
+};
 
 const toDecryptedMessage = (message) => {
   if (!message || typeof message !== 'object') {
@@ -11,6 +41,46 @@ const toDecryptedMessage = (message) => {
     ...message,
     content: decryptMessage(message.content),
   };
+};
+
+// Extract mention handles like @first_last from plain text
+const extractMentionHandles = (text) => {
+  const pattern = /@([a-zA-Z0-9_.-]+)/g;
+  const found = new Set();
+  let match;
+  const value = String(text ?? '');
+  while ((match = pattern.exec(value)) !== null) {
+    if (match[1]) found.add(match[1].toLowerCase());
+  }
+  return Array.from(found);
+};
+
+// Best-effort resolve handles to alumni IDs by splitting handle into first and last name
+const resolveHandlesToAlumni = async (handles) => {
+  const results = {};
+  for (const handle of handles) {
+    try {
+      const parts = handle.split('_');
+      const first = parts[0] ? `${parts[0]}%` : '%';
+      const last = parts.length > 1 ? `${parts.slice(1).join(' ')}%` : '%';
+
+      const { data, error } = await supabase
+        .from('alumnis')
+        .select('id, push_token, first_name, last_name')
+        .ilike('first_name', first)
+        .ilike('last_name', last)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data && data.id) {
+        results[handle] = data;
+      }
+    } catch (err) {
+      // ignore a single handle resolution error
+    }
+  }
+
+  return results; // map handle => alumni row
 };
 
 const normalizeOutgoingContent = (content) => {
@@ -47,11 +117,23 @@ export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0
       .or(
         `and(sender_id.eq.${userId1}, receiver_id.eq.${userId2}), and(sender_id.eq.${userId2}, receiver_id.eq.${userId1})`
       )
+      .not('deleted_by', 'cs', `{${userId1}}`)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return (data || []).reverse().map(toDecryptedMessage); // Reverse to show oldest first
+
+    // Load attachments with signed URLs for each message
+    const messagesWithAttachments = await Promise.all((data || []).map(async (msg) => {
+      const decryptedMsg = toDecryptedMessage(msg);
+      const attachments = await getMessageAttachments(msg.id).catch(() => []);
+      return {
+        ...decryptedMsg,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+    }));
+
+    return messagesWithAttachments.reverse(); // Reverse to show oldest first
   } catch (error) {
     console.error('[messages] Get direct messages error:', error.message);
     throw error;
@@ -85,7 +167,54 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       );
     }
 
-    // Send a push notification (sniper) to the receiver if they are logged in and have a token
+    // Handle mentions: extract handles from plain content, resolve to alumni, insert mention rows and notify
+    try {
+      const handles = extractMentionHandles(content);
+      if (handles.length > 0) {
+        const resolved = await resolveHandlesToAlumni(handles);
+        const mentionInserts = [];
+        const notifyIds = [];
+
+        Object.entries(resolved).forEach(([handle, alumni]) => {
+          if (alumni && alumni.id) {
+            mentionInserts.push({ message_id: data.id, alumni_id: alumni.id });
+            if (alumni.id !== senderId) notifyIds.push(alumni.id);
+          } else {
+            // fallback: insert handle string if resolution failed
+            mentionInserts.push({ message_id: data.id, handle });
+          }
+        });
+
+        if (mentionInserts.length > 0) {
+          await supabase.from('message_mentions').insert(mentionInserts).catch(() => null);
+        }
+
+        if (notifyIds.length > 0) {
+          const { data: alumniRows, error: alumniError } = await supabase
+            .from('alumnis')
+            .select('push_token')
+            .in('id', notifyIds)
+            .not('push_token', 'is', null)
+            .eq('is_online', true);
+
+          if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
+            const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
+            if (tokens.length > 0) {
+              await sendPushNotificationWithRetry(
+                tokens,
+                'Mentioned in chat',
+                'You were mentioned in a message.',
+                { type: 'mention', messageId: data.id }
+              );
+            }
+          }
+        }
+      }
+    } catch (mentionErr) {
+      console.error('[messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
+    }
+
+    // Send a push notification to the receiver if they are logged in and have a token
     try {
       const { data: receiverRow, error: receiverError } = await supabase
         .from('alumnis')
@@ -97,7 +226,9 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       if (!receiverError && receiverRow && receiverRow.push_token) {
         const sender = await supabase.from('alumnis').select('first_name, last_name').eq('id', senderId).maybeSingle().then(r => r.data || null);
         const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
-        await sendPushNotification(
+
+        // Use our new retry wrapper instead of direct call
+        await sendPushNotificationWithRetry(
           [receiverRow.push_token],
           'New Message',
           `${senderName} sent you a message.`,
@@ -105,7 +236,7 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
         );
       }
     } catch (notifErr) {
-      // Silently fail if push notification cannot be sent
+      console.error('[messages] Failed to query receiver data for push notification:', notifErr?.message || notifErr);
     }
 
     return toDecryptedMessage(data);
@@ -177,14 +308,22 @@ export const markGroupChatAsRead = async (groupChatId, alumniId, lastReadMessage
 /**
  * Delete message
  */
-export const deleteMessage = async (messageId) => {
+/**
+ * Soft Delete message
+ */
+export const deleteMessage = async (messageId, userId) => {
   try {
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', messageId);
-
-    if (error) throw error;
+    // Fetch current array to avoid overwriting if the other user also deleted it
+    const { data: msg } = await supabase.from('messages').select('deleted_by').eq('id', messageId).single();
+    const currentDeleted = msg?.deleted_by || [];
+    
+    if (!currentDeleted.includes(userId)) {
+      const { error } = await supabase
+        .from('messages')
+        .update({ deleted_by: [...currentDeleted, userId] })
+        .eq('id', messageId);
+      if (error) throw error;
+    }
   } catch (error) {
     console.error('[messages] Delete message error:', error.message);
     throw error;
@@ -192,41 +331,129 @@ export const deleteMessage = async (messageId) => {
 };
 
 /**
- * Upload message attachment
+ * Upload message attachment securely to luminus_assets
  */
-export const uploadMessageAttachment = async (messageId, attachmentUri, bucket = 'message-attachments') => {
+export const uploadMessageAttachment = async (messageId, attachmentUri) => {
   try {
-    const response = await fetch(attachmentUri);
-    const blob = await response.blob();
+    
+    // Helper to convert local file uri (file:// or content://) to a Blob using XHR
+    // Try multiple strategies to obtain file data suitable for Supabase upload.
+    let lastError = null;
 
-    const fileName = `${messageId}-${Date.now()}`;
+    // Infer extension and content type from URI where possible
+    const guessExt = String(attachmentUri).split('.').pop()?.toLowerCase();
+    const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
+    const inferredMime = mimeMap[guessExt] || null;
+    const extension = guessExt || 'jpg';
+    const filePath = `messages_attachments/${messageId}-${Date.now()}.${extension}`;
 
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, blob);
+    // Strategy 1: Direct FileSystem read for local files (file:// or content://)
+    try {
+      const isLocal = /^file:\/\//i.test(attachmentUri) || /^content:\/\//i.test(attachmentUri);
+      if (isLocal) {
+        const base64 = await FileSystem.readAsStringAsync(attachmentUri, { encoding: 'base64' });
+        const mime = inferredMime || 'image/jpeg';
+
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+
+        const { data, error } = await supabase.storage
+          .from('luminus_assets')
+          .upload(filePath, bytes, { contentType: mime });
+
+        if (error) throw error;
+
+        await supabase.from('messages_attachments').insert([{
+          message_id: messageId,
+          attachment_type: 'image',
+          attachment_path: filePath,
+        }]);
+
+        
+        return filePath;
+      } else {
+        throw new Error('Not a local URI');
+      }
+    } catch (err) {
+      lastError = err;
+    }
+
+    // Strategy 2: fetch and use Blob (works for many URIs)
+    try {
+      const res = await fetch(attachmentUri);
+      const blob = await res.blob();
+      const contentType = blob?.type || inferredMime || 'image/jpeg';
+
+      const { data, error } = await supabase.storage
+        .from('luminus_assets')
+        .upload(filePath, blob, { contentType });
+
+      if (error) throw error;
+
+      await supabase.from('messages_attachments').insert([{
+        message_id: messageId,
+        attachment_type: 'image',
+        attachment_path: filePath,
+      }]);
+
+      
+      return filePath;
+    } catch (err) {
+      lastError = err;
+    }
+
+    // Strategy 3: fetch arrayBuffer -> Uint8Array
+    try {
+      const res2 = await fetch(attachmentUri);
+      const arrayBuffer = await res2.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+      const contentType = res2.headers.get('content-type') || inferredMime || 'image/jpeg';
+
+      const { data, error } = await supabase.storage
+        .from('luminus_assets')
+        .upload(filePath, uint8, { contentType });
+
+      if (error) throw error;
+
+      await supabase.from('messages_attachments').insert([{
+        message_id: messageId,
+        attachment_type: 'image',
+        attachment_path: filePath,
+      }]);
+
+      
+      return filePath;
+    } catch (err) {
+      lastError = err;
+    }
+
+    // If we reached here, all attempts failed
+    throw lastError || new Error('Failed to upload attachment');
 
     if (error) throw error;
 
-    const { data: publicUrlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(fileName);
-
-    // Save attachment record to database
+    // Save the exact location path to the database table
     await supabase.from('messages_attachments').insert([{
       message_id: messageId,
-      attachment_type: 'file',
-      attachment_path: publicUrlData.publicUrl,
+      attachment_type: 'image',
+      attachment_path: filePath,
     }]);
 
-    return publicUrlData.publicUrl;
+    return filePath;
   } catch (error) {
-    console.error('[messages] Upload attachment error:', error.message);
+    console.error('[messages] Upload attachment error:', (error && error.message) || error);
     throw error;
   }
 };
 
 /**
  * Get message attachments
+ */
+/**
+ * Get message attachments with Secure Signed URLs from luminus_assets
  */
 export const getMessageAttachments = async (messageId) => {
   try {
@@ -236,7 +463,32 @@ export const getMessageAttachments = async (messageId) => {
       .eq('message_id', messageId);
 
     if (error) throw error;
-    return data || [];
+
+    // Generate signed URLs valid for 1 hour (3600 seconds) for each attachment
+    const secureAttachments = await Promise.all((data || []).map(async (att) => {
+      // Fallback: If it's already a full HTTP URL (legacy unsecured data), return it so old chats don't break
+      if (att.attachment_path && att.attachment_path.startsWith('http')) {
+        return att;
+      }
+
+      // Generate the temporary secure URL from the luminus_assets bucket
+      const { data: signedData, error: signError } = await supabase.storage
+        .from('luminus_assets')
+        .createSignedUrl(att.attachment_path, 3600); 
+
+      if (signError) {
+        console.warn(`[messages] Failed to sign URL for ${att.attachment_path}:`, signError.message);
+        return att; // Return as-is, though it will likely fail to load in UI
+      }
+
+      // Swap the raw path for the temporary signed URL before sending it to the UI components
+      return {
+        ...att,
+        attachment_path: signedData.signedUrl
+      };
+    }));
+
+    return secureAttachments;
   } catch (error) {
     console.error('[messages] Get attachments error:', error.message);
     throw error;
@@ -246,7 +498,7 @@ export const getMessageAttachments = async (messageId) => {
 /**
  * Get conversations list for user
  */
-export const getConversations = async (userId, limit = 50) => {
+export const getConversations = async (userId, offset = 0, limit = 50) => {
   try {
     const { data, error } = await supabase
       .from('messages')
@@ -261,7 +513,9 @@ export const getConversations = async (userId, limit = 50) => {
         created_at
       `)
       .or(`sender_id.eq.${userId}, receiver_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
+      .not('deleted_by', 'cs', `{${userId}}`)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -354,7 +608,7 @@ export const createGroupChat = async (createdBy, chatName, memberIds = []) => {
     const members = [{ group_chat_id: data.id, alumni_id: createdBy, role: 'admin' }];
     memberIds.forEach(id => {
       if (id !== createdBy) {
-        members.push({ group_chat_id: data.id, alumni_id: id, role: 'member' });
+        members.push({ group_chat_id: data.id, alumni_id: id, role: 'alumni' });
       }
     });
 
@@ -396,7 +650,7 @@ export const getGroupChat = async (groupChatId) => {
 /**
  * Get group messages
  */
-export const getGroupMessages = async (groupChatId, limit = 50, offset = 0) => {
+export const getGroupMessages = async (groupChatId, userId, limit = 50, offset = 0) => {
   try {
     const { data, error } = await supabase
       .from('group_messages')
@@ -405,11 +659,23 @@ export const getGroupMessages = async (groupChatId, limit = 50, offset = 0) => {
         sender:sender_id(id, first_name, last_name, alumni_photo)
       `)
       .eq('group_chat_id', groupChatId)
+      .not('deleted_by', 'cs', `{${userId}}`)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return (data || []).reverse().map(toDecryptedMessage);
+
+    // Load attachments with signed URLs for each message
+    const messagesWithAttachments = await Promise.all((data || []).map(async (msg) => {
+      const decryptedMsg = toDecryptedMessage(msg);
+      const attachments = await getMessageAttachments(msg.id).catch(() => []);
+      return {
+        ...decryptedMsg,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+    }));
+
+    return messagesWithAttachments.reverse();
   } catch (error) {
     console.error('[group_messages] Get messages error:', error.message);
     throw error;
@@ -419,7 +685,7 @@ export const getGroupMessages = async (groupChatId, limit = 50, offset = 0) => {
 /**
  * Send group message
  */
-export const sendGroupMessage = async (groupChatId, senderId, content) => {
+export const sendGroupMessage = async (groupChatId, senderId, content, attachments = []) => {
   try {
     const encryptedContent = normalizeOutgoingContent(content);
 
@@ -437,6 +703,60 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
       .single();
 
     if (error) throw error;
+
+    // Upload attachments if provided
+    if (attachments.length > 0) {
+      await Promise.all(
+        attachments.map((att) => uploadMessageAttachment(data.id, att))
+      );
+    }
+
+    // Handle mentions in group messages: extract handles, resolve, insert mention rows, notify mentioned members
+    try {
+      const handles = extractMentionHandles(content);
+      if (handles.length > 0) {
+        const resolved = await resolveHandlesToAlumni(handles);
+        const mentionInserts = [];
+        const notifyIds = [];
+
+        Object.entries(resolved).forEach(([handle, alumni]) => {
+          if (alumni && alumni.id) {
+            mentionInserts.push({ group_message_id: data.id, alumni_id: alumni.id });
+            if (alumni.id !== senderId) notifyIds.push(alumni.id);
+          } else {
+            mentionInserts.push({ group_message_id: data.id, handle });
+          }
+        });
+
+        if (mentionInserts.length > 0) {
+          await supabase.from('group_message_mentions').insert(mentionInserts).catch(() => null);
+        }
+
+        if (notifyIds.length > 0) {
+          const { data: alumniRows, error: alumniError } = await supabase
+            .from('alumnis')
+            .select('push_token')
+            .in('id', notifyIds)
+            .not('push_token', 'is', null)
+            .eq('is_online', true)
+            .neq('id', senderId);
+
+          if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
+            const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
+            if (tokens.length > 0) {
+              await sendPushNotificationWithRetry(
+                tokens,
+                'Mentioned in group chat',
+                'You were mentioned in a group message.',
+                { type: 'group_mention', groupChatId, messageId: data.id }
+              );
+            }
+          }
+        }
+      }
+    } catch (mentionErr) {
+      console.error('[group_messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
+    }
     // Notify group members (except sender)
     try {
       const { data: membersData, error: membersError } = await supabase
@@ -445,7 +765,7 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
         .eq('group_chat_id', groupChatId);
 
       if (!membersError && Array.isArray(membersData) && membersData.length > 0) {
-        const memberIds = membersData.map(m => m.alumni_id).filter(id => id && id !== senderId);
+        const memberIds = membersData.map((member) => member.alumni_id).filter((id) => id && id !== senderId);
 
         if (memberIds.length > 0) {
           const { data: alumniRows, error: alumniError } = await supabase
@@ -457,9 +777,11 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
             .neq('id', senderId);
 
           if (!alumniError && Array.isArray(alumniRows) && alumniRows.length > 0) {
-            const tokens = alumniRows.map(r => r.push_token).filter(Boolean);
+            const tokens = alumniRows.map((row) => row.push_token).filter(Boolean);
+
             if (tokens.length > 0) {
-              await sendPushNotification(
+              // Use our new retry wrapper instead of direct call
+              await sendPushNotificationWithRetry(
                 tokens,
                 'New Group Message',
                 'You have a new group message.',
@@ -470,7 +792,7 @@ export const sendGroupMessage = async (groupChatId, senderId, content) => {
         }
       }
     } catch (notifErr) {
-      // Silently fail if push notifications cannot be sent
+      console.error('[group_messages] Failed to query group member data for push notification:', notifErr?.message || notifErr);
     }
 
     return toDecryptedMessage(data);
@@ -501,16 +823,20 @@ export const updateGroupMessageReactions = async (groupMessageId, reactions) => 
 };
 
 /**
- * Delete group message
+ * Soft Delete group message
  */
-export const deleteGroupMessage = async (groupMessageId) => {
+export const deleteGroupMessage = async (groupMessageId, userId) => {
   try {
-    const { error } = await supabase
-      .from('group_messages')
-      .delete()
-      .eq('id', groupMessageId);
-
-    if (error) throw error;
+    const { data: msg } = await supabase.from('group_messages').select('deleted_by').eq('id', groupMessageId).single();
+    const currentDeleted = msg?.deleted_by || [];
+    
+    if (!currentDeleted.includes(userId)) {
+      const { error } = await supabase
+        .from('group_messages')
+        .update({ deleted_by: [...currentDeleted, userId] })
+        .eq('id', groupMessageId);
+      if (error) throw error;
+    }
   } catch (error) {
     console.error('[group_messages] Delete message error:', error.message);
     throw error;
@@ -527,7 +853,7 @@ export const addGroupMember = async (groupChatId, alumniId) => {
       .insert([{
         group_chat_id: groupChatId,
         alumni_id: alumniId,
-        role: 'member',
+        role: 'alumni',
       }])
       .select()
       .single();

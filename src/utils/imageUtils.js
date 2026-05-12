@@ -9,6 +9,42 @@ const EVENT_IMAGES_FOLDER = 'events_images';
 const PERK_IMAGES_FOLDER = 'perks_images';
 const ANNOUNCEMENT_IMAGE_FOLDERS = ['announcements_images', 'announcement_images'];
 
+const DEFAULT_AVATAR_BACKGROUND = '#31429B';
+const DEFAULT_AVATAR_FOREGROUND = '#FFFFFF';
+
+const getAvatarInitials = (name) => {
+  const rawName = String(name || 'User').trim();
+  if (!rawName) {
+    return 'U';
+  }
+
+  const parts = rawName.split(/\s+/).filter(Boolean).slice(0, 2);
+  const initials = parts.map((part) => part.charAt(0)).join('').toUpperCase();
+  return initials || rawName.charAt(0).toUpperCase() || 'U';
+};
+
+const createLocalAvatarDataUri = (name, background = DEFAULT_AVATAR_BACKGROUND, foreground = DEFAULT_AVATAR_FOREGROUND) => {
+  const initials = getAvatarInitials(name);
+  const safeBackground = String(background || DEFAULT_AVATAR_BACKGROUND);
+  const safeForeground = String(foreground || DEFAULT_AVATAR_FOREGROUND);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="${initials}">
+      <rect width="256" height="256" rx="128" fill="${safeBackground}" />
+      <text
+        x="128"
+        y="145"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="92"
+        font-weight="700"
+        text-anchor="middle"
+        fill="${safeForeground}"
+      >${initials}</text>
+    </svg>
+  `.trim().replace(/\s{2,}/g, ' ');
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 /**
  * Normalize an image URI from the luminus_assets bucket
  * Converts relative paths to full Supabase public URLs
@@ -43,7 +79,7 @@ export const getAvatarUri = (name, photoUri) => {
     return normalizeLuminusImageUri(photoUri);
   }
 
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=31429B&color=fff`;
+  return createLocalAvatarDataUri(name);
 };
 
 /**

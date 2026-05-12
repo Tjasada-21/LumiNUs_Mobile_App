@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Animated, PanResponder } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Animated, PanResponder, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 
-const renderMessageContentWithMentions = (content, isOutgoing, onMentionPress) => {
+const renderMessageContentWithMentions = (content, isOutgoing, onMentionPress, messageId) => {
   const text = String(content ?? '');
   const segments = text.split(MENTION_PATTERN);
 
@@ -14,7 +14,7 @@ const renderMessageContentWithMentions = (content, isOutgoing, onMentionPress) =
 
     if (!isMention) {
       return (
-        <Text key={`segment-${index}`} style={[styles.messageText, isOutgoing ? styles.textOutgoing : styles.textIncoming]}>
+        <Text key={`${messageId}-segment-${index}`} style={[styles.messageText, isOutgoing ? styles.textOutgoing : styles.textIncoming]}>
           {segment}
         </Text>
       );
@@ -22,7 +22,7 @@ const renderMessageContentWithMentions = (content, isOutgoing, onMentionPress) =
 
     return (
       <Text
-        key={`mention-${index}-${segment}`}
+        key={`${messageId}-mention-${index}-${segment}`}
         style={[
           styles.messageText,
           isOutgoing ? styles.textOutgoing : styles.textIncoming,
@@ -136,13 +136,36 @@ const MessageBubble = ({ message, isOutgoing, showAvatar, senderAvatar, onLongPr
             hasReactions && styles.bubbleWithReaction,
           ]}
         >
-          {message?.attachment ? (
+          {Array.isArray(message?.attachments) && message.attachments.length > 0 ? (
+            <View style={styles.attachmentsRow}>
+              {message.attachments.map((att, idx) => {
+                const uri = att?.attachment_path || att?.attachment || null;
+                if (!uri) return null;
+                return (
+                  <TouchableOpacity
+                    key={`att-${String(message.id ?? '')}-${idx}`}
+                    onPress={() => {
+                      try {
+                        if (uri) Linking.openURL(uri);
+                      } catch (e) {
+                        // ignore
+                      }
+                    }}
+                    activeOpacity={0.8}
+                    style={styles.attachmentWrap}
+                  >
+                    <Image source={{ uri }} style={styles.attachmentImage} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : message?.attachment ? (
             <Image source={{ uri: message.attachment }} style={styles.attachmentImage} />
           ) : null}
 
           {message?.content ? (
             <Text>
-              {renderMessageContentWithMentions(message.content, isOutgoing, onMentionPress)}
+              {renderMessageContentWithMentions(message.content, isOutgoing, onMentionPress, message.id)}
             </Text>
           ) : null}
         </TouchableOpacity>
@@ -210,6 +233,9 @@ const areMessageBubblePropsEqual = (previousProps, nextProps) => {
   const previousMessage = previousProps.message ?? {};
   const nextMessage = nextProps.message ?? {};
 
+  const prevAttachments = previousMessage.attachments ? JSON.stringify(previousMessage.attachments) : '';
+  const nextAttachments = nextMessage.attachments ? JSON.stringify(nextMessage.attachments) : '';
+
   return previousProps.isOutgoing === nextProps.isOutgoing
     && previousProps.showAvatar === nextProps.showAvatar
     && previousProps.senderAvatar === nextProps.senderAvatar
@@ -218,7 +244,7 @@ const areMessageBubblePropsEqual = (previousProps, nextProps) => {
     && previousProps.sendStatus === nextProps.sendStatus
     && previousMessage.id === nextMessage.id
     && previousMessage.content === nextMessage.content
-    && previousMessage.attachment === nextMessage.attachment
+    && prevAttachments === nextAttachments
     && previousMessage.reply_to === nextMessage.reply_to
     && previousMessage.localStatus === nextMessage.localStatus
     && previousMessage.read_at === nextMessage.read_at
@@ -306,6 +332,15 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginBottom: 4,
+  },
+  attachmentsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  attachmentWrap: {
+    marginRight: 8,
   },
   reactionBadge: {
     position: 'absolute',

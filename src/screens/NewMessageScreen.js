@@ -8,6 +8,7 @@ import { createGroupChat } from '../services/messageQueries';
 import BrandHeader from '../components/BrandHeader';
 import SmartTextInput from '../components/SmartTextInput';
 import styles from '../styles/NewMessageScreen.styles';
+import { getAvatarUri } from '../utils/imageUtils';
 // authStorage no longer used; Supabase auth is used
 
 const NewMessageScreen = ({ navigation }) => {
@@ -33,9 +34,7 @@ const NewMessageScreen = ({ navigation }) => {
 	const getConnectionAvatar = (connection) => {
 		const connectionName = getConnectionName(connection);
 
-		return connection?.alumni_photo
-			? connection.alumni_photo
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(connectionName)}&background=31429B&color=fff`;
+		return getAvatarUri(connectionName, connection?.alumni_photo);
 	};
 
 	// DERIVED VALUE: Filtered people list

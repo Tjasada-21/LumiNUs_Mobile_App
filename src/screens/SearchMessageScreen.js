@@ -8,7 +8,7 @@ import { searchAlumni, getAlumniByEmail } from '../services/alumniQueries';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/SearchMessageScreen.styles';
 import { getAuthToken } from '../services/authStorage';
-import { normalizeLuminusImageUri } from '../utils/imageUtils';
+import { getAvatarUri } from '../utils/imageUtils';
 
 const SearchMessageScreen = ({ navigation }) => {
 	// SECTION: Layout values
@@ -183,11 +183,7 @@ const SearchMessageScreen = ({ navigation }) => {
 	const renderSuggestedPerson = ({ item }) => (
 		<Pressable style={styles.resultRow} onPress={() => {}} android_ripple={{ color: '#F1F5F9' }}>
 			<Image
-				source={{
-					uri: item?.alumni_photo
-						? normalizeLuminusImageUri(item.alumni_photo)
-						: `https://ui-avatars.com/api/?name=${encodeURIComponent(`${item?.first_name ?? ''} ${item?.last_name ?? ''}`.trim() || 'Alumni')}&background=31429B&color=fff`,
-				}}
+				source={{ uri: getAvatarUri(`${item?.first_name ?? ''} ${item?.last_name ?? ''}`.trim() || 'Alumni', item?.alumni_photo) }}
 				style={[styles.avatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}
 			/>
 			<Text style={styles.resultName} numberOfLines={1}>
@@ -198,9 +194,7 @@ const SearchMessageScreen = ({ navigation }) => {
 
 	const renderConnectionRow = ({ item }) => {
 		const connectionName = `${item?.first_name ?? ''} ${item?.last_name ?? ''}`.trim() || 'Alumni';
-		const connectionAvatar = item?.alumni_photo
-			? normalizeLuminusImageUri(item.alumni_photo)
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(connectionName)}&background=31429B&color=fff`;
+		const connectionAvatar = getAvatarUri(connectionName, item?.alumni_photo);
 
 		return (
 			<Pressable style={styles.resultRow} onPress={() => {}} android_ripple={{ color: '#F1F5F9' }}>

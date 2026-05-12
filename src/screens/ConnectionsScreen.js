@@ -8,6 +8,7 @@ import { getFollowers, getFollowing, getPendingFollowRequests, getSentPendingReq
 import { getAllAlumni, getAlumniByEmail } from '../services/alumniQueries';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/ConnectionsScreen.styles';
+import { getAvatarUri } from '../utils/imageUtils';
 
 const ConnectionsScreen = ({ navigation }) => {
 	const [connections, setConnections] = useState([]);
@@ -226,6 +227,15 @@ const ConnectionsScreen = ({ navigation }) => {
 								<Ionicons name="arrow-back" size={16} color="#31429B" />
 							</TouchableOpacity>
 							<Text style={styles.title}>Connections</Text>
+							<TouchableOpacity
+								style={styles.globalSearchButton}
+								activeOpacity={0.8}
+								onPress={() => navigation.navigate('GlobalSearch')}
+								accessibilityRole="button"
+								accessibilityLabel="Open global search"
+							>
+								<Ionicons name="search" size={16} color="#31429B" />
+							</TouchableOpacity>
 						</View>
 						<Text style={styles.subtitle}>Accepted connections show up here and can be opened as chat contacts.</Text>
 						<View style={styles.searchWrap}>
@@ -264,9 +274,7 @@ const ConnectionsScreen = ({ navigation }) => {
 						<View style={styles.contactList}>
 							{visibleConnections.map((contact) => {
 								const contactName = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || 'Alumni';
-								const contactAvatar = contact.alumni_photo
-									? contact.alumni_photo
-									: `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName)}&background=31429B&color=fff`;
+								const contactAvatar = getAvatarUri(contactName, contact.alumni_photo);
 
 								return (
 									<TouchableOpacity
@@ -299,9 +307,7 @@ const ConnectionsScreen = ({ navigation }) => {
 								{connectionRequests.map((row) => {
 									const requester = row.follower || {};
 									const requesterName = `${requester.first_name ?? ''} ${requester.last_name ?? ''}`.trim() || 'Alumni';
-									const requesterAvatar = requester.alumni_photo
-										? requester.alumni_photo
-										: `https://ui-avatars.com/api/?name=${encodeURIComponent(requesterName)}&background=31429B&color=fff`;
+									const requesterAvatar = getAvatarUri(requesterName, requester.alumni_photo);
 
 									return (
 										<View key={`request-${row.id}`} style={styles.contactCard}>
@@ -337,9 +343,7 @@ const ConnectionsScreen = ({ navigation }) => {
 								{pendingOutgoing.map((row) => {
 									const target = row.followed || {};
 									const targetName = `${target.first_name ?? ''} ${target.last_name ?? ''}`.trim() || 'Alumni';
-									const targetAvatar = target.alumni_photo
-										? target.alumni_photo
-										: `https://ui-avatars.com/api/?name=${encodeURIComponent(targetName)}&background=31429B&color=fff`;
+									const targetAvatar = getAvatarUri(targetName, target.alumni_photo);
 
 									return (
 										<TouchableOpacity
@@ -379,9 +383,7 @@ const ConnectionsScreen = ({ navigation }) => {
 								<View style={styles.contactList}>
 									{visibleSuggestions.map((alumni) => {
 										const alumniName = `${alumni.first_name ?? ''} ${alumni.last_name ?? ''}`.trim() || 'Alumni';
-										const alumniAvatar = alumni.alumni_photo
-											? alumni.alumni_photo
-											: `https://ui-avatars.com/api/?name=${encodeURIComponent(alumniName)}&background=31429B&color=fff`;
+										const alumniAvatar = getAvatarUri(alumniName, alumni.alumni_photo);
 
 										return (
 											<TouchableOpacity

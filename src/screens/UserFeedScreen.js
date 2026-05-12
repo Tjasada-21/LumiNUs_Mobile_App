@@ -7,8 +7,8 @@ import BrandHeader from '../components/BrandHeader';
 import CustomKeyboardView from '../components/CustomKeyboardView';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabase';
-import { getAlumniByEmail, searchAlumni } from '../services/alumniQueries';
-import { getAvatarUri, normalizeLuminusImageUri } from '../utils/imageUtils';
+import { getAlumniByEmail } from '../services/alumniQueries';
+import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import {
 	getFeedPosts,
@@ -405,9 +405,6 @@ const UserFeedScreen = ({ navigation }) => {
 		message: '',
 		actions: [],
 	});
-	const [searchQuery, setSearchQuery] = useState('');
-	const [searchResults, setSearchResults] = useState([]);
-	const [isSearching, setIsSearching] = useState(false);
 	const [connections, setConnections] = useState([]);
 	const [feedSortMode, setFeedSortMode] = useState('relevant');
 	const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
@@ -562,25 +559,9 @@ const UserFeedScreen = ({ navigation }) => {
 		}
 	};
 
-	const handleSearch = useCallback(async (query) => {
-		setSearchQuery(query);
-
-		if (query.trim().length < 2) {
-			setSearchResults([]);
-			return;
-		}
-
-		try {
-			setIsSearching(true);
-			const results = await searchAlumni(query).catch((e) => { console.error('searchAlumni failed', e); return []; });
-			setSearchResults(results || []);
-		} catch (error) {
-			console.error('Failed to search alumni:', error);
-			setSearchResults([]);
-		} finally {
-			setIsSearching(false);
-		}
-	}, []);
+	const openGlobalSearch = useCallback(() => {
+		navigation.navigate('GlobalSearch');
+	}, [navigation]);
 
 	const displayedPosts = useMemo(() => {
 		const sourcePosts = Array.isArray(posts) ? [...posts] : [];
@@ -2026,101 +2007,51 @@ const UserFeedScreen = ({ navigation }) => {
 					}
 				>
 					<View style={styles.searchRow}>
-						<Image
-							source={{ uri: alumniPhotoUri }}
-							style={styles.searchAvatar}
-						/>
-
-						<View style={styles.searchWrap}>
-							<TextInput
-								placeholder="Search"
-								placeholderTextColor="#8F8F8F"
-								style={styles.searchInput}
-								value={searchQuery}
-								onChangeText={handleSearch}
+						<Pressable style={styles.searchTouchable} onPress={openGlobalSearch}>
+							<Image
+								source={{ uri: alumniPhotoUri }}
+								style={styles.searchAvatar}
 							/>
-							<Ionicons name="search-outline" size={22} color="#7A7A7A" />
-						</View>
+							<View style={styles.searchWrap}>
+								<View style={styles.searchTextWrap}>
+									<Text style={styles.searchPlaceholder}>Search alumni</Text>
+									<Text style={styles.searchHint}>Name, year, or program</Text>
+								</View>
+								<Ionicons name="search-outline" size={22} color="#7A7A7A" />
+							</View>
+						</Pressable>
 					</View>
 
-					{searchQuery.trim().length > 0 && (
-						<View style={styles.searchResultsContainer}>
-							{isSearching && (
-								<View style={styles.searchLoadingContainer}>
-									<ActivityIndicator size="small" color="#31429B" />
-									<Text style={styles.searchLoadingText}>Searching...</Text>
+					<View style={styles.createPostCard}>
+						<Text style={styles.createPostTitle}>Create a Post</Text>
+
+						<View style={styles.composeRow}>
+							<Pressable style={styles.composeBubble} onPress={() => navigation.navigate('CreatePostScreen')}>
+								<Image
+									source={{ uri: alumniPhotoUri }}
+									style={styles.composeAvatar}
+								/>
+								<Text style={styles.composePrompt}>What's on your mind?</Text>
+								<View style={styles.sendButton}>
+									<Ionicons name="send" size={20} color="#31429B" />
 								</View>
-							)}
-
-							{!isSearching && searchResults.length === 0 && (
-								<Text style={styles.noResultsText}>No users found</Text>
-							)}
-
-							{!isSearching && searchResults.length > 0 && (
-								searchResults.map((user, index) => (
-									<Pressable
-										key={`search-user-${String(user?.id ?? index)}-${index}`}
-										style={styles.searchResultItem}
-										onPress={() => {
-											setSearchQuery('');
-											setSearchResults([]);
-											if (user.id === userData?.id) {
-												navigation.navigate('Profile');
-											} else {
-												navigation.navigate('ProfileView', { userId: user.id });
-											}
-										}}
-									>
-										<Image
-											source={{ uri: normalizeLuminusImageUri(user.alumni_photo) || 'https://i.pravatar.cc/150?img=1' }}
-											style={styles.searchResultAvatar}
-										/>
-										<View style={styles.searchResultInfo}>
-											<Text style={styles.searchResultName}>
-												{user.first_name} {user.middle_name || ''} {user.last_name}
-											</Text>
-										</View>
-									</Pressable>
-								))
-							)}
+							</Pressable>
 						</View>
-					)}
 
-					{searchQuery.trim().length === 0 && (
-						<View style={styles.createPostCard}>
-							<Text style={styles.createPostTitle}>Create a Post</Text>
-
-							<View style={styles.composeRow}>
-								<Pressable style={styles.composeBubble} onPress={() => navigation.navigate('CreatePostScreen')}>
-									<Image
-										source={{ uri: alumniPhotoUri }}
-										style={styles.composeAvatar}
-									/>
-									<Text style={styles.composePrompt}>What's on your mind?</Text>
-									<View style={styles.sendButton}>
-										<Ionicons name="send" size={20} color="#31429B" />
-									</View>
-								</Pressable>
-
-								
+						{/* <View style={styles.actionRow}>
+							<View style={styles.actionChip}>
+								<Ionicons name="image-outline" size={13} color="#31429B" />
+								<Text style={styles.actionChipText}>Add Photos/Videos</Text>
 							</View>
 
-							{/* <View style={styles.actionRow}>
-								<View style={styles.actionChip}>
-									<Ionicons name="image-outline" size={13} color="#31429B" />
-									<Text style={styles.actionChipText}>Add Photos/Videos</Text>
-								</View>
+							<View style={styles.actionChip}>
+								<Ionicons name="earth-outline" size={13} color="#31429B" />
+								<Text style={styles.actionChipText}>Shared to Public</Text>
+							</View>
+						</View> */}
+					</View>
 
-								<View style={styles.actionChip}>
-									<Ionicons name="earth-outline" size={13} color="#31429B" />
-									<Text style={styles.actionChipText}>Shared to Public</Text>
-								</View>
-							</View> */}
-						</View>
-					)}
-
-					{searchQuery.trim().length === 0 && (
-						<View style={styles.feedSection}>
+					<View style={styles.feedSection}>
 							<View style={styles.feedHeaderRow}>
 								<View>
 									<Text style={styles.feedTitle}>Latest Posts</Text>
@@ -2160,7 +2091,8 @@ const UserFeedScreen = ({ navigation }) => {
 									<Text style={styles.feedStateText}>No posts yet.</Text>
 								</View>
 							) : (
-								displayedPosts.map((post) => {
+								<View>
+									{displayedPosts.map((post) => {
 								const postAuthorName = renderPostAuthorName(post);
 								const avatarUri = renderPostAvatarUri(post);
 								const postImages = post.images ?? [];
@@ -2194,7 +2126,7 @@ const UserFeedScreen = ({ navigation }) => {
 												<View style={styles.postHeaderTextWrap}>
 													<Text style={styles.postAuthorName}>NU LIPA ALUMNI AFFAIRS</Text>
 													<View style={styles.postMetaRow}>
-															<Text style={styles.postMeta}>{getRelativeTimeLabel(getFeedItemDateValue(post))}</Text>
+														<Text style={styles.postMeta}>{getRelativeTimeLabel(getFeedItemDateValue(post))}</Text>
 														<Text style={styles.postMetaSeparator}>•</Text>
 														<Text style={styles.postMeta}>Admin</Text>
 													</View>
@@ -2218,7 +2150,7 @@ const UserFeedScreen = ({ navigation }) => {
 														</Text>
 													</Pressable>
 													<View style={styles.postMetaRow}>
-															<Text style={styles.postMeta}>{getRelativeTimeLabel(getFeedItemDateValue(post))}</Text>
+														<Text style={styles.postMeta}>{getRelativeTimeLabel(getFeedItemDateValue(post))}</Text>
 														<Text style={styles.postMetaSeparator}>•</Text>
 														<Ionicons name="earth-outline" size={10} color="#7A7A7A" />
 														<Text style={styles.postMeta}>{getPostVisibilityLabel(post)}</Text>
@@ -2230,11 +2162,11 @@ const UserFeedScreen = ({ navigation }) => {
 														) : null}
 													</View>
 												</View>
-													<View style={styles.postHeaderRight}>
-														<Pressable style={styles.postMenuButton} onPress={() => openPostActions(post)} hitSlop={8}>
-															<Ionicons name="ellipsis-horizontal" size={16} color="#31429B" />
-														</Pressable>
-													</View>
+												<View style={styles.postHeaderRight}>
+													<Pressable style={styles.postMenuButton} onPress={() => openPostActions(post)} hitSlop={8}>
+														<Ionicons name="ellipsis-horizontal" size={16} color="#31429B" />
+													</Pressable>
+												</View>
 											</View>
 										)}
 
@@ -2340,8 +2272,9 @@ const UserFeedScreen = ({ navigation }) => {
 											) : null}
 										</View>
 									</View>
-								);
-							})
+									);
+									})}
+								</View>
 						)}
 						</View>
 					)}

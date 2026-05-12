@@ -45,6 +45,7 @@ import { ThemedAlert } from '../components/ThemedAlert';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '👏'];
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MESSAGE_LIMIT = 30;
 
 LogBox.ignoreLogs([
   'VirtualizedList: You have a large list that is slow to update',
@@ -59,6 +60,22 @@ const toMentionHandle = (firstName, lastName) => {
     .replace(/^_+|_+$/g, '');
 
   return normalizedHandle || 'alumni';
+};
+
+const normalizeMentionLookup = (value) => String(value ?? '')
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const normalizeMentionName = (firstName, lastName) => {
+  const first = normalizeMentionLookup(firstName);
+  const last = normalizeMentionLookup(lastName)
+    .replace(/_(jr|sr|ii|iii|iv|v|junior|senior)$/g, '');
+
+  return [first, last].filter(Boolean).join('_');
 };
 
 const extractMentionQuery = (value) => {
@@ -143,7 +160,7 @@ const isSameMinute = (firstDate, secondDate) => {
     && firstDate.getMinutes() === secondDate.getMinutes();
 };
 
-const sortMessagesAscending = (messageList) => {
+const sortMessagesDescending = (messageList) => {
   return [...(Array.isArray(messageList) ? messageList : [])].sort((firstMessage, secondMessage) => {
     const firstDate = getMessageDate(firstMessage);
     const secondDate = getMessageDate(secondMessage);
@@ -153,7 +170,7 @@ const sortMessagesAscending = (messageList) => {
       const secondTime = secondDate.getTime();
 
       if (firstTime !== secondTime) {
-        return firstTime - secondTime;
+        return secondTime - firstTime;
       }
     } else if (firstDate && !secondDate) {
       return -1;
@@ -167,12 +184,12 @@ const sortMessagesAscending = (messageList) => {
     const hasNumericSecondId = Number.isFinite(secondIdNumeric);
 
     if (hasNumericFirstId && hasNumericSecondId) {
-      return firstIdNumeric - secondIdNumeric;
+      return secondIdNumeric - firstIdNumeric;
     }
 
     const firstId = String(firstMessage?.id ?? '');
     const secondId = String(secondMessage?.id ?? '');
-    return firstId.localeCompare(secondId);
+    return secondId.localeCompare(firstId);
   });
 };
 
@@ -212,17 +229,44 @@ export default function ConvoScreen() {
   const [draft, setDraft] = useState('');
   const [selectedAttachmentUri, setSelectedAttachmentUri] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
   const [showActions, setShowActions] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [connections, setConnections] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const typingDebounceRef = useRef(null);
+  const typingChannelRef = useRef(null);
+  const typingTimeoutsRef = useRef(new Map());
 
   const hasConversation = Boolean(contactId || groupId);
   const messagesRef = useRef(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const typingChannelKey = useMemo(() => {
+    if (!hasConversation || !currentUserId) {
+      return null;
+    }
+
+    if (isGroup) {
+      return `typing:group:${groupId}`;
+    }
+
+    const participants = [currentUserId, contactId]
+      .filter((value) => value != null && value !== '')
+      .map((value) => String(value))
+      .sort();
+
+    if (participants.length !== 2) {
+      return null;
+    }
+
+    return `typing:dm:${participants.join(':')}`;
+  }, [contactId, currentUserId, groupId, hasConversation, isGroup]);
 
   const allowMentions = true; // Enabled for both DMs and Groups!
   const headerSubtitle = isGroup
@@ -306,18 +350,13 @@ export default function ConvoScreen() {
     return `${typingNames[0]} is typing...`;
   }, [conversationName, isGroup, typingUsers]);
 
-  const scrollToBottom = useCallback((animated = false) => {
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToEnd({ animated });
-    });
-  }, []);
-
   const loadCurrentUser = useCallback(async () => {
     try {
       const supaUser = await getCurrentUser();
       if (!supaUser) return;
 
       setCurrentUserId(supaUser.id);
+      setCurrentUserProfile(supaUser);
 
       // Load connections (following) for mention suggestions
       try {
@@ -333,14 +372,74 @@ export default function ConvoScreen() {
     }
   }, []);
 
+  const loadMoreMessages = useCallback(async () => {
+    if (isFetchingMore || !hasMoreMessages || isLoading || !hasConversation) {
+      return;
+    }
+
+    try {
+      setIsFetchingMore(true);
+
+      const nextOffset = pageOffset + MESSAGE_LIMIT;
+      let newBatch = [];
+
+      if (isGroup) {
+        newBatch = await getGroupMessages(groupId, currentUserId, MESSAGE_LIMIT, nextOffset).catch(() => []);
+      } else {
+        if (!currentUserId) {
+          return;
+        }
+        newBatch = await getDirectMessages(currentUserId, contactId, MESSAGE_LIMIT, nextOffset).catch(() => []);
+      }
+
+      if (newBatch.length < MESSAGE_LIMIT) {
+        setHasMoreMessages(false);
+      }
+
+      if (newBatch.length > 0) {
+        setMessages((currentMessages) => {
+          const messageMap = new Map(currentMessages.map((msg) => [msg.id, msg]));
+          newBatch.forEach((msg) => messageMap.set(msg.id, msg));
+
+          return sortMessagesDescending(Array.from(messageMap.values()));
+        });
+        setPageOffset(nextOffset);
+      }
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [contactId, currentUserId, groupId, hasConversation, hasMoreMessages, isFetchingMore, isGroup, isLoading, pageOffset]);
+
   const updateTypingStatus = useCallback(async (isTyping) => {
-    // Typing presence not yet implemented via Supabase; no-op for now
-    if (!hasConversation) return;
-    if (!isTyping) setTypingUsers([]);
-  }, [hasConversation]);
+    if (!hasConversation || !typingChannelRef.current || !currentUserId) return;
+
+    if (!isTyping) {
+      setTypingUsers((currentTypingUsers) => (
+        currentTypingUsers.filter((user) => String(user?.id ?? user?.alumni_id ?? '') !== String(currentUserId))
+      ));
+    }
+
+    try {
+      await typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          userId: currentUserId,
+          first_name: currentUserProfile?.first_name ?? '',
+          last_name: currentUserProfile?.last_name ?? '',
+          alumni_photo: currentUserProfile?.alumni_photo ?? null,
+          isTyping: Boolean(isTyping),
+          timestamp: Date.now(),
+        },
+      });
+    } catch (error) {
+      console.warn('[Convo] Failed to broadcast typing status:', error?.message || error);
+    }
+  }, [currentUserId, currentUserProfile?.alumni_photo, currentUserProfile?.first_name, currentUserProfile?.last_name, hasConversation]);
 
   const loadTypingStatus = useCallback(async () => {
-    // Typing presence not implemented server-side for Supabase migration; clear typing users
     if (!hasConversation) {
       setTypingUsers([]);
       return;
@@ -387,23 +486,50 @@ export default function ConvoScreen() {
     try {
       const parts = mentionHandle.split('_');
       const first = parts[0] ? `${parts[0]}%` : '%';
-      const last = parts.length > 1 ? `${parts.slice(1).join(' ')}%` : '%';
+      const last = parts.length > 1 ? `%${parts.slice(1).join(' ')}%` : '%';
 
-      const { data, error } = await supabase
+      const { data: directMatch, error: directError } = await supabase
         .from('alumnis')
-        .select('id')
+        .select('id, first_name, last_name')
         .ilike('first_name', first)
         .ilike('last_name', last)
         .limit(1)
         .maybeSingle();
 
-      if (data?.id) {
+      if (directError) {
+        throw directError;
+      }
+
+      const matchedDirect = directMatch?.id;
+      if (matchedDirect) {
         const parentNavigator = navigation.getParent?.();
         if (parentNavigator?.navigate) {
-          parentNavigator.navigate('ProfileView', { userId: data.id });
+          parentNavigator.navigate('ProfileView', { userId: matchedDirect });
           return;
         }
-        navigation.navigate('ProfileView', { userId: data.id });
+        navigation.navigate('ProfileView', { userId: matchedDirect });
+        return;
+      }
+
+      const { data: candidates } = await supabase
+        .from('alumnis')
+        .select('id, first_name, last_name')
+        .ilike('first_name', first)
+        .limit(20);
+
+      const normalizedHandle = normalizeMentionName(parts[0], parts.slice(1).join(' '));
+      const matchedFallback = (Array.isArray(candidates) ? candidates : []).find((candidate) => {
+        const candidateHandle = normalizeMentionName(candidate?.first_name, candidate?.last_name);
+        return candidateHandle === normalizedHandle;
+      });
+
+      if (matchedFallback?.id) {
+        const parentNavigator = navigation.getParent?.();
+        if (parentNavigator?.navigate) {
+          parentNavigator.navigate('ProfileView', { userId: matchedFallback.id });
+          return;
+        }
+        navigation.navigate('ProfileView', { userId: matchedFallback.id });
       } else {
         ThemedAlert.alert('Mention unavailable', `No profile found for @${mentionHandle}.`);
       }
@@ -415,28 +541,40 @@ export default function ConvoScreen() {
   const loadMessages = useCallback(async () => {
     if (!hasConversation) {
       setMessages([]);
+      setPageOffset(0);
+      setHasMoreMessages(true);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
+    setPageOffset(0);
+    setHasMoreMessages(true);
 
     try {
       let messageList = [];
 
       if (isGroup) {
-        // Pass currentUserId as the 2nd parameter
-        messageList = await getGroupMessages(groupId, currentUserId, 200, 0).catch(() => []);
+        // Fetch the first 30 messages at offset 0
+        messageList = await getGroupMessages(groupId, currentUserId, MESSAGE_LIMIT, 0).catch(() => []);
       } else {
         if (!currentUserId) {
           setMessages([]);
           setIsLoading(false);
           return;
         }
-        messageList = await getDirectMessages(currentUserId, contactId, 200, 0).catch(() => []);
+        messageList = await getDirectMessages(currentUserId, contactId, MESSAGE_LIMIT, 0).catch(() => []);
       }
 
-      setMessages(sortMessagesAscending(messageList));
+      // If we got fewer than the limit on the first try, there are no older messages
+      if (messageList.length < MESSAGE_LIMIT) {
+        setHasMoreMessages(false);
+      } else {
+        setHasMoreMessages(true);
+      }
+
+      setPageOffset(0); // Reset offset on initial load
+      setMessages(sortMessagesDescending(messageList));
 
       if (isGroup && currentUserId) {
         try {
@@ -497,10 +635,8 @@ export default function ConvoScreen() {
   );
 
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottom(false);
-    }
-  }, [messages, scrollToBottom]);
+    return undefined;
+  }, [messages]);
 
   useEffect(() => {
     if (typingDebounceRef.current) {
@@ -559,18 +695,16 @@ export default function ConvoScreen() {
           );
           if (optimisticDuplicate) {
             // Replace the optimistic message with the real one (so it gets the actual ID)
-            return sortMessagesAscending(
-              currentMessages.map((msg) =>
-                msg.sender_id === newMessage.sender_id &&
-                msg.content === newMessage.content &&
-                Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000
-                  ? newMessage
-                  : msg
-              )
-            );
+            return currentMessages.map((msg) => (
+              msg.sender_id === newMessage.sender_id &&
+              msg.content === newMessage.content &&
+              Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000
+                ? newMessage
+                : msg
+            ));
           }
 
-          return sortMessagesAscending([...currentMessages, newMessage]);
+          return [newMessage, ...currentMessages];
         });
 
         // Load attachments if they exist (they may be inserted shortly after the message)
@@ -587,11 +721,10 @@ export default function ConvoScreen() {
         setTimeout(loadAttachments, 500); // Wait 500ms for attachments to be inserted
 
         // Scroll to bottom when new message arrives
-        setTimeout(() => scrollToBottom(true), 100);
       } else if (event === 'update') {
         // Message updated (reactions, read status, etc.)
         setMessages((currentMessages) =>
-          sortMessagesAscending(
+          sortMessagesDescending(
             currentMessages.map((message) => (message.id === newMessage.id ? { ...message, ...newMessage } : message))
           )
         );
@@ -612,7 +745,71 @@ export default function ConvoScreen() {
         unsubscribe();
       }
     };
-  }, [hasConversation, isGroup, contactId, groupId, currentUserId, scrollToBottom]);
+  }, [hasConversation, isGroup, contactId, groupId, currentUserId]);
+
+  useEffect(() => {
+    if (!typingChannelKey || !currentUserId) {
+      typingChannelRef.current = null;
+      setTypingUsers([]);
+      return () => {};
+    }
+
+    const channel = supabase.channel(typingChannelKey);
+
+    const handleTypingBroadcast = ({ payload }) => {
+      const senderId = payload?.userId ?? payload?.user_id ?? null;
+      if (!senderId || String(senderId) === String(currentUserId)) {
+        return;
+      }
+
+      const nextTypingUser = {
+        id: senderId,
+        first_name: payload?.first_name ?? '',
+        last_name: payload?.last_name ?? '',
+        alumni_photo: payload?.alumni_photo ?? null,
+        isTyping: Boolean(payload?.isTyping),
+      };
+
+      const timeoutKey = String(senderId);
+      const existingTimeout = typingTimeoutsRef.current.get(timeoutKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        typingTimeoutsRef.current.delete(timeoutKey);
+      }
+
+      if (nextTypingUser.isTyping) {
+        setTypingUsers((currentTypingUsers) => {
+          const remaining = currentTypingUsers.filter((user) => String(user?.id ?? user?.alumni_id ?? '') !== timeoutKey);
+          return [...remaining, nextTypingUser];
+        });
+
+        const timeoutId = setTimeout(() => {
+          setTypingUsers((currentTypingUsers) => currentTypingUsers.filter((user) => String(user?.id ?? user?.alumni_id ?? '') !== timeoutKey));
+          typingTimeoutsRef.current.delete(timeoutKey);
+        }, 2500);
+
+        typingTimeoutsRef.current.set(timeoutKey, timeoutId);
+      } else {
+        setTypingUsers((currentTypingUsers) => (
+          currentTypingUsers.filter((user) => String(user?.id ?? user?.alumni_id ?? '') !== timeoutKey)
+        ));
+      }
+    };
+
+    channel
+      .on('broadcast', { event: 'typing' }, handleTypingBroadcast)
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      typingChannelRef.current = null;
+      typingTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+      typingTimeoutsRef.current.clear();
+      setTypingUsers([]);
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, typingChannelKey]);
 
   const openMessageActions = useCallback((message) => {
     setActionMessage(message);
@@ -752,7 +949,7 @@ export default function ConvoScreen() {
       attachments: attachments.map((uri) => ({ attachment_path: uri, isLocal: true })),
     };
 
-    setMessages((currentMessages) => sortMessagesAscending([...currentMessages, optimisticMessage]));
+    setMessages((currentMessages) => [optimisticMessage, ...currentMessages]);
     setDraft('');
     setSelectedAttachmentUri(null);
     setReplyTo(null);
@@ -774,11 +971,9 @@ export default function ConvoScreen() {
         : { ...optimisticMessage, localStatus: 'sent' };
 
       setMessages((currentMessages) =>
-        sortMessagesAscending(
-          currentMessages.map((message) => (
-            message.id === temporaryMessageId ? confirmedMessage : message
-          ))
-        )
+        currentMessages.map((message) => (
+          message.id === temporaryMessageId ? confirmedMessage : message
+        ))
       );
     } catch (error) {
       console.error('Send failed:', error);
@@ -824,15 +1019,32 @@ export default function ConvoScreen() {
     );
   }, [allowMentions, conversationAvatar, conversationName, currentUserId, handleMentionPress, handleSwipeReply, openMessageActions]);
 
-  const renderEmptyState = useCallback(() => (
-    <View style={styles.emptyConversationState}>
-      <Ionicons name="chatbubble-ellipses-outline" size={44} color="#8AA0E8" />
-      <Text style={styles.emptyConversationTitle}>Start the conversation</Text>
-      <Text style={styles.emptyConversationText}>
-        Messages you send here will appear like an Instagram-style chat thread.
-      </Text>
-    </View>
-  ), []);
+  const renderEmptyState = useCallback(() => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyConversationState}>
+          <View style={styles.emptyConversationFlipped}>
+            <Pressable style={styles.emptyConversationLoadingButton} disabled>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.emptyConversationLoadingText}>Loading messages...</Text>
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyConversationState}>
+        <View style={styles.emptyConversationFlipped}>
+          <Ionicons name="chatbubble-ellipses-outline" size={44} color="#8AA0E8" />
+          <Text style={styles.emptyConversationTitle}>Start the conversation</Text>
+          <Text style={styles.emptyConversationText}>
+            Messages you send here will appear like an Instagram-style chat thread.
+          </Text>
+        </View>
+      </View>
+    );
+  }, [isLoading]);
 
   if (!hasConversation) {
     return (
@@ -960,6 +1172,7 @@ export default function ConvoScreen() {
 
             <FlatList
               ref={flatListRef}
+              inverted={true}
               data={messages}
               renderItem={renderMessageItem}
               keyExtractor={(item, index) => String(item?.id ?? item?.tempId ?? item?.localId ?? item?.created_at ?? index)}
@@ -973,12 +1186,13 @@ export default function ConvoScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               style={styles.chatBody}
-              onContentSizeChange={() => {
-                if (messages.length > 0) flatListRef.current?.scrollToEnd({ animated: false });
-              }}
-              onLayout={() => {
-                if (messages.length > 0) flatListRef.current?.scrollToEnd({ animated: false });
-              }}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                isFetchingMore ? (
+                  <ActivityIndicator size="small" color="#31429B" style={{ marginVertical: 12 }} />
+                ) : null
+              }
             />
 
             <Modal

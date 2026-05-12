@@ -229,26 +229,23 @@ const areReactionsEqual = (firstReactions, secondReactions) => {
   return firstKeys.every((key) => firstReactions[key] === secondReactions[key]);
 };
 
-const areMessageBubblePropsEqual = (previousProps, nextProps) => {
-  const previousMessage = previousProps.message ?? {};
-  const nextMessage = nextProps.message ?? {};
+const areMessageBubblePropsEqual = (prevProps, nextProps) => {
+  const prevMsg = prevProps.message ?? {};
+  const nextMsg = nextProps.message ?? {};
 
-  const prevAttachments = previousMessage.attachments ? JSON.stringify(previousMessage.attachments) : '';
-  const nextAttachments = nextMessage.attachments ? JSON.stringify(nextMessage.attachments) : '';
+  // Fast array length check instead of JSON.stringify
+  const prevAttLength = Array.isArray(prevMsg.attachments) ? prevMsg.attachments.length : 0;
+  const nextAttLength = Array.isArray(nextMsg.attachments) ? nextMsg.attachments.length : 0;
 
-  return previousProps.isOutgoing === nextProps.isOutgoing
-    && previousProps.showAvatar === nextProps.showAvatar
-    && previousProps.senderAvatar === nextProps.senderAvatar
-    && previousProps.read === nextProps.read
-    && previousProps.messageTime === nextProps.messageTime
-    && previousProps.sendStatus === nextProps.sendStatus
-    && previousMessage.id === nextMessage.id
-    && previousMessage.content === nextMessage.content
-    && prevAttachments === nextAttachments
-    && previousMessage.reply_to === nextMessage.reply_to
-    && previousMessage.localStatus === nextMessage.localStatus
-    && previousMessage.read_at === nextMessage.read_at
-    && areReactionsEqual(previousMessage.reactions, nextMessage.reactions);
+  return (
+    prevProps.isOutgoing === nextProps.isOutgoing &&
+    prevProps.sendStatus === nextProps.sendStatus &&
+    prevMsg.id === nextMsg.id &&
+    prevMsg.content === nextMsg.content &&
+    prevAttLength === nextAttLength &&
+    prevMsg.localStatus === nextMsg.localStatus &&
+    areReactionsEqual(prevMsg.reactions, nextMsg.reactions)
+  );
 };
 
 const styles = StyleSheet.create({

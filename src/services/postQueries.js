@@ -803,22 +803,70 @@ export const addComment = async (postId, alumniId, commentText, parentId = null,
       .single();
 
     if (error) throw error;
-    // Record mentions in comment_mentions table (best-effort)
+
+    // Record mentions in comment_mentions table and notify tagged users (best-effort)
     try {
       const mentionPattern = /@([a-zA-Z0-9_.-]+)/g;
       const foundHandles = new Set();
       let match;
+
       while ((match = mentionPattern.exec(commentText)) !== null) {
         if (match[1]) foundHandles.add(match[1].toLowerCase());
       }
+
       if (foundHandles.size > 0) {
-        // Try to resolve handles to alumni IDs using alumni info included in the inserted comment (best-effort not having connections here)
-        // If no reliable mapping exists on client, attempt to insert raw handles into comment_mentions.handles column when available
         const handles = Array.from(foundHandles);
-        await supabase.from('comment_mentions').insert(handles.map(h => ({ comment_id: data.id, handle: h }))).catch(() => null);
+        const mentionInserts = [];
+        const notifyTokens = [];
+
+        for (const handle of handles) {
+          const parts = handle.split('_');
+          const first = parts[0] ? `${parts[0]}%` : '%';
+          const last = parts.length > 1 ? `${parts.slice(1).join(' ')}%` : '%';
+
+          const { data: alumni } = await supabase
+            .from('alumnis')
+            .select('id, first_name, last_name, push_token')
+            .ilike('first_name', first)
+            .ilike('last_name', last)
+            .limit(1)
+            .maybeSingle();
+
+          if (alumni?.id) {
+            mentionInserts.push({ comment_id: data.id, alumni_id: alumni.id });
+
+            if (String(alumni.id) !== String(alumniId) && alumni.push_token) {
+              notifyTokens.push(alumni.push_token);
+            }
+          } else {
+            mentionInserts.push({ comment_id: data.id, handle });
+          }
+        }
+
+        if (mentionInserts.length > 0) {
+          await supabase.from('comment_mentions').insert(mentionInserts).catch(() => null);
+        }
+
+        if (notifyTokens.length > 0) {
+          const { data: sender } = await supabase
+            .from('alumnis')
+            .select('first_name, last_name')
+            .eq('id', alumniId)
+            .maybeSingle();
+
+          const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+
+          const { sendPushNotification } = await import('./NotificationSender');
+          await sendPushNotification(
+            notifyTokens,
+            'You were mentioned!',
+            `${senderName} mentioned you in a comment.`,
+            { type: 'comment_mention', commentId: data.id, postId, announcementId }
+          ).catch((e) => console.warn('[comments] Push notification failed:', e));
+        }
       }
     } catch (ignore) {
-      // ignore mention recording errors
+      console.warn('[comments] Failed to process comment mentions:', ignore);
     }
     return normalizeComment(data);
   } catch (error) {

@@ -102,6 +102,27 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		paddingHorizontal: 24,
 	},
+	emptyConversationFlipped: {
+		transform: [{ scaleY: -1 }],
+		alignItems: 'center',
+	},
+	emptyConversationLoadingButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 10,
+		minWidth: 180,
+		paddingHorizontal: 18,
+		paddingVertical: 12,
+		borderRadius: 999,
+		backgroundColor: '#31429B',
+	},
+	emptyConversationLoadingText: {
+		fontSize: 14,
+		lineHeight: 18,
+		fontWeight: '700',
+		color: '#FFFFFF',
+	},
 	emptyConversationTitle: {
 		marginTop: 14,
 		fontSize: 20,

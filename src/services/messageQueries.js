@@ -17,17 +17,6 @@ const sendPushNotificationWithRetry = async (tokens, title, body, data) => {
       await sendPushNotification(tokens, title, body, data);
     } catch (retryError) {
       console.error('[Notification] Retry also failed. Logging failure:', retryError?.message || retryError);
-
-      try {
-        await supabase.from('system_logs').insert([{
-          level: 'error',
-          context: 'push_notification_failed',
-          message: retryError?.message || 'Push failed after retry',
-          metadata: { tokens, title, data },
-        }]);
-      } catch (dbErr) {
-        // ignore db log failure
-      }
     }
   };
 };

@@ -2,23 +2,28 @@
 // Sends push messages to Expo Push API in chunks (max 100 per request)
 
 const isValidExpoPushToken = (token) => {
-  if (typeof token !== 'string') {
+  if (typeof token !== "string") {
     return false;
   }
 
   return /^Expo(nent)?PushToken\[[^\]]+\]$/i.test(token.trim());
 };
 
-export async function sendPushNotification(expoPushTokens = [], title = '', body = '', data = {}) {
+export async function sendPushNotification(
+  expoPushTokens = [],
+  title = "",
+  body = "",
+  data = {},
+) {
   if (!Array.isArray(expoPushTokens)) expoPushTokens = [];
 
   // 1. Clean and dedupe tokens.
   const validTokens = Array.from(
     new Set(
       expoPushTokens
-        .map((token) => (typeof token === 'string' ? token.trim() : token))
-        .filter(isValidExpoPushToken)
-    )
+        .map((token) => (typeof token === "string" ? token.trim() : token))
+        .filter(isValidExpoPushToken),
+    ),
   );
 
   if (validTokens.length === 0) {
@@ -26,11 +31,11 @@ export async function sendPushNotification(expoPushTokens = [], title = '', body
   }
 
   // 2. Format the messages for Expo.
-  const messages = validTokens.map(token => ({
+  const messages = validTokens.map((token) => ({
     to: token,
-    sound: 'default',
-    title: title || '',
-    body: body || '',
+    sound: "default",
+    title: title || "",
+    body: body || "",
     data: data || {},
     // include image for rich notifications where supported
     ...(data && data.image ? { image: data.image } : {}),
@@ -42,12 +47,12 @@ export async function sendPushNotification(expoPushTokens = [], title = '', body
     const chunk = messages.slice(i, i + chunkSize);
 
     try {
-      const resp = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
+      const resp = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
         headers: {
-          Accept: 'application/json',
-          'Accept-encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Accept-encoding": "gzip, deflate",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(chunk),
       });

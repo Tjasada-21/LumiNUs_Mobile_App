@@ -10,11 +10,16 @@ export const unregisterBrandedAlertHandler = (handler) => {
   }
 };
 
-export const showBrandedAlert = (title, message, buttons = [{ text: 'OK' }], options = {}) => {
-  if (typeof alertHandler === 'function') {
+export const showBrandedAlert = (
+  title,
+  message,
+  buttons = [{ text: "OK" }],
+  options = {},
+) => {
+  if (typeof alertHandler === "function") {
     alertHandler({ title, message, buttons, options });
     return;
   }
 
-  console.warn('Branded alert host is not registered yet:', title, message);
+  console.warn("Branded alert host is not registered yet:", title, message);
 };

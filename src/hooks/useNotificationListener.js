@@ -1,5 +1,5 @@
-import { useEffect, useCallback } from 'react';
-import * as Notifications from 'expo-notifications';
+import { useEffect, useCallback } from "react";
+import * as Notifications from "expo-notifications";
 
 /**
  * Hook to handle notification responses in screens
@@ -16,21 +16,21 @@ export const useNotificationListener = (navigation) => {
           const navigationParams = {};
 
           switch (data.type) {
-            case 'message':
+            case "message":
               navigationParams.contactId = data.conversationId;
               break;
-            case 'event':
+            case "event":
               navigationParams.eventId = data.eventId;
               break;
-            case 'announcement':
+            case "announcement":
               navigationParams.announcementId = data.announcementId;
               break;
-            case 'perk':
+            case "perk":
               navigationParams.perkId = data.perkId;
               break;
-            case 'reaction':
-            case 'comment':
-            case 'repost':
+            case "reaction":
+            case "comment":
+            case "repost":
               navigationParams.postId = data.postId;
               break;
             default:
@@ -39,7 +39,7 @@ export const useNotificationListener = (navigation) => {
 
           navigation.navigate(data.screen, navigationParams);
         }
-      }
+      },
     );
 
     return () => subscription.remove();
@@ -50,12 +50,15 @@ export const useNotificationListener = (navigation) => {
  * Hook to get the current notification state
  */
 export const useNotificationState = () => {
-  const [lastNotification, setLastNotification] = require('react').useState(null);
+  const [lastNotification, setLastNotification] =
+    require("react").useState(null);
 
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      setLastNotification(response.notification);
-    });
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        setLastNotification(response.notification);
+      },
+    );
 
     return () => subscription.remove();
   }, []);

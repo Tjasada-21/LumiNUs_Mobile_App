@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, useWindowDimensions, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import BrandHeader from '../components/BrandHeader';
-import supabase from '../services/supabase';
-import styles from '../styles/ForgetPasswordScreen.styles';
-import SmartTextInput from '../components/SmartTextInput';
-import { ThemedAlert } from '../components/ThemedAlert';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BrandHeader from "../components/BrandHeader";
+import supabase from "../services/supabase";
+import styles from "../styles/ForgetPasswordScreen.styles";
+import SmartTextInput from "../components/SmartTextInput";
+import { ThemedAlert } from "../components/ThemedAlert";
 
 const ForgetPasswordScreen = ({ navigation }) => {
   // SECTION: Form state
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width - 48, 360);
@@ -19,7 +27,10 @@ const ForgetPasswordScreen = ({ navigation }) => {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      ThemedAlert.alert('Missing Email', 'Enter your personal email address first.');
+      ThemedAlert.alert(
+        "Missing Email",
+        "Enter your personal email address first.",
+      );
       return;
     }
 
@@ -35,11 +46,16 @@ const ForgetPasswordScreen = ({ navigation }) => {
 
       // On success, alert the user and navigate to the OTP verification screen
       // We pass the email in the route parameters so the next screen knows who is verifying
-      ThemedAlert.alert('Code Sent', 'Check your email for your 6-digit reset code.');
-      navigation.navigate('VerifyResetOtp', { email: trimmedEmail });
-      
+      ThemedAlert.alert(
+        "Code Sent",
+        "Check your email for your 6-digit reset code.",
+      );
+      navigation.navigate("VerifyResetOtp", { email: trimmedEmail });
     } catch (error) {
-      ThemedAlert.alert('Reset Failed', error.message || 'Unable to send the reset email.');
+      ThemedAlert.alert(
+        "Reset Failed",
+        error.message || "Unable to send the reset email.",
+      );
     } finally {
       setLoading(false);
     }
@@ -47,49 +63,56 @@ const ForgetPasswordScreen = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* SECTION: Password reset form */}
           <View style={styles.page}>
-          <BrandHeader />
+            <BrandHeader />
 
-          <View style={[styles.content, { width: contentWidth }]}>
-            <View style={styles.iconWrap}>
-              <View style={styles.lockTop} />
-              <View style={styles.lockBody}>
-                <Text style={styles.questionMark}>?</Text>
+            <View style={[styles.content, { width: contentWidth }]}>
+              <View style={styles.iconWrap}>
+                <View style={styles.lockTop} />
+                <View style={styles.lockBody}>
+                  <Text style={styles.questionMark}>?</Text>
+                </View>
               </View>
+
+              <Text style={styles.title}>Forgot Password?</Text>
+              <Text style={styles.subtitle}>
+                We'll email you a 6-digit code to reset your password.
+              </Text>
+
+              <Text style={styles.label}>Enter Your Personal Email</Text>
+              <SmartTextInput
+                style={styles.input}
+                placeholder="name@example.com"
+                placeholderTextColor="#A0A0A0"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                activeOpacity={0.85}
+                onPress={handleSendEmail}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Sending..." : "Send Code"}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.title}>Forgot Password?</Text>
-            <Text style={styles.subtitle}>We'll email you a 6-digit code to reset your password.</Text>
-
-            <Text style={styles.label}>Enter Your Personal Email</Text>
-            <SmartTextInput
-              style={styles.input}
-              placeholder="name@example.com"
-              placeholderTextColor="#A0A0A0"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              activeOpacity={0.85}
-              onPress={handleSendEmail}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>{loading ? 'Sending...' : 'Send Code'}</Text>
-            </TouchableOpacity>
           </View>
-        </View>
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

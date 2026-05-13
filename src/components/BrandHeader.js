@@ -1,7 +1,21 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, useWindowDimensions, Pressable, Modal, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { responsiveFontSize, responsiveHeight, responsiveSpacing, responsiveWidth } from '../utils/responsive';
+import React, { useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  useWindowDimensions,
+  Pressable,
+  Modal,
+  TouchableOpacity,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import {
+  responsiveFontSize,
+  responsiveHeight,
+  responsiveSpacing,
+  responsiveWidth,
+} from "../utils/responsive";
 
 const BrandHeader = () => {
   const navigation = useNavigation();
@@ -50,20 +64,31 @@ const BrandHeader = () => {
 
   return (
     <View style={styles.brandHeader}>
-      <View style={[styles.brandRow, {
-        paddingHorizontal: layout.horizontalPadding,
-        paddingTop: layout.verticalPaddingTop,
-        paddingBottom: layout.verticalPaddingBottom,
-      }]}>
+      <View
+        style={[
+          styles.brandRow,
+          {
+            paddingHorizontal: layout.horizontalPadding,
+            paddingTop: layout.verticalPaddingTop,
+            paddingBottom: layout.verticalPaddingBottom,
+          },
+        ]}
+      >
         <Pressable
-          onPress={() => navigation.navigate('Home', { screen: 'HomeTab' })}
+          onPress={() => navigation.navigate("Home", { screen: "HomeTab" })}
           accessibilityRole="button"
           accessibilityLabel="Go to home screen"
           hitSlop={10}
         >
           <Image
-            source={require('../../assets/images/lumi-n-us-logo-landscape-2.png')}
-            style={[styles.brandLogo, { width: layout.headerLogoWidth, height: layout.headerLogoHeight }]}
+            source={require("../../assets/images/lumi-n-us-logo-landscape-2.png")}
+            style={[
+              styles.brandLogo,
+              {
+                width: layout.headerLogoWidth,
+                height: layout.headerLogoHeight,
+              },
+            ]}
             resizeMode="contain"
           />
         </Pressable>
@@ -74,19 +99,38 @@ const BrandHeader = () => {
           hitSlop={8}
         >
           <Image
-            source={require('../../assets/images/NULP-AAO-WHITE.png')}
-            style={[{ width: layout.headerLogoWidth * 0.48, height: layout.headerLogoHeight }, { transform: [{ scale: 1.5 }], right: 20 }]}
+            source={require("../../assets/images/NULP-AAO-WHITE.png")}
+            style={[
+              {
+                width: layout.headerLogoWidth * 0.48,
+                height: layout.headerLogoHeight,
+              },
+              { transform: [{ scale: 1.5 }], right: 20 },
+            ]}
             resizeMode="cover"
           />
         </Pressable>
       </View>
       <View style={[styles.brandAccent, { height: layout.accentHeight }]} />
 
-      <Modal visible={isImageModalVisible} transparent animationType="fade" onRequestClose={() => setIsImageModalVisible(false)}>
+      <Modal
+        visible={isImageModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsImageModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Image source={require('../../assets/images/image.png')} style={styles.modalImage} resizeMode="cover" />
-            <TouchableOpacity style={styles.modalCloseButton} onPress={() => setIsImageModalVisible(false)} activeOpacity={0.85}>
+            <Image
+              source={require("../../assets/images/image.png")}
+              style={styles.modalImage}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setIsImageModalVisible(false)}
+              activeOpacity={0.85}
+            >
               <Text style={styles.modalCloseText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -98,15 +142,15 @@ const BrandHeader = () => {
 
 const styles = StyleSheet.create({
   brandHeader: {
-    backgroundColor: '#31429B',
+    backgroundColor: "#31429B",
   },
   brandRow: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   brandLogo: {
     width: 176,
@@ -114,13 +158,13 @@ const styles = StyleSheet.create({
     marginLeft: -15,
   },
   nulipaPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   nulipaIcon: {
     width: 22,
@@ -128,48 +172,48 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   nulipaText: {
-    color: '#31429B',
-    fontWeight: '800',
+    color: "#31429B",
+    fontWeight: "800",
     fontSize: 14,
     letterSpacing: 0.3,
   },
   brandAccent: {
     height: 10,
-    backgroundColor: '#F2C919',
-    width: '100%',
+    backgroundColor: "#F2C919",
+    width: "100%",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 18,
   },
   modalContent: {
-    width: '100%',
+    width: "100%",
     maxWidth: 420,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 24,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalImage: {
-    width: '100%',
+    width: "100%",
     height: 340,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   modalCloseButton: {
     marginTop: 14,
-    backgroundColor: '#31429B',
+    backgroundColor: "#31429B",
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
   },
   modalCloseText: {
-    color: '#F9FAFB',
+    color: "#F9FAFB",
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });
 

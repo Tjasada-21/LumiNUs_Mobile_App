@@ -1,24 +1,24 @@
-import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // Import this
+import React from "react";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // Import this
 
-import HomeScreen from '../screens/HomeScreen';
-import ChatScreen from '../screens/ChatScreen';
-import UserProfileScreen from '../screens/UserProfileScreen';
-import FeedScreen from '../screens/UserFeedScreen';
-import ExploreStackNavigator from './ExploreStackNavigator';
-import ViewYearbookScreen from '../screens/ViewYearbookScreen';
-import EventsScreen from '../screens/EventsScreen';
-import ConnectionsScreen from '../screens/ConnectionsScreen';
-import ProfileViewScreen from '../screens/ProfileViewScreen';
-import RegisteredEventsScreen from '../screens/RegisteredEventsScreen';
-import AlumniTracerScreen from '../screens/AlumniTracerScreen';
-import GlobalSearchScreen from '../screens/GlobalSearchScreen';
-import { useUnreadMessages } from '../context/UnreadMessagesContext';
-import { sharedScreenStyles } from '../styles/sharedStyles';
+import HomeScreen from "../screens/HomeScreen";
+import ChatScreen from "../screens/ChatScreen";
+import UserProfileScreen from "../screens/UserProfileScreen";
+import FeedScreen from "../screens/UserFeedScreen";
+import ExploreStackNavigator from "./ExploreStackNavigator";
+import ViewYearbookScreen from "../screens/ViewYearbookScreen";
+import EventsScreen from "../screens/EventsScreen";
+import ConnectionsScreen from "../screens/ConnectionsScreen";
+import ProfileViewScreen from "../screens/ProfileViewScreen";
+import RegisteredEventsScreen from "../screens/RegisteredEventsScreen";
+import AlumniTracerScreen from "../screens/AlumniTracerScreen";
+import GlobalSearchScreen from "../screens/GlobalSearchScreen";
+import { useUnreadMessages } from "../context/UnreadMessagesContext";
+import { sharedScreenStyles } from "../styles/sharedStyles";
 
 const Tab = createBottomTabNavigator();
 
@@ -32,7 +32,8 @@ const MainTabNavigator = () => {
 
   // We use a smaller portion of the inset (e.g., half) or a fixed small value
   // This prevents the "huge gap" while still lifting icons above the Android buttons
-  const adjustedBottomInset = insets.bottom > 0 ? Math.min(insets.bottom, 25) : 0;
+  const adjustedBottomInset =
+    insets.bottom > 0 ? Math.min(insets.bottom, 25) : 0;
 
   const baseTabBarHeight = isTablet ? 76 : isCompactWidth ? 60 : 66;
   const totalTabBarHeight = baseTabBarHeight + adjustedBottomInset;
@@ -40,29 +41,29 @@ const MainTabNavigator = () => {
   const getTabBarStyle = (route) => {
     const baseStyle = {
       height: totalTabBarHeight,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: "#FFFFFF",
       borderTopWidth: 1,
-      borderTopColor: '#E2E8F0',
+      borderTopColor: "#E2E8F0",
       // Reduced padding here to keep it tight
-      paddingBottom: adjustedBottomInset, 
+      paddingBottom: adjustedBottomInset,
       elevation: 10,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOpacity: 0.1,
       shadowRadius: 4,
     };
-    
+
     // ... rest of your getTabBarStyle logic
 
-    if (route.name !== 'Explore') {
+    if (route.name !== "Explore") {
       return baseStyle;
     }
 
     const nestedRouteName = getFocusedRouteNameFromRoute(route);
 
-    if (!nestedRouteName || nestedRouteName === 'ExploreHome') {
+    if (!nestedRouteName || nestedRouteName === "ExploreHome") {
       return {
         ...baseStyle,
-        backgroundColor: '#F2C919',
+        backgroundColor: "#F2C919",
         borderTopWidth: 0,
       };
     }
@@ -72,26 +73,32 @@ const MainTabNavigator = () => {
 
   return (
     <Tab.Navigator
-      sceneContainerStyle={{ backgroundColor: '#FFFFFF' }}
+      sceneContainerStyle={{ backgroundColor: "#FFFFFF" }}
       screenOptions={({ route }) => ({
-        animation: 'shift',
+        animation: "shift",
         tabBarIcon: ({ focused, color }) => {
           let iconName;
 
-          if (route.name === 'HomeTab') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Messages') {
-            iconName = focused ? 'chatbubble' : 'chatbubble-outline';
-          } else if (route.name === 'Explore') {
-            iconName = focused ? 'earth' : 'earth-outline';
-          } else if (route.name === 'Feed') {
-            iconName = focused ? 'document-text' : 'document-text-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
+          if (route.name === "HomeTab") {
+            iconName = focused ? "home" : "home-outline";
+          } else if (route.name === "Messages") {
+            iconName = focused ? "chatbubble" : "chatbubble-outline";
+          } else if (route.name === "Explore") {
+            iconName = focused ? "earth" : "earth-outline";
+          } else if (route.name === "Feed") {
+            iconName = focused ? "document-text" : "document-text-outline";
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
           }
 
-          const showUnreadBadge = route.name === 'Messages' && unreadCount > 0;
-          const iconSize = focused ? (isTablet ? 30 : 28) : (isCompactWidth ? 22 : 24);
+          const showUnreadBadge = route.name === "Messages" && unreadCount > 0;
+          const iconSize = focused
+            ? isTablet
+              ? 30
+              : 28
+            : isCompactWidth
+              ? 22
+              : 24;
 
           return (
             <View style={styles.iconContainer}>
@@ -100,14 +107,14 @@ const MainTabNavigator = () => {
             </View>
           );
         },
-        tabBarActiveTintColor: '#31429B',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: "#31429B",
+        tabBarInactiveTintColor: "#8E8E93",
         tabBarShowLabel: false,
         headerShown: false,
         tabBarStyle: getTabBarStyle(route),
         // Ensures icons aren't squished against the top of the bar
         tabBarIconStyle: {
-          marginTop: insets.bottom > 0 ? 0 : 5, 
+          marginTop: insets.bottom > 0 ? 0 : 5,
         },
       })}
     >
@@ -117,8 +124,8 @@ const MainTabNavigator = () => {
         name="Explore"
         component={ExploreStackNavigator}
         options={{
-          tabBarActiveTintColor: '#31429B',
-          tabBarInactiveTintColor: '#31429B',
+          tabBarActiveTintColor: "#31429B",
+          tabBarInactiveTintColor: "#31429B",
         }}
       />
       <Tab.Screen name="Feed" component={FeedScreen} />
@@ -130,7 +137,7 @@ const MainTabNavigator = () => {
         component={ViewYearbookScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -138,7 +145,7 @@ const MainTabNavigator = () => {
         component={AlumniTracerScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -146,7 +153,7 @@ const MainTabNavigator = () => {
         component={EventsScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -154,7 +161,7 @@ const MainTabNavigator = () => {
         component={ProfileViewScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -162,7 +169,7 @@ const MainTabNavigator = () => {
         component={ConnectionsScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -170,7 +177,7 @@ const MainTabNavigator = () => {
         component={RegisteredEventsScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
       <Tab.Screen
@@ -178,7 +185,7 @@ const MainTabNavigator = () => {
         component={GlobalSearchScreen}
         options={{
           tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
+          tabBarItemStyle: { display: "none" },
         }}
       />
     </Tab.Navigator>
@@ -187,20 +194,20 @@ const MainTabNavigator = () => {
 
 const styles = StyleSheet.create({
   iconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
   },
   unreadBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: -2,
     right: -4,
     width: 9,
     height: 9,
     borderRadius: 4.5,
-    backgroundColor: '#E53935',
+    backgroundColor: "#E53935",
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
 });
 

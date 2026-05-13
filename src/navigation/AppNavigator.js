@@ -1,37 +1,37 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import LoginScreen from '../screens/LoginScreen';
-import MainTabNavigator from './MainTabNavigator';
-import AccountSettingsScreen from '../screens/AccountSettingsScreen';
-import ViewYearbookScreen from '../screens/ViewYearbookScreen';
-import AlumniTracerScreen from '../screens/AlumniTracerScreen';
-import TracerFormScreen from '../screens/TracerFormScreen';
-import EventRegistrationScreen from '../screens/EventRegistrationScreen';
-import ForgetPasswordScreen from '../screens/ForgetPasswordScreen';
-import NewMessageScreen from '../screens/NewMessageScreen';
-import CreatePostScreen from '../screens/CreatePostScreen';
-import ViewEventsScreen from '../screens/ViewEventsScreen';
-import ResetPasswordScreen from '../screens/ResetPasswordScreen';
-import SearchMessageScreen from '../screens/SearchMessageScreen';
-import ConvoScreen from '../screens/ConvoScreen';
-import ChatDetailsScreen from '../screens/ChatDetailsScreen';
-import ChangePasswordScreen from '../screens/ChangePasswordScreen';
-import VerifyResetOtpScreen from '../screens/VerifyResetOtpScreen';
-import CompleteProfileScreen from '../screens/CompleteProfileScreen';
-import DraftsScreen from '../screens/DraftScreen';
-import GlobalSearchScreen from '../screens/GlobalSearchScreen';
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import LoginScreen from "../screens/LoginScreen";
+import MainTabNavigator from "./MainTabNavigator";
+import AccountSettingsScreen from "../screens/AccountSettingsScreen";
+import ViewYearbookScreen from "../screens/ViewYearbookScreen";
+import AlumniTracerScreen from "../screens/AlumniTracerScreen";
+import TracerFormScreen from "../screens/TracerFormScreen";
+import EventRegistrationScreen from "../screens/EventRegistrationScreen";
+import ForgetPasswordScreen from "../screens/ForgetPasswordScreen";
+import NewMessageScreen from "../screens/NewMessageScreen";
+import CreatePostScreen from "../screens/CreatePostScreen";
+import ViewEventsScreen from "../screens/ViewEventsScreen";
+import ResetPasswordScreen from "../screens/ResetPasswordScreen";
+import SearchMessageScreen from "../screens/SearchMessageScreen";
+import ConvoScreen from "../screens/ConvoScreen";
+import ChatDetailsScreen from "../screens/ChatDetailsScreen";
+import ChangePasswordScreen from "../screens/ChangePasswordScreen";
+import VerifyResetOtpScreen from "../screens/VerifyResetOtpScreen";
+import CompleteProfileScreen from "../screens/CompleteProfileScreen";
+import DraftsScreen from "../screens/DraftScreen";
+import GlobalSearchScreen from "../screens/GlobalSearchScreen";
 
 const Stack = createNativeStackNavigator();
 
-const AppNavigator = ({ initialRouteName = 'Login' }) => {
+const AppNavigator = ({ initialRouteName = "Login" }) => {
   return (
     <Stack.Navigator
       initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
-        animation: 'fade_from_bottom',
-        animationTypeForReplace: 'push',
-        contentStyle: { backgroundColor: '#F9FAFB' },
+        animation: "fade_from_bottom",
+        animationTypeForReplace: "push",
+        contentStyle: { backgroundColor: "#F9FAFB" },
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
@@ -40,7 +40,10 @@ const AppNavigator = ({ initialRouteName = 'Login' }) => {
       <Stack.Screen name="ViewYearbook" component={ViewYearbookScreen} />
       <Stack.Screen name="AlumniTracer" component={AlumniTracerScreen} />
       <Stack.Screen name="TracerForm" component={TracerFormScreen} />
-      <Stack.Screen name="EventRegistration" component={EventRegistrationScreen} />
+      <Stack.Screen
+        name="EventRegistration"
+        component={EventRegistrationScreen}
+      />
       <Stack.Screen name="ForgetPassword" component={ForgetPasswordScreen} />
       <Stack.Screen name="NewMessage" component={NewMessageScreen} />
       <Stack.Screen name="ConvoScreen" component={ConvoScreen} />
@@ -51,12 +54,22 @@ const AppNavigator = ({ initialRouteName = 'Login' }) => {
       <Stack.Screen name="DraftsScreen" component={DraftsScreen} />
       <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
       <Stack.Screen name="ViewEventsScreen" component={ViewEventsScreen} />
-      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CompleteProfile"
+        component={CompleteProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="VerifyResetOtp"
+        component={VerifyResetOtpScreen}
+        options={{ headerShown: false }}
+      />
       {/* We will add Register and Home screens here later! */}
-
-
     </Stack.Navigator>
   );
 };

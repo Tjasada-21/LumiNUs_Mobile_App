@@ -1,35 +1,46 @@
-import React, { useState } from 'react';
-import { 
-  View, Text, TouchableOpacity, 
-  ActivityIndicator, ImageBackground, Image, Dimensions 
-} from 'react-native';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  ImageBackground,
+  Image,
+  Dimensions,
+} from "react-native";
 
-import styles from '../styles/ChangePasswordScreen.styles';
-import SmartTextInput from '../components/SmartTextInput';
-import { Ionicons } from '@expo/vector-icons';
-import { ThemedAlert } from '../components/ThemedAlert';
-import supabase from '../services/supabase';
+import styles from "../styles/ChangePasswordScreen.styles";
+import SmartTextInput from "../components/SmartTextInput";
+import { Ionicons } from "@expo/vector-icons";
+import { ThemedAlert } from "../components/ThemedAlert";
+import supabase from "../services/supabase";
 
 const ChangePasswordScreen = ({ navigation }) => {
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleUpdatePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      ThemedAlert.alert('Error', 'Please fill in all fields.');
+      ThemedAlert.alert("Error", "Please fill in all fields.");
       return;
     }
 
     if (newPassword.length < 6) {
-      ThemedAlert.alert('Weak Password', 'Your new password must be at least 6 characters long.');
+      ThemedAlert.alert(
+        "Weak Password",
+        "Your new password must be at least 6 characters long.",
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      ThemedAlert.alert('Mismatch', 'The passwords do not match. Please try again.');
+      ThemedAlert.alert(
+        "Mismatch",
+        "The passwords do not match. Please try again.",
+      );
       return;
     }
 
@@ -37,9 +48,10 @@ const ChangePasswordScreen = ({ navigation }) => {
 
     try {
       // 1. Update the actual password in Supabase Auth
-      const { data: userData, error: authError } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+      const { data: userData, error: authError } =
+        await supabase.auth.updateUser({
+          password: newPassword,
+        });
 
       if (authError) throw authError;
 
@@ -49,49 +61,54 @@ const ChangePasswordScreen = ({ navigation }) => {
       if (userEmail) {
         // 3. Flip the switch in the alumni table so they don't get trapped here
         const { error: dbError } = await supabase
-          .from('alumnis')
+          .from("alumnis")
           .update({ needs_password_change: false })
-          .eq('email', userEmail);
+          .eq("email", userEmail);
 
         if (dbError) throw dbError;
       } else {
-        throw new Error('Could not identify user email for profile update.');
+        throw new Error("Could not identify user email for profile update.");
       }
 
-      ThemedAlert.alert('Account Secured!', 'Your permanent password has been set.');
-      
+      ThemedAlert.alert(
+        "Account Secured!",
+        "Your permanent password has been set.",
+      );
+
       // Send the user to profile completion before entering the main app
-      navigation.replace('CompleteProfile', {
+      navigation.replace("CompleteProfile", {
         userId: userData?.user?.id,
       });
-      
     } catch (error) {
-      console.error('[ChangePasswordScreen] Update error:', error);
-      ThemedAlert.alert('Update Failed', error.message || 'Could not update password. Please try again.');
+      console.error("[ChangePasswordScreen] Update error:", error);
+      ThemedAlert.alert(
+        "Update Failed",
+        error.message || "Could not update password. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ImageBackground 
-      source={require('../../assets/images/unnamed.png')} 
+    <ImageBackground
+      source={require("../../assets/images/unnamed.png")}
       style={styles.backgroundImage}
       resizeMode="cover"
     >
       <View style={styles.overlay}>
         <View style={styles.cardContainer}>
-          
-          <Image 
-            source={require('../../assets/images/lumi-n-us-logo-landscape-2.png')} 
-            style={styles.logo} 
+          <Image
+            source={require("../../assets/images/lumi-n-us-logo-landscape-2.png")}
+            style={styles.logo}
             resizeMode="contain"
           />
 
           <View style={styles.headerContainer}>
             <Text style={styles.welcomeTitle}>Welcome to LumiNUs!</Text>
             <Text style={styles.instructionText}>
-              For your security, please set a permanent password for your account before continuing.
+              For your security, please set a permanent password for your
+              account before continuing.
             </Text>
           </View>
 
@@ -106,12 +123,16 @@ const ChangePasswordScreen = ({ navigation }) => {
               secureTextEntry={!showPassword}
               editable={!loading}
             />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
+            <TouchableOpacity
+              style={styles.eyeIcon}
               onPress={() => setShowPassword(!showPassword)}
               disabled={loading}
             >
-              <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#666" />
+              <Ionicons
+                name={showPassword ? "eye-off" : "eye"}
+                size={20}
+                color="#666"
+              />
             </TouchableOpacity>
           </View>
 
@@ -126,18 +147,22 @@ const ChangePasswordScreen = ({ navigation }) => {
               secureTextEntry={!showConfirmPassword}
               editable={!loading}
             />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
+            <TouchableOpacity
+              style={styles.eyeIcon}
               onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               disabled={loading}
             >
-              <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="#666" />
+              <Ionicons
+                name={showConfirmPassword ? "eye-off" : "eye"}
+                size={20}
+                color="#666"
+              />
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity 
-            style={[styles.button, loading && styles.buttonDisabled]} 
-            onPress={handleUpdatePassword} 
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleUpdatePassword}
             disabled={loading}
           >
             {loading ? (
@@ -146,7 +171,6 @@ const ChangePasswordScreen = ({ navigation }) => {
               <Text style={styles.buttonText}>Secure Account & Login</Text>
             )}
           </TouchableOpacity>
-
         </View>
       </View>
     </ImageBackground>

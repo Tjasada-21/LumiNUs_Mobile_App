@@ -1,5 +1,5 @@
-import supabase from './supabase';
-import { normalizePerkImageUri } from '../utils/imageUtils';
+import supabase from "./supabase";
+import { normalizePerkImageUri } from "../utils/imageUtils";
 
 /**
  * Normalize a raw perk from Supabase, converting image_path values to full URLs.
@@ -10,7 +10,7 @@ const normalizePerk = (perk) => {
   const normalizedImages = Array.isArray(perk.images)
     ? perk.images.map((image) => ({
         ...image,
-        image_path: normalizePerkImageUri(image?.image_path ?? ''),
+        image_path: normalizePerkImageUri(image?.image_path ?? ""),
       }))
     : [];
 
@@ -25,16 +25,18 @@ const normalizePerk = (perk) => {
  */
 export const getPerks = async () => {
   const { data, error } = await supabase
-    .from('perks')
-    .select(`
+    .from("perks")
+    .select(
+      `
       id, title, description, valid_until, status,
       images:images_perks(id, image_path)
-    `)
-    .or('status.is.null,status.eq.1')
-    .order('created_at', { ascending: false });
+    `,
+    )
+    .or("status.is.null,status.eq.1")
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error('[perks] Query error:', error.code, '-', error.message);
+    console.error("[perks] Query error:", error.code, "-", error.message);
     throw error;
   }
 

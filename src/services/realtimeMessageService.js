@@ -1,8 +1,8 @@
-import supabase from './supabase';
-import { decryptMessage } from '../utils/cryptoUtils';
+import supabase from "./supabase";
+import { decryptMessage } from "../utils/cryptoUtils";
 
 const toDecryptedRealtimeMessage = (message) => {
-  if (!message || typeof message !== 'object') {
+  if (!message || typeof message !== "object") {
     return message;
   }
 
@@ -15,13 +15,17 @@ const toDecryptedRealtimeMessage = (message) => {
 /**
  * Subscribes to real-time message updates for a direct message conversation.
  * This is optional - if it fails, polling will handle message delivery.
- * 
+ *
  * @param {number} currentUserId - The ID of the current user
  * @param {number} contactId - The ID of the contact in this conversation
  * @param {function} onMessageReceived - Callback when message arrives: (event, message) => {}
  * @returns {function} Cleanup function to unsubscribe
  */
-export const subscribeToDirectMessages = (currentUserId, contactId, onMessageReceived) => {
+export const subscribeToDirectMessages = (
+  currentUserId,
+  contactId,
+  onMessageReceived,
+) => {
   if (!supabase || !currentUserId || !contactId) {
     return () => {};
   }
@@ -30,62 +34,68 @@ export const subscribeToDirectMessages = (currentUserId, contactId, onMessageRec
     const subscription = supabase
       .channel(`messages:${currentUserId}_${contactId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
         },
         (payload) => {
           const { new: newMessage } = payload;
-          
+
           // Filter: only messages between these two users
-          const isRelevant = 
-            (newMessage.sender_id === currentUserId && newMessage.receiver_id === contactId) ||
-            (newMessage.sender_id === contactId && newMessage.receiver_id === currentUserId);
-          
+          const isRelevant =
+            (newMessage.sender_id === currentUserId &&
+              newMessage.receiver_id === contactId) ||
+            (newMessage.sender_id === contactId &&
+              newMessage.receiver_id === currentUserId);
+
           if (isRelevant && onMessageReceived) {
-            onMessageReceived('insert', toDecryptedRealtimeMessage(newMessage));
+            onMessageReceived("insert", toDecryptedRealtimeMessage(newMessage));
           }
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
         },
         (payload) => {
           const { new: newMessage } = payload;
-          
-          const isRelevant = 
-            (newMessage.sender_id === currentUserId && newMessage.receiver_id === contactId) ||
-            (newMessage.sender_id === contactId && newMessage.receiver_id === currentUserId);
-          
+
+          const isRelevant =
+            (newMessage.sender_id === currentUserId &&
+              newMessage.receiver_id === contactId) ||
+            (newMessage.sender_id === contactId &&
+              newMessage.receiver_id === currentUserId);
+
           if (isRelevant && onMessageReceived) {
-            onMessageReceived('update', toDecryptedRealtimeMessage(newMessage));
+            onMessageReceived("update", toDecryptedRealtimeMessage(newMessage));
           }
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'messages',
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
         },
         (payload) => {
           const { old: oldMessage } = payload;
-          
-          const isRelevant = 
-            (oldMessage.sender_id === currentUserId && oldMessage.receiver_id === contactId) ||
-            (oldMessage.sender_id === contactId && oldMessage.receiver_id === currentUserId);
-          
+
+          const isRelevant =
+            (oldMessage.sender_id === currentUserId &&
+              oldMessage.receiver_id === contactId) ||
+            (oldMessage.sender_id === contactId &&
+              oldMessage.receiver_id === currentUserId);
+
           if (isRelevant && onMessageReceived) {
-            onMessageReceived('delete', oldMessage);
+            onMessageReceived("delete", oldMessage);
           }
-        }
+        },
       )
       .subscribe();
 
@@ -101,7 +111,7 @@ export const subscribeToDirectMessages = (currentUserId, contactId, onMessageRec
 /**
  * Subscribes to real-time message updates for a group chat conversation.
  * This is optional - if it fails, polling will handle message delivery.
- * 
+ *
  * @param {number} groupId - The ID of the group chat
  * @param {function} onMessageReceived - Callback when message arrives: (event, message) => {}
  * @returns {function} Cleanup function to unsubscribe
@@ -115,21 +125,24 @@ export const subscribeToGroupMessages = (groupId, onMessageReceived) => {
     const subscription = supabase
       .channel(`group_messages:${groupId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'group_messages',
+          event: "*",
+          schema: "public",
+          table: "group_messages",
           filter: `group_chat_id=eq.${groupId}`,
         },
         (payload) => {
           if (onMessageReceived) {
             const event = payload.eventType.toLowerCase();
-            const message = event === 'DELETE' ? payload.old : payload.new;
-            const safeMessage = event === 'delete' ? message : toDecryptedRealtimeMessage(message);
+            const message = event === "DELETE" ? payload.old : payload.new;
+            const safeMessage =
+              event === "delete"
+                ? message
+                : toDecryptedRealtimeMessage(message);
             onMessageReceived(event, safeMessage);
           }
-        }
+        },
       )
       .subscribe();
 

@@ -1,4 +1,4 @@
-import supabase from './supabase';
+import supabase from "./supabase";
 
 /**
  * Connections & Followers Queries
@@ -10,18 +10,20 @@ import supabase from './supabase';
 export const getFollowers = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
-      .select(`
+      .from("followers")
+      .select(
+        `
         *,
         follower:follower_alumni_id(id, first_name, last_name, email, alumni_photo, program)
-      `)
-      .eq('followed_alumni_id', alumniId)
-      .eq('status', 1); // 1 = connected
+      `,
+      )
+      .eq("followed_alumni_id", alumniId)
+      .eq("status", 1); // 1 = connected
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[followers] Get followers error:', error.message);
+    console.error("[followers] Get followers error:", error.message);
     throw error;
   }
 };
@@ -32,18 +34,20 @@ export const getFollowers = async (alumniId) => {
 export const getFollowing = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
-      .select(`
+      .from("followers")
+      .select(
+        `
         *,
         followed:followed_alumni_id(id, first_name, last_name, email, alumni_photo, program)
-      `)
-      .eq('follower_alumni_id', alumniId)
-      .eq('status', 1); // 1 = connected
+      `,
+      )
+      .eq("follower_alumni_id", alumniId)
+      .eq("status", 1); // 1 = connected
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[followers] Get following error:', error.message);
+    console.error("[followers] Get following error:", error.message);
     throw error;
   }
 };
@@ -54,18 +58,20 @@ export const getFollowing = async (alumniId) => {
 export const getPendingFollowRequests = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
-      .select(`
+      .from("followers")
+      .select(
+        `
         *,
         follower:follower_alumni_id(id, first_name, last_name, email, alumni_photo)
-      `)
-      .eq('followed_alumni_id', alumniId)
-      .eq('status', 0); // 0 = pending
+      `,
+      )
+      .eq("followed_alumni_id", alumniId)
+      .eq("status", 0); // 0 = pending
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[followers] Get pending requests error:', error.message);
+    console.error("[followers] Get pending requests error:", error.message);
     throw error;
   }
 };
@@ -76,18 +82,23 @@ export const getPendingFollowRequests = async (alumniId) => {
 export const getSentPendingRequests = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
-      .select(`
+      .from("followers")
+      .select(
+        `
         *,
         followed:followed_alumni_id(id, first_name, last_name, email, alumni_photo, program)
-      `)
-      .eq('follower_alumni_id', alumniId)
-      .eq('status', 0); // 0 = pending
+      `,
+      )
+      .eq("follower_alumni_id", alumniId)
+      .eq("status", 0); // 0 = pending
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[followers] Get sent pending requests error:', error.message);
+    console.error(
+      "[followers] Get sent pending requests error:",
+      error.message,
+    );
     throw error;
   }
 };
@@ -99,10 +110,10 @@ export const sendFollowRequest = async (fromAlumniId, toAlumniId) => {
   try {
     // Check if already following or request exists
     const { data: existingData } = await supabase
-      .from('followers')
-      .select('id, status')
-      .eq('follower_alumni_id', fromAlumniId)
-      .eq('followed_alumni_id', toAlumniId)
+      .from("followers")
+      .select("id, status")
+      .eq("follower_alumni_id", fromAlumniId)
+      .eq("followed_alumni_id", toAlumniId)
       .single();
 
     if (existingData) {
@@ -110,19 +121,21 @@ export const sendFollowRequest = async (fromAlumniId, toAlumniId) => {
     }
 
     const { data, error } = await supabase
-      .from('followers')
-      .insert([{
-        follower_alumni_id: fromAlumniId,
-        followed_alumni_id: toAlumniId,
-        status: 0, // pending
-      }])
+      .from("followers")
+      .insert([
+        {
+          follower_alumni_id: fromAlumniId,
+          followed_alumni_id: toAlumniId,
+          status: 0, // pending
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[followers] Send request error:', error.message);
+    console.error("[followers] Send request error:", error.message);
     throw error;
   }
 };
@@ -133,17 +146,17 @@ export const sendFollowRequest = async (fromAlumniId, toAlumniId) => {
 export const acceptFollowRequest = async (followerId, followedId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
+      .from("followers")
       .update({ status: 1 }) // 1 = connected
-      .eq('follower_alumni_id', followerId)
-      .eq('followed_alumni_id', followedId)
+      .eq("follower_alumni_id", followerId)
+      .eq("followed_alumni_id", followedId)
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[followers] Accept request error:', error.message);
+    console.error("[followers] Accept request error:", error.message);
     throw error;
   }
 };
@@ -154,14 +167,14 @@ export const acceptFollowRequest = async (followerId, followedId) => {
 export const rejectFollowRequest = async (followerId, followedId) => {
   try {
     const { error } = await supabase
-      .from('followers')
+      .from("followers")
       .delete()
-      .eq('follower_alumni_id', followerId)
-      .eq('followed_alumni_id', followedId);
+      .eq("follower_alumni_id", followerId)
+      .eq("followed_alumni_id", followedId);
 
     if (error) throw error;
   } catch (error) {
-    console.error('[followers] Reject request error:', error.message);
+    console.error("[followers] Reject request error:", error.message);
     throw error;
   }
 };
@@ -172,14 +185,14 @@ export const rejectFollowRequest = async (followerId, followedId) => {
 export const unfollowUser = async (fromAlumniId, toAlumniId) => {
   try {
     const { error } = await supabase
-      .from('followers')
+      .from("followers")
       .update({ status: 2 }) // 2 = deleted/unfollowed
-      .eq('follower_alumni_id', fromAlumniId)
-      .eq('followed_alumni_id', toAlumniId);
+      .eq("follower_alumni_id", fromAlumniId)
+      .eq("followed_alumni_id", toAlumniId);
 
     if (error) throw error;
   } catch (error) {
-    console.error('[followers] Unfollow error:', error.message);
+    console.error("[followers] Unfollow error:", error.message);
     throw error;
   }
 };
@@ -190,20 +203,20 @@ export const unfollowUser = async (fromAlumniId, toAlumniId) => {
 export const getFollowStatus = async (fromAlumniId, toAlumniId) => {
   try {
     const { data, error } = await supabase
-      .from('followers')
-      .select('status')
-      .eq('follower_alumni_id', fromAlumniId)
-      .eq('followed_alumni_id', toAlumniId)
+      .from("followers")
+      .select("status")
+      .eq("follower_alumni_id", fromAlumniId)
+      .eq("followed_alumni_id", toAlumniId)
       .single();
 
-    if (error && error.code === 'PGRST116') {
+    if (error && error.code === "PGRST116") {
       return null; // No relationship
     }
 
     if (error) throw error;
     return data?.status || null;
   } catch (error) {
-    console.error('[followers] Get status error:', error.message);
+    console.error("[followers] Get status error:", error.message);
     throw error;
   }
 };
@@ -214,15 +227,15 @@ export const getFollowStatus = async (fromAlumniId, toAlumniId) => {
 export const getFollowerCount = async (alumniId) => {
   try {
     const { count, error } = await supabase
-      .from('followers')
-      .select('*', { count: 'exact' })
-      .eq('followed_alumni_id', alumniId)
-      .eq('status', 1); // only count connected followers
+      .from("followers")
+      .select("*", { count: "exact" })
+      .eq("followed_alumni_id", alumniId)
+      .eq("status", 1); // only count connected followers
 
     if (error) throw error;
     return count || 0;
   } catch (error) {
-    console.error('[followers] Get count error:', error.message);
+    console.error("[followers] Get count error:", error.message);
     throw error;
   }
 };
@@ -233,15 +246,15 @@ export const getFollowerCount = async (alumniId) => {
 export const getFollowingCount = async (alumniId) => {
   try {
     const { count, error } = await supabase
-      .from('followers')
-      .select('*', { count: 'exact' })
-      .eq('follower_alumni_id', alumniId)
-      .eq('status', 1); // only count connected following
+      .from("followers")
+      .select("*", { count: "exact" })
+      .eq("follower_alumni_id", alumniId)
+      .eq("status", 1); // only count connected following
 
     if (error) throw error;
     return count || 0;
   } catch (error) {
-    console.error('[followers] Following count error:', error.message);
+    console.error("[followers] Following count error:", error.message);
     throw error;
   }
 };

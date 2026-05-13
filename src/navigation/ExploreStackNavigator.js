@@ -1,8 +1,8 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import ExploreScreen from '../screens/ExploreScreen';
-import PerksScreen from '../screens/PerksScreen';
-import ViewPerkScreen from '../screens/ViewPerkScreen';
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import ExploreScreen from "../screens/ExploreScreen";
+import PerksScreen from "../screens/PerksScreen";
+import ViewPerkScreen from "../screens/ViewPerkScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -11,7 +11,7 @@ const ExploreStackNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: 'fade_from_bottom',
+        animation: "fade_from_bottom",
       }}
     >
       <Stack.Screen name="ExploreHome" component={ExploreScreen} />

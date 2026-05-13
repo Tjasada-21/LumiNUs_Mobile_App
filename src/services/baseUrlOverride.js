@@ -1,6 +1,6 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 
-const KEY = 'apiBaseUrlOverride';
+const KEY = "apiBaseUrlOverride";
 
 export const setBaseUrlOverride = async (url) => {
   if (!url) {

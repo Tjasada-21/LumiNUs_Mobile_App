@@ -1,4 +1,4 @@
-import supabase from './supabase';
+import supabase from "./supabase";
 
 /**
  * Notifications & Utilities
@@ -10,18 +10,20 @@ import supabase from './supabase';
 export const dismissNotification = async (alumniId, notificationKey) => {
   try {
     const { data, error } = await supabase
-      .from('dismissed_notifications')
-      .insert([{
-        alumni_id: alumniId,
-        notification_key: notificationKey,
-      }])
+      .from("dismissed_notifications")
+      .insert([
+        {
+          alumni_id: alumniId,
+          notification_key: notificationKey,
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[notifications] Dismiss error:', error.message);
+    console.error("[notifications] Dismiss error:", error.message);
     throw error;
   }
 };
@@ -32,20 +34,20 @@ export const dismissNotification = async (alumniId, notificationKey) => {
 export const isNotificationDismissed = async (alumniId, notificationKey) => {
   try {
     const { data, error } = await supabase
-      .from('dismissed_notifications')
-      .select('id')
-      .eq('alumni_id', alumniId)
-      .eq('notification_key', notificationKey)
+      .from("dismissed_notifications")
+      .select("id")
+      .eq("alumni_id", alumniId)
+      .eq("notification_key", notificationKey)
       .single();
 
-    if (error && error.code === 'PGRST116') {
+    if (error && error.code === "PGRST116") {
       return false;
     }
 
     if (error) throw error;
     return !!data;
   } catch (error) {
-    console.error('[notifications] Check dismissed error:', error.message);
+    console.error("[notifications] Check dismissed error:", error.message);
     throw error;
   }
 };
@@ -56,14 +58,14 @@ export const isNotificationDismissed = async (alumniId, notificationKey) => {
 export const getDismissedNotifications = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('dismissed_notifications')
-      .select('notification_key')
-      .eq('alumni_id', alumniId);
+      .from("dismissed_notifications")
+      .select("notification_key")
+      .eq("alumni_id", alumniId);
 
     if (error) throw error;
-    return (data || []).map(item => item.notification_key);
+    return (data || []).map((item) => item.notification_key);
   } catch (error) {
-    console.error('[notifications] Get dismissed error:', error.message);
+    console.error("[notifications] Get dismissed error:", error.message);
     throw error;
   }
 };
@@ -73,19 +75,23 @@ export const getDismissedNotifications = async (alumniId) => {
  */
 export const subscribeToPostsUpdates = (callback) => {
   if (!supabase) {
-    console.error('[realtime] Supabase not initialized');
+    console.error("[realtime] Supabase not initialized");
     return null;
   }
 
   const subscription = supabase
-    .channel('posts')
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'posts',
-    }, payload => {
-      callback(payload);
-    })
+    .channel("posts")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "posts",
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -96,20 +102,24 @@ export const subscribeToPostsUpdates = (callback) => {
  */
 export const subscribeToMessagesUpdates = (userId, callback) => {
   if (!supabase) {
-    console.error('[realtime] Supabase not initialized');
+    console.error("[realtime] Supabase not initialized");
     return null;
   }
 
   const subscription = supabase
     .channel(`messages:${userId}`)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'messages',
-      filter: `receiver_id=eq.${userId}`,
-    }, payload => {
-      callback(payload);
-    })
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        filter: `receiver_id=eq.${userId}`,
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -120,20 +130,24 @@ export const subscribeToMessagesUpdates = (userId, callback) => {
  */
 export const subscribeToGroupMessagesUpdates = (groupChatId, callback) => {
   if (!supabase) {
-    console.error('[realtime] Supabase not initialized');
+    console.error("[realtime] Supabase not initialized");
     return null;
   }
 
   const subscription = supabase
     .channel(`group_messages:${groupChatId}`)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'group_messages',
-      filter: `group_chat_id=eq.${groupChatId}`,
-    }, payload => {
-      callback(payload);
-    })
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "group_messages",
+        filter: `group_chat_id=eq.${groupChatId}`,
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -144,20 +158,24 @@ export const subscribeToGroupMessagesUpdates = (groupChatId, callback) => {
  */
 export const subscribeToEventUpdates = (eventId, callback) => {
   if (!supabase) {
-    console.error('[realtime] Supabase not initialized');
+    console.error("[realtime] Supabase not initialized");
     return null;
   }
 
   const subscription = supabase
     .channel(`events:${eventId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'event_registrations',
-      filter: `event_id=eq.${eventId}`,
-    }, payload => {
-      callback(payload);
-    })
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "event_registrations",
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -168,20 +186,24 @@ export const subscribeToEventUpdates = (eventId, callback) => {
  */
 export const subscribeToCommentsUpdates = (postId, callback) => {
   if (!supabase) {
-    console.error('[realtime] Supabase not initialized');
+    console.error("[realtime] Supabase not initialized");
     return null;
   }
 
   const subscription = supabase
     .channel(`comments:${postId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'comments',
-      filter: `post_id=eq.${postId}`,
-    }, payload => {
-      callback(payload);
-    })
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "comments",
+        filter: `post_id=eq.${postId}`,
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -196,14 +218,18 @@ export const subscribeToAnnouncementsUpdates = (callback) => {
   }
 
   const subscription = supabase
-    .channel('announcements')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'announcements',
-    }, payload => {
-      callback(payload);
-    })
+    .channel("announcements")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "announcements",
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -218,14 +244,18 @@ export const subscribeToNewEventsUpdates = (callback) => {
   }
 
   const subscription = supabase
-    .channel('new_events')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'events',
-    }, payload => {
-      callback(payload);
-    })
+    .channel("new_events")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "events",
+      },
+      (payload) => {
+        callback(payload);
+      },
+    )
     .subscribe();
 
   return subscription;
@@ -240,19 +270,19 @@ export const unsubscribeFromChannel = async (subscription) => {
   try {
     await supabase.removeChannel(subscription);
   } catch (error) {
-    console.error('[realtime] Unsubscribe error:', error.message);
+    console.error("[realtime] Unsubscribe error:", error.message);
   }
 };
 
 /**
  * Batch get multiple records by IDs
  */
-export const getBatchRecords = async (table, ids, selectFields = '*') => {
+export const getBatchRecords = async (table, ids, selectFields = "*") => {
   try {
     const { data, error } = await supabase
       .from(table)
       .select(selectFields)
-      .in('id', ids);
+      .in("id", ids);
 
     if (error) throw error;
     return data || [];
@@ -265,11 +295,17 @@ export const getBatchRecords = async (table, ids, selectFields = '*') => {
 /**
  * Get paginated data
  */
-export const getPaginatedData = async (table, selectFields, filters, page = 1, pageSize = 20) => {
+export const getPaginatedData = async (
+  table,
+  selectFields,
+  filters,
+  page = 1,
+  pageSize = 20,
+) => {
   try {
     const offset = (page - 1) * pageSize;
 
-    let query = supabase.from(table).select(selectFields, { count: 'exact' });
+    let query = supabase.from(table).select(selectFields, { count: "exact" });
 
     // Apply filters
     if (filters) {
@@ -282,7 +318,10 @@ export const getPaginatedData = async (table, selectFields, filters, page = 1, p
       });
     }
 
-    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
+    const { data, count, error } = await query.range(
+      offset,
+      offset + pageSize - 1,
+    );
 
     if (error) throw error;
 
@@ -294,7 +333,7 @@ export const getPaginatedData = async (table, selectFields, filters, page = 1, p
       totalPages: Math.ceil((count || 0) / pageSize),
     };
   } catch (error) {
-    console.error('[pagination] Get data error:', error.message);
+    console.error("[pagination] Get data error:", error.message);
     throw error;
   }
 };
@@ -304,22 +343,35 @@ export const getPaginatedData = async (table, selectFields, filters, page = 1, p
  */
 export const globalSearch = async (query, limit = 10) => {
   try {
-    const searchQuery = `%${query}%`;
+    const raw = String(query ?? "").trim();
+    if (!raw) return { alumni: [], posts: [], events: [] };
+
+    const safe = raw
+      .replace(/[",\{\}]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!safe) return { alumni: [], posts: [], events: [] };
+
+    const searchQuery = `%${safe}%`;
 
     const [alumniResults, postResults, eventResults] = await Promise.all([
       supabase
-        .from('alumnis')
-        .select('id, first_name, last_name, email, alumni_photo')
-        .or(`first_name.ilike.${searchQuery}, last_name.ilike.${searchQuery}, email.ilike.${searchQuery}`)
+        .from("alumnis")
+        .select("id, first_name, last_name, email, alumni_photo")
+        .or(
+          `first_name.ilike.${searchQuery}, last_name.ilike.${searchQuery}, email.ilike.${searchQuery}`,
+        )
         .limit(limit),
       supabase
-        .from('posts')
-        .select('id, caption, created_at, alumni:alumni_id(id, first_name, last_name)')
-        .ilike('caption', searchQuery)
+        .from("posts")
+        .select(
+          "id, caption, created_at, alumni:alumni_id(id, first_name, last_name)",
+        )
+        .ilike("caption", searchQuery)
         .limit(limit),
       supabase
-        .from('events')
-        .select('id, title, description, start_date')
+        .from("events")
+        .select("id, title, description, start_date")
         .or(`title.ilike.${searchQuery}, description.ilike.${searchQuery}`)
         .limit(limit),
     ]);
@@ -330,7 +382,7 @@ export const globalSearch = async (query, limit = 10) => {
       events: eventResults.data || [],
     };
   } catch (error) {
-    console.error('[search] Global search error:', error.message);
+    console.error("[search] Global search error:", error.message);
     throw error;
   }
 };

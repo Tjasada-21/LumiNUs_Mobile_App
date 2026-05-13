@@ -1,7 +1,14 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AppState } from 'react-native';
-import { getCurrentUser } from '../services/supabaseAuth';
-import { getUnreadMessageCount } from '../services/messageQueries';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { AppState } from "react-native";
+import { getCurrentUser } from "../services/supabaseAuth";
+import { getUnreadMessageCount } from "../services/messageQueries";
 
 const UnreadMessagesContext = createContext({
   unreadCount: 0,
@@ -20,7 +27,7 @@ export const UnreadMessagesProvider = ({ children }) => {
       }
 
       const count = await getUnreadMessageCount(user.id).catch((err) => {
-        console.error('Failed to fetch unread count:', err);
+        console.error("Failed to fetch unread count:", err);
         return 0;
       });
 
@@ -28,7 +35,7 @@ export const UnreadMessagesProvider = ({ children }) => {
       setUnreadCount(normalizedUnreadCount);
       return normalizedUnreadCount;
     } catch (error) {
-      console.error('Failed to fetch unread message count:', error);
+      console.error("Failed to fetch unread message count:", error);
       setUnreadCount(0);
       return 0;
     }
@@ -47,8 +54,8 @@ export const UnreadMessagesProvider = ({ children }) => {
   }, [refreshUnreadMessages]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
         void refreshUnreadMessages();
       }
     });
@@ -56,10 +63,13 @@ export const UnreadMessagesProvider = ({ children }) => {
     return () => subscription.remove();
   }, [refreshUnreadMessages]);
 
-  const value = useMemo(() => ({
-    unreadCount,
-    refreshUnreadMessages,
-  }), [unreadCount, refreshUnreadMessages]);
+  const value = useMemo(
+    () => ({
+      unreadCount,
+      refreshUnreadMessages,
+    }),
+    [unreadCount, refreshUnreadMessages],
+  );
 
   return (
     <UnreadMessagesContext.Provider value={value}>

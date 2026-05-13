@@ -95,6 +95,9 @@ const normalizeOutgoingContent = (content) => {
  * Get direct messages between two users
  */
 export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0) => {
+  // Defensive: if either ID is missing, return empty array to avoid malformed DB queries
+  if (!userId1 || !userId2) return [];
+
   try {
     const { data, error } = await supabase
       .from('messages')

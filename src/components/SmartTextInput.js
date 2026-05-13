@@ -1,7 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { TextInput } from 'react-native';
+import React, { useState, useEffect } from "react";
+import { TextInput } from "react-native";
 
-const SmartTextInput = ({ value, onFocus, onBlur, onSelectionChange, onChangeText, resetOnBlur = true, ...props }) => {
+const SmartTextInput = ({
+  value,
+  onFocus,
+  onBlur,
+  onSelectionChange,
+  onChangeText,
+  resetOnBlur = true,
+  ...props
+}) => {
   const [selection, setSelection] = useState(null);
   const [focused, setFocused] = useState(false);
 

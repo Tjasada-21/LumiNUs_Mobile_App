@@ -1,50 +1,74 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { 
-  View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Modal, FlatList, ImageBackground, Linking, Animated, Pressable, Dimensions, RefreshControl, useWindowDimensions
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
-import { useFocusEffect } from '@react-navigation/native';
-import supabase from '../services/supabase';
-import { getCurrentUser } from '../services/supabaseAuth';
-import { getAllEvents } from '../services/eventQueries';
-import { getUserPosts } from '../services/postQueries';
-import { getAlumniProfile, getAlumniByEmail } from '../services/alumniQueries';
-import { getAvatarUri } from '../utils/imageUtils';
-import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
-import BrandHeader from '../components/BrandHeader';
-import { responsiveHeight, responsiveWidth } from '../utils/responsive';
-import styles from '../styles/HomeScreen.styles';
-import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
-import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  FlatList,
+  ImageBackground,
+  Linking,
+  Animated,
+  Pressable,
+  Dimensions,
+  RefreshControl,
+  useWindowDimensions,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { CommonActions } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import supabase from "../services/supabase";
+import { getCurrentUser } from "../services/supabaseAuth";
+import { getAllEvents } from "../services/eventQueries";
+import { getUserPosts } from "../services/postQueries";
+import { getAlumniProfile, getAlumniByEmail } from "../services/alumniQueries";
+import { getAvatarUri } from "../utils/imageUtils";
+import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
+import BrandHeader from "../components/BrandHeader";
+import { responsiveHeight, responsiveWidth } from "../utils/responsive";
+import styles from "../styles/HomeScreen.styles";
+import {
+  dismissNotification,
+  getDismissedNotifications,
+} from "../services/utilityQueries";
+import {
+  registerForPushNotificationsAsync,
+  saveTokenToSupabase,
+} from "../services/notificationService";
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) {
-    return 'Date to be announced';
+    return "Date to be announced";
   }
 
   const start = new Date(startDate);
   const end = endDate ? new Date(endDate) : null;
 
   if (Number.isNaN(start.getTime())) {
-    return 'Date to be announced';
+    return "Date to be announced";
   }
 
   const startLabel = start.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 
-  if (!end || Number.isNaN(end.getTime()) || end.getTime() === start.getTime()) {
+  if (
+    !end ||
+    Number.isNaN(end.getTime()) ||
+    end.getTime() === start.getTime()
+  ) {
     return startLabel;
   }
 
   const endLabel = end.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 
   return `${startLabel} - ${endLabel}`;
@@ -59,7 +83,7 @@ const getEventLocationLabel = (event) => {
     return event.platform;
   }
 
-  return 'NU Lipa';
+  return "NU Lipa";
 };
 
 const NotificationRow = ({ children, onRemove }) => {
@@ -108,7 +132,7 @@ const NotificationRow = ({ children, onRemove }) => {
 
 const HomeScreen = ({ navigation }) => {
   const { currentUserProfile } = useCurrentUserProfile();
-	// SECTION: Layout values
+  // SECTION: Layout values
   const { width, height } = useWindowDimensions();
   const isCompactWidth = width < 375;
   const isTablet = width >= 768;
@@ -125,300 +149,339 @@ const HomeScreen = ({ navigation }) => {
     quickLinkIconNUSize: responsiveWidth(width, 0.07, 24, 34),
   };
 
-	// SECTION: Screen state
-    const [userData, setUserData] = useState(null);
-    const [notifications, setNotifications] = useState([]);
-    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  // SECTION: Screen state
+  const [userData, setUserData] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [featuredEvents, setFeaturedEvents] = useState([]);
   const [isLoadingFeaturedEvents, setIsLoadingFeaturedEvents] = useState(false);
-    const [isRefreshingHome, setIsRefreshingHome] = useState(false);
+  const [isRefreshingHome, setIsRefreshingHome] = useState(false);
   const [isIdFlipped, setIsIdFlipped] = useState(false);
   const flipAnimation = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef(null);
 
-    const [isMenuVisible, setIsMenuVisible] = useState(false);
-    const menuTranslateX = useRef(new Animated.Value(-Math.min(width * 0.92, 340))).current;
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const menuTranslateX = useRef(
+    new Animated.Value(-Math.min(width * 0.92, 340)),
+  ).current;
 
-    // Notifications panel animation (slide from right)
-    const [isNotifVisible, setIsNotifVisible] = useState(false);
-    const notifTranslateX = useRef(new Animated.Value(Dimensions.get('window').width)).current;
+  // Notifications panel animation (slide from right)
+  const [isNotifVisible, setIsNotifVisible] = useState(false);
+  const notifTranslateX = useRef(
+    new Animated.Value(Dimensions.get("window").width),
+  ).current;
 
-  	// HANDLER: Open the notifications panel
-    const openNotifications = () => {
-      setIsNotifVisible(true);
-      requestAnimationFrame(() => {
-        Animated.timing(notifTranslateX, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }).start();
-      });
-    };
-
-  	// HANDLER: Close the notifications panel
-    const closeNotifications = () => {
+  // HANDLER: Open the notifications panel
+  const openNotifications = () => {
+    setIsNotifVisible(true);
+    requestAnimationFrame(() => {
       Animated.timing(notifTranslateX, {
-        toValue: Dimensions.get('window').width,
-        duration: 180,
+        toValue: 0,
+        duration: 220,
         useNativeDriver: true,
-      }).start(() => setIsNotifVisible(false));
-    };
+      }).start();
+    });
+  };
 
-    const fetchNotifications = useCallback(async () => {
-      try {
-        setIsLoadingNotifications(true);
+  // HANDLER: Close the notifications panel
+  const closeNotifications = () => {
+    Animated.timing(notifTranslateX, {
+      toValue: Dimensions.get("window").width,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => setIsNotifVisible(false));
+  };
 
-        const currentProfile = currentUserProfile ?? await getCurrentUser().catch(() => null);
-        const currentUserId = currentProfile?.id ?? null;
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setIsLoadingNotifications(true);
 
-        if (!currentUserId) {
-          setNotifications([]);
-          return;
-        }
+      const currentProfile =
+        currentUserProfile ?? (await getCurrentUser().catch(() => null));
+      const currentUserId = currentProfile?.id ?? null;
 
-        const dismissedNotificationKeys = await getDismissedNotifications(currentUserId).catch(() => []);
-        const dismissedNotificationKeySet = new Set((dismissedNotificationKeys || []).map((key) => String(key)));
+      if (!currentUserId) {
+        setNotifications([]);
+        return;
+      }
 
-        const ownedPosts = await getUserPosts(currentUserId, 50, 0).catch(() => []);
-        const ownedPostsById = new Map((ownedPosts || []).map((post) => [post.id, post]));
-        const postIds = (ownedPosts || []).map((post) => post?.id).filter(Boolean);
+      const dismissedNotificationKeys = await getDismissedNotifications(
+        currentUserId,
+      ).catch(() => []);
+      const dismissedNotificationKeySet = new Set(
+        (dismissedNotificationKeys || []).map((key) => String(key)),
+      );
 
-        const [commentsResult, reactionsResult, repostsResult, announcementsResult] = await Promise.all([
-          postIds.length > 0
-            ? supabase
-                .from('comments')
-                .select(`
+      const ownedPosts = await getUserPosts(currentUserId, 50, 0).catch(
+        () => [],
+      );
+      const ownedPostsById = new Map(
+        (ownedPosts || []).map((post) => [post.id, post]),
+      );
+      const postIds = (ownedPosts || [])
+        .map((post) => post?.id)
+        .filter(Boolean);
+
+      const [
+        commentsResult,
+        reactionsResult,
+        repostsResult,
+        announcementsResult,
+      ] = await Promise.all([
+        postIds.length > 0
+          ? supabase
+              .from("comments")
+              .select(
+                `
                   id,
                   post_id,
                   comment,
                   created_at,
                   alumni:alumni_id(id, first_name, last_name, alumni_photo)
-                `)
-                .in('post_id', postIds)
-                .order('created_at', { ascending: false })
-            : Promise.resolve({ data: [], error: null }),
-          postIds.length > 0
-            ? supabase
-                .from('reactions')
-                .select(`
+                `,
+              )
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        postIds.length > 0
+          ? supabase
+              .from("reactions")
+              .select(
+                `
                   id,
                   post_id,
                   reaction,
                   created_at,
                   alumni:alumni_id(id, first_name, last_name, alumni_photo)
-                `)
-                .in('post_id', postIds)
-                .order('created_at', { ascending: false })
-            : Promise.resolve({ data: [], error: null }),
-          postIds.length > 0
-            ? supabase
-                .from('reposts')
-                .select(`
+                `,
+              )
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        postIds.length > 0
+          ? supabase
+              .from("reposts")
+              .select(
+                `
                   id,
                   post_id,
                   caption,
                   created_at,
                   alumni:alumni_id(id, first_name, last_name, alumni_photo)
-                `)
-                .in('post_id', postIds)
-                .order('created_at', { ascending: false })
-            : Promise.resolve({ data: [], error: null }),
-          supabase
-            .from('announcements')
-            .select(`
+                `,
+              )
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("announcements")
+          .select(
+            `
               id,
               title,
               announcement_description,
               date_posted,
               admin:admin_id(id, admin_first_name, admin_last_name, photo)
-            `)
-            .order('date_posted', { ascending: false })
-            .limit(20),
-        ]);
+            `,
+          )
+          .order("date_posted", { ascending: false })
+          .limit(20),
+      ]);
 
-        if (commentsResult.error) throw commentsResult.error;
-        if (reactionsResult.error) throw reactionsResult.error;
-        if (repostsResult.error) throw repostsResult.error;
-        if (announcementsResult.error) throw announcementsResult.error;
+      if (commentsResult.error) throw commentsResult.error;
+      if (reactionsResult.error) throw reactionsResult.error;
+      if (repostsResult.error) throw repostsResult.error;
+      if (announcementsResult.error) throw announcementsResult.error;
 
-        const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
-        const notificationsFeed = [];
+      const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
+      const notificationsFeed = [];
 
-        (commentsResult.data ?? []).forEach((comment) => {
-          const actor = buildActor(comment);
-          const targetPost = ownedPostsById.get(comment.post_id);
+      (commentsResult.data ?? []).forEach((comment) => {
+        const actor = buildActor(comment);
+        const targetPost = ownedPostsById.get(comment.post_id);
 
-          if (!actor?.id || actor.id === currentUserId || !targetPost) {
-            return;
-          }
-
-          notificationsFeed.push({
-            id: `comment-${comment.id}`,
-            type: 'comment',
-            actor,
-            created_at: comment.created_at ?? targetPost.created_at ?? null,
-            detail: comment.comment ?? '',
-            source_post_caption: targetPost.caption ?? '',
-          });
-        });
-
-        (reactionsResult.data ?? []).forEach((reaction) => {
-          const actor = buildActor(reaction);
-          const targetPost = ownedPostsById.get(reaction.post_id);
-
-          if (!actor?.id || actor.id === currentUserId || !targetPost) {
-            return;
-          }
-
-          notificationsFeed.push({
-            id: `reaction-${reaction.id}`,
-            type: 'reaction',
-            reaction: reaction.reaction ?? 'like',
-            actor,
-            created_at: reaction.created_at ?? targetPost.created_at ?? null,
-            detail: '',
-            source_post_caption: targetPost.caption ?? '',
-          });
-        });
-
-        (repostsResult.data ?? []).forEach((repost) => {
-          const actor = buildActor(repost);
-          const targetPost = ownedPostsById.get(repost.post_id);
-
-          if (!actor?.id || actor.id === currentUserId || !targetPost) {
-            return;
-          }
-
-          notificationsFeed.push({
-            id: `repost-${repost.id}`,
-            type: 'repost',
-            actor,
-            created_at: repost.created_at ?? targetPost.created_at ?? null,
-            detail: repost.caption ?? '',
-            source_post_caption: targetPost.caption ?? '',
-          });
-        });
-
-        (announcementsResult.data ?? []).forEach((announcement) => {
-          notificationsFeed.push({
-            id: `announcement-${announcement.id}`,
-            type: 'announcement',
-            actor: {
-              id: announcement?.admin?.id ?? null,
-              first_name: announcement?.admin?.admin_first_name ?? 'NU LIPA',
-              last_name: announcement?.admin?.admin_last_name ?? 'Alumni Affairs',
-              alumni_photo: announcement?.admin?.photo ?? null,
-            },
-            created_at: announcement.date_posted ?? null,
-            title: announcement.title ?? 'Announcement',
-            detail: announcement.announcement_description ?? '',
-            source_post_caption: '',
-          });
-        });
-
-        const visibleNotifications = notificationsFeed
-          .filter((item) => !dismissedNotificationKeySet.has(String(item?.id ?? '')))
-          .sort((firstItem, secondItem) => new Date(secondItem.created_at || 0).getTime() - new Date(firstItem.created_at || 0).getTime());
-
-        // Deduplicate by id to prevent key errors
-        const seenIds = new Set();
-        const deduplicatedNotifications = visibleNotifications.filter(notif => {
-          const id = String(notif?.id ?? '');
-          if (seenIds.has(id)) return false;
-          seenIds.add(id);
-          return true;
-        });
-
-        setNotifications(deduplicatedNotifications);
-      } finally {
-        setIsLoadingNotifications(false);
-      }
-    }, [currentUserProfile]);
-
-    const fetchFeaturedEvents = useCallback(async () => {
-      try {
-        setIsLoadingFeaturedEvents(true);
-        try {
-          const events = await getAllEvents(3, 0);
-          // getAllEvents returns an array; use first three
-          setFeaturedEvents(Array.isArray(events) ? events.slice(0, 3) : []);
-        } catch (err) {
-          console.error('[HomeScreen] Failed to fetch featured events from Supabase:', err.message || err);
-          setFeaturedEvents([]);
+        if (!actor?.id || actor.id === currentUserId || !targetPost) {
+          return;
         }
-      } finally {
-        setIsLoadingFeaturedEvents(false);
-      }
-    }, []);
 
-    const refreshHomeContent = useCallback(async () => {
-      try {
-        setIsRefreshingHome(true);
-        await Promise.all([fetchNotifications(), fetchFeaturedEvents()]);
-      } finally {
-        setIsRefreshingHome(false);
-      }
-    }, [fetchFeaturedEvents, fetchNotifications]);
-
-  	// HANDLER: Open the side menu
-    const openMenu = () => {
-        setIsMenuVisible(true)
-        requestAnimationFrame(() => {
-            Animated.timing(menuTranslateX, {
-                toValue: 0,
-                duration: 220,
-                useNativeDriver: true,
-            }).start();
+        notificationsFeed.push({
+          id: `comment-${comment.id}`,
+          type: "comment",
+          actor,
+          created_at: comment.created_at ?? targetPost.created_at ?? null,
+          detail: comment.comment ?? "",
+          source_post_caption: targetPost.caption ?? "",
         });
-    };
+      });
 
-  	// HANDLER: Close the side menu
-    const closeMenu = () => {
-        Animated.timing(menuTranslateX, {
-        toValue: -layout.menuWidth,
-            duration: 200,
-            useNativeDriver: true,
-        }).start(() => setIsMenuVisible(false));
-    };
+      (reactionsResult.data ?? []).forEach((reaction) => {
+        const actor = buildActor(reaction);
+        const targetPost = ownedPostsById.get(reaction.post_id);
 
-  	// SECTION: Load user data
-  	useFocusEffect(
-  		useCallback(() => {
-        scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        if (!actor?.id || actor.id === currentUserId || !targetPost) {
+          return;
+        }
 
-        let isActive = true;
+        notificationsFeed.push({
+          id: `reaction-${reaction.id}`,
+          type: "reaction",
+          reaction: reaction.reaction ?? "like",
+          actor,
+          created_at: reaction.created_at ?? targetPost.created_at ?? null,
+          detail: "",
+          source_post_caption: targetPost.caption ?? "",
+        });
+      });
 
-        const fetchUserData = async () => {
-          try {
-            // getCurrentUser() now returns the alumni profile directly from the alumnis table
-            const alumniData = await getCurrentUser();
+      (repostsResult.data ?? []).forEach((repost) => {
+        const actor = buildActor(repost);
+        const targetPost = ownedPostsById.get(repost.post_id);
 
-            if (!alumniData || !isActive) {
-              // if (__DEV__) console.log('[HomeScreen] No alumni data returned from getCurrentUser');
-              setUserData(null);
-              return;
-            }
+        if (!actor?.id || actor.id === currentUserId || !targetPost) {
+          return;
+        }
 
-            // Alumni data is already fetched, use it directly
-            if (isActive) {
-              // if (__DEV__) console.log('[HomeScreen] Setting user data:', alumniData.id);
-              setUserData(alumniData);
-            }
-          } catch (error) {
-            console.error('[HomeScreen] Failed to fetch user profile:', error.message || error);
+        notificationsFeed.push({
+          id: `repost-${repost.id}`,
+          type: "repost",
+          actor,
+          created_at: repost.created_at ?? targetPost.created_at ?? null,
+          detail: repost.caption ?? "",
+          source_post_caption: targetPost.caption ?? "",
+        });
+      });
+
+      (announcementsResult.data ?? []).forEach((announcement) => {
+        notificationsFeed.push({
+          id: `announcement-${announcement.id}`,
+          type: "announcement",
+          actor: {
+            id: announcement?.admin?.id ?? null,
+            first_name: announcement?.admin?.admin_first_name ?? "NU LIPA",
+            last_name: announcement?.admin?.admin_last_name ?? "Alumni Affairs",
+            alumni_photo: announcement?.admin?.photo ?? null,
+          },
+          created_at: announcement.date_posted ?? null,
+          title: announcement.title ?? "Announcement",
+          detail: announcement.announcement_description ?? "",
+          source_post_caption: "",
+        });
+      });
+
+      const visibleNotifications = notificationsFeed
+        .filter(
+          (item) => !dismissedNotificationKeySet.has(String(item?.id ?? "")),
+        )
+        .sort(
+          (firstItem, secondItem) =>
+            new Date(secondItem.created_at || 0).getTime() -
+            new Date(firstItem.created_at || 0).getTime(),
+        );
+
+      // Deduplicate by id to prevent key errors
+      const seenIds = new Set();
+      const deduplicatedNotifications = visibleNotifications.filter((notif) => {
+        const id = String(notif?.id ?? "");
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      });
+
+      setNotifications(deduplicatedNotifications);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  }, [currentUserProfile]);
+
+  const fetchFeaturedEvents = useCallback(async () => {
+    try {
+      setIsLoadingFeaturedEvents(true);
+      try {
+        const events = await getAllEvents(3, 0);
+        // getAllEvents returns an array; use first three
+        setFeaturedEvents(Array.isArray(events) ? events.slice(0, 3) : []);
+      } catch (err) {
+        console.error(
+          "[HomeScreen] Failed to fetch featured events from Supabase:",
+          err.message || err,
+        );
+        setFeaturedEvents([]);
+      }
+    } finally {
+      setIsLoadingFeaturedEvents(false);
+    }
+  }, []);
+
+  const refreshHomeContent = useCallback(async () => {
+    try {
+      setIsRefreshingHome(true);
+      await Promise.all([fetchNotifications(), fetchFeaturedEvents()]);
+    } finally {
+      setIsRefreshingHome(false);
+    }
+  }, [fetchFeaturedEvents, fetchNotifications]);
+
+  // HANDLER: Open the side menu
+  const openMenu = () => {
+    setIsMenuVisible(true);
+    requestAnimationFrame(() => {
+      Animated.timing(menuTranslateX, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  // HANDLER: Close the side menu
+  const closeMenu = () => {
+    Animated.timing(menuTranslateX, {
+      toValue: -layout.menuWidth,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setIsMenuVisible(false));
+  };
+
+  // SECTION: Load user data
+  useFocusEffect(
+    useCallback(() => {
+      scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+
+      let isActive = true;
+
+      const fetchUserData = async () => {
+        try {
+          // getCurrentUser() now returns the alumni profile directly from the alumnis table
+          const alumniData = await getCurrentUser();
+
+          if (!alumniData || !isActive) {
+            // if (__DEV__) console.log('[HomeScreen] No alumni data returned from getCurrentUser');
             setUserData(null);
+            return;
           }
-        };
 
-        fetchUserData();
-        fetchFeaturedEvents();
+          // Alumni data is already fetched, use it directly
+          if (isActive) {
+            // if (__DEV__) console.log('[HomeScreen] Setting user data:', alumniData.id);
+            setUserData(alumniData);
+          }
+        } catch (error) {
+          console.error(
+            "[HomeScreen] Failed to fetch user profile:",
+            error.message || error,
+          );
+          setUserData(null);
+        }
+      };
 
-        return () => {
-          isActive = false;
-        };
+      fetchUserData();
+      fetchFeaturedEvents();
 
-		}, [fetchFeaturedEvents])
-  	);
+      return () => {
+        isActive = false;
+      };
+    }, [fetchFeaturedEvents]),
+  );
 
   useEffect(() => {
     fetchNotifications();
@@ -435,65 +498,65 @@ const HomeScreen = ({ navigation }) => {
     setupNotifications();
   }, []);
 
-	const activeUserData = currentUserProfile ?? userData;
-	
-  
+  const activeUserData = currentUserProfile ?? userData;
 
-	// HANDLER: Open the NU website
+  // HANDLER: Open the NU website
   const openNUWebsite = async () => {
-    const url = 'https://national-u.edu.ph/';
+    const url = "https://national-u.edu.ph/";
     const supported = await Linking.canOpenURL(url);
     if (supported) {
       await Linking.openURL(url);
     } else {
-      console.error('Cannot open URL:', url);
+      console.error("Cannot open URL:", url);
     }
   };
 
-	// HANDLER: Open the yearbook screen
+  // HANDLER: Open the yearbook screen
   const openViewYearbook = () => {
-    navigation.navigate('ViewYearbook');
+    navigation.navigate("ViewYearbook");
   };
 
-	// HANDLER: Open the events screen
+  // HANDLER: Open the events screen
   const openEventsScreen = () => {
     const parentNavigator = navigation.getParent?.();
 
     if (parentNavigator?.navigate) {
-      parentNavigator.navigate('Home', { screen: 'EventsScreen' });
+      parentNavigator.navigate("Home", { screen: "EventsScreen" });
       return;
     }
 
-    navigation.navigate('Home', { screen: 'EventsScreen' });
+    navigation.navigate("Home", { screen: "EventsScreen" });
   };
 
-	// HANDLER: Open account settings
+  // HANDLER: Open account settings
   const openAccountSettings = () => {
     closeMenu();
     const parentNavigator = navigation.getParent?.();
 
     if (parentNavigator?.navigate) {
-      parentNavigator.navigate('AccountSettings');
+      parentNavigator.navigate("AccountSettings");
       return;
     }
 
-    navigation.navigate('AccountSettings');
+    navigation.navigate("AccountSettings");
   };
 
-	// HANDLER: Sign out the user
+  // HANDLER: Sign out the user
   const signOut = async () => {
     // close the menu first
     closeMenu();
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (user?.email) {
         // 1. Wipe push token and set offline status before signing out
         // This ensures they won't receive notifications while logged out
         await supabase
-          .from('alumnis')
+          .from("alumnis")
           .update({ is_online: false, push_token: null })
-          .eq('email', user.email);
+          .eq("email", user.email);
       }
 
       // 2. Sign out from Supabase and clear any stored credentials
@@ -502,7 +565,6 @@ const HomeScreen = ({ navigation }) => {
       } catch (err) {
         // Silently handle sign out errors
       }
-
     } catch (err) {
       // Silently handle logout errors
     }
@@ -514,8 +576,8 @@ const HomeScreen = ({ navigation }) => {
       root.dispatch(
         CommonActions.reset({
           index: 0,
-          routes: [{ name: 'Login' }],
-        })
+          routes: [{ name: "Login" }],
+        }),
       );
       return;
     }
@@ -523,92 +585,92 @@ const HomeScreen = ({ navigation }) => {
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: 'Login' }],
-      })
+        routes: [{ name: "Login" }],
+      }),
     );
   };
 
-	// SECTION: Side menu items
+  // SECTION: Side menu items
   const menuItems = [
     {
-      key: 'account-settings',
-      title: 'Account Settings',
-      subtitle: 'Manage Your Information',
-      icon: 'person-outline',
+      key: "account-settings",
+      title: "Account Settings",
+      subtitle: "Manage Your Information",
+      icon: "person-outline",
       onPress: openAccountSettings,
     },
     {
-      key: 'connections',
-      title: 'My Connections',
-      subtitle: 'View Your Connections',
-      icon: 'people-outline',
+      key: "connections",
+      title: "My Connections",
+      subtitle: "View Your Connections",
+      icon: "people-outline",
       onPress: () => {
         closeMenu();
         const parentNavigator = navigation.getParent?.();
 
         if (navigation?.navigate) {
-          navigation.navigate('ConnectionsScreen');
+          navigation.navigate("ConnectionsScreen");
           return;
         }
 
         if (parentNavigator?.navigate) {
-          parentNavigator.navigate('Home', { screen: 'ConnectionsScreen' });
+          parentNavigator.navigate("Home", { screen: "ConnectionsScreen" });
         }
       },
     },
     {
-      key: 'registrations',
-      title: 'My Registrations',
-      subtitle: 'View Your Event Registrations',
-      icon: 'reader-outline',
+      key: "registrations",
+      title: "My Registrations",
+      subtitle: "View Your Event Registrations",
+      icon: "reader-outline",
       onPress: () => {
         closeMenu();
         const parentNavigator = navigation.getParent?.();
         const rootNavigator = parentNavigator?.getParent?.() ?? parentNavigator;
 
         if (rootNavigator?.navigate) {
-          rootNavigator.navigate('Home', { screen: 'RegisteredEventsScreen' });
+          rootNavigator.navigate("Home", { screen: "RegisteredEventsScreen" });
           return;
         }
 
         if (parentNavigator?.navigate) {
-          parentNavigator.navigate('RegisteredEventsScreen');
+          parentNavigator.navigate("RegisteredEventsScreen");
           return;
         }
 
-        navigation.navigate('RegisteredEventsScreen');
+        navigation.navigate("RegisteredEventsScreen");
       },
     },
     {
-      key: 'masters',
-      title: 'Get your Master’s or Second Degree',
-      subtitle: 'Continue studying your chosen field',
-      icon: 'book-outline',
+      key: "masters",
+      title: "Get your Master’s or Second Degree",
+      subtitle: "Continue studying your chosen field",
+      icon: "book-outline",
       onPress: () => {
         closeMenu();
         const parentNavigator = navigation.getParent?.();
 
         if (parentNavigator?.navigate) {
-          parentNavigator.navigate('Explore', { screen: 'Perks' });
+          parentNavigator.navigate("Explore", { screen: "Perks" });
           return;
         }
 
-        navigation.navigate('Explore', { screen: 'Perks' });
+        navigation.navigate("Explore", { screen: "Perks" });
       },
     },
     {
-      key: 'explore',
-      title: 'Explore the App',
-      subtitle: 'Take a Tour of the App!',
-      icon: 'search-outline',
+      key: "explore",
+      title: "Explore the App",
+      subtitle: "Take a Tour of the App!",
+      icon: "search-outline",
       onPress: () => {
         closeMenu();
-        navigation.navigate('Explore');
+        navigation.navigate("Explore");
       },
     },
   ];
 
-	// HANDLER: Flip the ID card
+  // HANDLER: Flip the ID card
   const toggleIdCard = () => {
     const nextValue = isIdFlipped ? 0 : 1;
 
@@ -621,20 +683,20 @@ const HomeScreen = ({ navigation }) => {
     });
   };
 
-	// DERIVED VALUES: Card rotation and display data
+  // DERIVED VALUES: Card rotation and display data
   const frontRotateY = flipAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
+    outputRange: ["0deg", "180deg"],
   });
 
   const backRotateY = flipAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['180deg', '360deg'],
+    outputRange: ["180deg", "360deg"],
   });
 
   const graduationYear = userData?.year_graduated
     ? String(userData.year_graduated).slice(0, 4)
-    : 'LOADING...';
+    : "LOADING...";
 
   const notifData = Array.isArray(notifications) ? notifications : [];
   const notificationCount = notifData.length;
@@ -661,74 +723,75 @@ const HomeScreen = ({ navigation }) => {
     const rootNavigator = parentNavigator?.getParent?.() ?? parentNavigator;
     const eventPayload = {
       ...event,
-      cover_image_url: event?.cover_image_url ?? event?.images?.[0]?.image_path ?? null,
+      cover_image_url:
+        event?.cover_image_url ?? event?.images?.[0]?.image_path ?? null,
     };
 
     if (rootNavigator?.navigate) {
-      rootNavigator.navigate('ViewEventsScreen', { event: eventPayload });
+      rootNavigator.navigate("ViewEventsScreen", { event: eventPayload });
       return;
     }
 
-    navigation.navigate('ViewEventsScreen', { event: eventPayload });
+    navigation.navigate("ViewEventsScreen", { event: eventPayload });
   };
 
   const getNotificationTypeLabel = (type) => {
-    if (type === 'announcement') {
-      return 'Announcement';
+    if (type === "announcement") {
+      return "Announcement";
     }
 
-    if (type === 'reaction') {
-      return 'Reaction';
+    if (type === "reaction") {
+      return "Reaction";
     }
 
-    if (type === 'comment') {
-      return 'Comment';
+    if (type === "comment") {
+      return "Comment";
     }
 
-    if (type === 'repost') {
-      return 'Repost';
+    if (type === "repost") {
+      return "Repost";
     }
 
-    if (type === 'follow') {
-      return 'Follow';
+    if (type === "follow") {
+      return "Follow";
     }
 
-    return 'Update';
+    return "Update";
   };
 
   const getNotificationActionText = (item) => {
-    if (item?.type === 'announcement') {
-      return 'posted an announcement.';
+    if (item?.type === "announcement") {
+      return "posted an announcement.";
     }
 
-    if (item?.type === 'reaction') {
-      return 'reacted to your post.';
+    if (item?.type === "reaction") {
+      return "reacted to your post.";
     }
 
-    if (item?.type === 'comment') {
-      return 'commented on your post.';
+    if (item?.type === "comment") {
+      return "commented on your post.";
     }
 
-    if (item?.type === 'repost') {
-      return 'reposted your post.';
+    if (item?.type === "repost") {
+      return "reposted your post.";
     }
 
-    if (item?.type === 'follow') {
-      return 'sent you a follow request.';
+    if (item?.type === "follow") {
+      return "sent you a follow request.";
     }
 
-    return 'interacted with your post.';
+    return "interacted with your post.";
   };
 
   const formatNotificationTime = (value) => {
     if (!value) {
-      return '';
+      return "";
     }
 
     const parsedDate = new Date(value);
 
     if (Number.isNaN(parsedDate.getTime())) {
-      return '';
+      return "";
     }
 
     const elapsedMs = Date.now() - parsedDate.getTime();
@@ -747,44 +810,57 @@ const HomeScreen = ({ navigation }) => {
     const elapsedDays = Math.floor(elapsedHours / 24);
 
     if (elapsedDays < 30) {
-      return `${elapsedDays} day${elapsedDays === 1 ? '' : 's'} ago`;
+      return `${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`;
     }
 
     const elapsedMonths = Math.floor(elapsedDays / 30);
 
     if (elapsedMonths < 12) {
-      return `${elapsedMonths} month${elapsedMonths === 1 ? '' : 's'} ago`;
+      return `${elapsedMonths} month${elapsedMonths === 1 ? "" : "s"} ago`;
     }
 
     const elapsedYears = Math.floor(elapsedDays / 365);
-    return `${elapsedYears} year${elapsedYears === 1 ? '' : 's'} ago`;
+    return `${elapsedYears} year${elapsedYears === 1 ? "" : "s"} ago`;
   };
 
-  const removeNotification = useCallback(async (notificationKey) => {
-    const currentProfile = currentUserProfile ?? userData ?? await getCurrentUser().catch(() => null);
-    const currentUserId = currentProfile?.id ?? null;
+  const removeNotification = useCallback(
+    async (notificationKey) => {
+      const currentProfile =
+        currentUserProfile ??
+        userData ??
+        (await getCurrentUser().catch(() => null));
+      const currentUserId = currentProfile?.id ?? null;
 
-    if (currentUserId && notificationKey) {
-      await dismissNotification(currentUserId, notificationKey).catch((error) => {
-        console.error('[HomeScreen] Failed to persist dismissed notification:', error?.message || error);
-      });
-    }
+      if (currentUserId && notificationKey) {
+        await dismissNotification(currentUserId, notificationKey).catch(
+          (error) => {
+            console.error(
+              "[HomeScreen] Failed to persist dismissed notification:",
+              error?.message || error,
+            );
+          },
+        );
+      }
 
-    setNotifications((currentNotifications) => currentNotifications.filter((item) => item?.id !== notificationKey));
-  }, [currentUserProfile, userData]);
+      setNotifications((currentNotifications) =>
+        currentNotifications.filter((item) => item?.id !== notificationKey),
+      );
+    },
+    [currentUserProfile, userData],
+  );
 
-	// RENDER HELPER: Empty notifications state
+  // RENDER HELPER: Empty notifications state
   const renderEmptyNotifications = () => (
     <View style={styles.emptyNotifWrap}>
       <Text style={styles.emptyNotifText}>No notifications yet.</Text>
     </View>
   );
 
-	// RENDER HELPER: Featured event card
+  // RENDER HELPER: Featured event card
   const renderFeaturedEventCard = (event) => {
     const imageSource = event?.cover_image_url
       ? { uri: event.cover_image_url }
-      : require('../../assets/icons/Group.png');
+      : require("../../assets/icons/Group.png");
 
     return (
       <Pressable
@@ -796,32 +872,40 @@ const HomeScreen = ({ navigation }) => {
         ]}
         onPress={() => openEventDetails(event)}
       >
-        <Image source={imageSource} style={styles.featuredEventImage} resizeMode={event?.cover_image_url ? 'cover' : 'contain'} />
+        <Image
+          source={imageSource}
+          style={styles.featuredEventImage}
+          resizeMode={event?.cover_image_url ? "cover" : "contain"}
+        />
       </Pressable>
     );
   };
 
-	// RENDER HELPER: Notification row
+  // RENDER HELPER: Notification row
   const renderNotificationItem = ({ item }) => {
-    const isAnnouncement = item?.type === 'announcement';
-    const firstName = String(item?.actor?.first_name ?? 'Unknown');
-    const lastName = String(item?.actor?.last_name ?? 'User');
-    const name = isAnnouncement ? 'NU LIPA ALUMNI AFFAIRS' : `${firstName} ${lastName}`.trim();
+    const isAnnouncement = item?.type === "announcement";
+    const firstName = String(item?.actor?.first_name ?? "Unknown");
+    const lastName = String(item?.actor?.last_name ?? "User");
+    const name = isAnnouncement
+      ? "NU LIPA ALUMNI AFFAIRS"
+      : `${firstName} ${lastName}`.trim();
     const time = formatNotificationTime(item?.created_at);
     const avatarUri = isAnnouncement
       ? null
       : getAvatarUri(name, item?.actor?.alumni_photo);
     const actionText = isAnnouncement
-      ? 'posted an announcement.'
-      : item?.type === 'comment'
-      ? 'commented on your post.'
-      : item?.type === 'reaction'
-        ? `${String(item?.reaction ?? 'liked').toLowerCase()} your post.`
-        : 'reposted your post.';
+      ? "posted an announcement."
+      : item?.type === "comment"
+        ? "commented on your post."
+        : item?.type === "reaction"
+          ? `${String(item?.reaction ?? "liked").toLowerCase()} your post.`
+          : "reposted your post.";
     const detailLines = [
-      isAnnouncement && item?.title ? String(item.title) : '',
-      item?.detail ? String(item.detail) : '',
-      item?.source_post_caption ? `On your post: ${String(item.source_post_caption)}` : '',
+      isAnnouncement && item?.title ? String(item.title) : "",
+      item?.detail ? String(item.detail) : "",
+      item?.source_post_caption
+        ? `On your post: ${String(item.source_post_caption)}`
+        : "",
     ].filter(Boolean);
 
     return (
@@ -830,7 +914,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.notifCard}>
             {isAnnouncement ? (
               <Image
-                source={require('../../assets/images/nu-lipa-logo-portrait-white-version-21.png')}
+                source={require("../../assets/images/nu-lipa-logo-portrait-white-version-21.png")}
                 style={styles.notifAvatar}
                 resizeMode="contain"
               />
@@ -869,51 +953,73 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeAreaTop} edges={['top']}>
+    <SafeAreaView style={styles.safeAreaTop} edges={["top"]}>
       <View style={styles.container}>
         <BrandHeader />
         <ScrollView
           ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.mainScrollContent}
-          refreshControl={(
+          refreshControl={
             <RefreshControl
               refreshing={isRefreshingHome}
               onRefresh={refreshHomeContent}
               tintColor="#31429B"
-              colors={['#31429B']}
+              colors={["#31429B"]}
             />
-          )}
+          }
         >
           {/* SECTION: User profile and ID card */}
           <View style={styles.profileCardWrapper}>
             <View style={styles.profileSection}>
               <View style={styles.profileInfo}>
-                <TouchableOpacity style={styles.avatarRingTouchable} activeOpacity={0.85} onPress={openMenu}>
+                <TouchableOpacity
+                  style={styles.avatarRingTouchable}
+                  activeOpacity={0.85}
+                  onPress={openMenu}
+                >
                   <Image
-                    source={{ uri: getAvatarUri(`${activeUserData?.first_name ?? ''} ${activeUserData?.last_name ?? ''}`.trim() || 'Alumni', activeUserData?.alumni_photo) }}
+                    source={{
+                      uri: getAvatarUri(
+                        `${activeUserData?.first_name ?? ""} ${activeUserData?.last_name ?? ""}`.trim() ||
+                          "Alumni",
+                        activeUserData?.alumni_photo,
+                      ),
+                    }}
                     style={styles.avatar}
                   />
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} onPress={openMenu} style={styles.profileTextWrap}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={openMenu}
+                  style={styles.profileTextWrap}
+                >
                   <View style={styles.nameRow}>
                     <Text style={styles.greeting}>
-                      Hi, {activeUserData ? `${activeUserData.first_name}` : 'Loading...'}!
+                      Hi,{" "}
+                      {activeUserData
+                        ? `${activeUserData.first_name}`
+                        : "Loading..."}
+                      !
                     </Text>
                   </View>
                   <Text style={styles.studentId}>
-                    Student {activeUserData ? activeUserData.student_id_number : '...'}
+                    Student{" "}
+                    {activeUserData ? activeUserData.student_id_number : "..."}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.bellIcon} onPress={openNotifications}>
+              <TouchableOpacity
+                style={styles.bellIcon}
+                onPress={openNotifications}
+              >
                 <View style={styles.bellIconInner}>
                   <Ionicons name="notifications" size={24} color="#00205B" />
                   {notificationCount > 0 ? (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
-                        {notificationCount > 99 ? '99+' : notificationCount}
+                        {notificationCount > 99 ? "99+" : notificationCount}
                       </Text>
                     </View>
                   ) : null}
@@ -928,18 +1034,27 @@ const HomeScreen = ({ navigation }) => {
                     style={[
                       styles.idCardFace,
                       styles.idCardFrontFace,
-                      { transform: [{ perspective: 1000 }, { rotateY: frontRotateY }] },
+                      {
+                        transform: [
+                          { perspective: 1000 },
+                          { rotateY: frontRotateY },
+                        ],
+                      },
                     ]}
                   >
                     <ImageBackground
-                      source={require('../../assets/images/BlankID_Front 1.png')}
+                      source={require("../../assets/images/BlankID_Front 1.png")}
                       style={styles.idBackground}
                       imageStyle={styles.idBackgroundImage}
                       resizeMode="contain"
                     >
                       <Image
                         source={{
-                          uri: getAvatarUri(`${userData?.first_name ?? ''} ${userData?.last_name ?? ''}`.trim() || 'Alumni', userData?.card_photo),
+                          uri: getAvatarUri(
+                            `${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() ||
+                              "Alumni",
+                            userData?.card_photo,
+                          ),
                         }}
                         style={styles.idPhoto}
                         resizeMode="cover"
@@ -947,12 +1062,18 @@ const HomeScreen = ({ navigation }) => {
 
                       <View style={styles.idCardContent}>
                         <Text style={styles.idName}>
-                          {userData ? `${userData.first_name}\n${userData.last_name}`.toUpperCase() : 'LOADING...'}
+                          {userData
+                            ? `${userData.first_name}\n${userData.last_name}`.toUpperCase()
+                            : "LOADING..."}
                         </Text>
                         <Text style={styles.idCourse}>
-                          {userData?.program ? userData.program.toUpperCase() : 'LOADING...'}
+                          {userData?.program
+                            ? userData.program.toUpperCase()
+                            : "LOADING..."}
                         </Text>
-                        <Text style={styles.idClass}>Class of {graduationYear}</Text>
+                        <Text style={styles.idClass}>
+                          Class of {graduationYear}
+                        </Text>
                       </View>
                     </ImageBackground>
                   </Animated.View>
@@ -961,11 +1082,16 @@ const HomeScreen = ({ navigation }) => {
                     style={[
                       styles.idCardFace,
                       styles.idCardBackFace,
-                      { transform: [{ perspective: 1000 }, { rotateY: backRotateY }] },
+                      {
+                        transform: [
+                          { perspective: 1000 },
+                          { rotateY: backRotateY },
+                        ],
+                      },
                     ]}
                   >
                     <Image
-                      source={require('../../assets/images/BlankID_Back 1.png')}
+                      source={require("../../assets/images/BlankID_Back 1.png")}
                       style={styles.idBackImage}
                       resizeMode="contain"
                     />
@@ -976,7 +1102,13 @@ const HomeScreen = ({ navigation }) => {
           </View>
 
           {/* SECTION: What's New */}
-          <View style={[styles.sectionContainer, styles.sectionInset, styles.sectionNudgeRight]}>
+          <View
+            style={[
+              styles.sectionContainer,
+              styles.sectionInset,
+              styles.sectionNudgeRight,
+            ]}
+          >
             <Text style={styles.sectionTitle}>What's New</Text>
             <ScrollView
               horizontal
@@ -985,16 +1117,34 @@ const HomeScreen = ({ navigation }) => {
               contentContainerStyle={styles.horizontalScrollContent}
             >
               {isLoadingFeaturedEvents ? (
-                <View style={[styles.promoLoadingCard, { width: layout.promoCardWidth, height: layout.promoCardHeight }]}>
+                <View
+                  style={[
+                    styles.promoLoadingCard,
+                    {
+                      width: layout.promoCardWidth,
+                      height: layout.promoCardHeight,
+                    },
+                  ]}
+                >
                   <ActivityIndicator size="small" color="#31429B" />
                   <Text style={styles.promoLoadingText}>Loading events...</Text>
                 </View>
               ) : visibleFeaturedEvents.length > 0 ? (
                 visibleFeaturedEvents.map(renderFeaturedEventCard)
               ) : (
-                <View style={[styles.promoEmptyCard, { width: layout.promoCardWidth, height: layout.promoCardHeight }]}>
+                <View
+                  style={[
+                    styles.promoEmptyCard,
+                    {
+                      width: layout.promoCardWidth,
+                      height: layout.promoCardHeight,
+                    },
+                  ]}
+                >
                   <Text style={styles.promoEyebrow}>NO EVENTS YET</Text>
-                  <Text style={styles.promoTitleMain}>Check back soon for the latest posted events.</Text>
+                  <Text style={styles.promoTitleMain}>
+                    Check back soon for the latest posted events.
+                  </Text>
                 </View>
               )}
             </ScrollView>
@@ -1017,32 +1167,60 @@ const HomeScreen = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.quickLinksScrollContent}
             >
-              <TouchableOpacity style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]} onPress={openViewYearbook}>
+              <TouchableOpacity
+                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
+                onPress={openViewYearbook}
+              >
                 <Image
-                  source={require('../../assets/images/view-yearbook-icon.png')}
-                  style={[styles.quickLinkIcon, { width: layout.quickLinkIconSize, height: layout.quickLinkIconSize }]}
+                  source={require("../../assets/images/view-yearbook-icon.png")}
+                  style={[
+                    styles.quickLinkIcon,
+                    {
+                      width: layout.quickLinkIconSize,
+                      height: layout.quickLinkIconSize,
+                    },
+                  ]}
                 />
-                <Text style={styles.quickLinkText}>View My{'\n'}Yearbook</Text>
+                <Text style={styles.quickLinkText}>View My{"\n"}Yearbook</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]} onPress={openEventsScreen}>
+              <TouchableOpacity
+                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
+                onPress={openEventsScreen}
+              >
                 <Image
-                  source={require('../../assets/images/view-events-icon.png')}
-                  style={[styles.quickLinkIcon, { width: layout.quickLinkIconSize, height: layout.quickLinkIconSize }]}
+                  source={require("../../assets/images/view-events-icon.png")}
+                  style={[
+                    styles.quickLinkIcon,
+                    {
+                      width: layout.quickLinkIconSize,
+                      height: layout.quickLinkIconSize,
+                    },
+                  ]}
                 />
-                <Text style={styles.quickLinkText}>View{'\n'}Events</Text>
+                <Text style={styles.quickLinkText}>View{"\n"}Events</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]} onPress={openNUWebsite}>
+              <TouchableOpacity
+                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
+                onPress={openNUWebsite}
+              >
                 <Image
-                  source={require('../../assets/images/nulogo.png')}
-                  style={[styles.quickLinkIconNU, { width: layout.quickLinkIconNUSize, height: layout.quickLinkIconNUSize }]}
+                  source={require("../../assets/images/nulogo.png")}
+                  style={[
+                    styles.quickLinkIconNU,
+                    {
+                      width: layout.quickLinkIconNUSize,
+                      height: layout.quickLinkIconNUSize,
+                    },
+                  ]}
                 />
-                <Text style={styles.quickLinkText}>National-U{'\n'}Website</Text>
+                <Text style={styles.quickLinkText}>
+                  National-U{"\n"}Website
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
-
         </ScrollView>
 
         {/* SECTION: Side menu modal */}
@@ -1058,7 +1236,7 @@ const HomeScreen = ({ navigation }) => {
               style={[
                 styles.sideMenuContainer,
                 { width: layout.menuWidth },
-                { transform: [{ translateX: menuTranslateX }] }
+                { transform: [{ translateX: menuTranslateX }] },
               ]}
             >
               <View style={styles.sideMenuHeader}>
@@ -1072,7 +1250,12 @@ const HomeScreen = ({ navigation }) => {
 
               <View style={styles.sideMenuBody}>
                 {menuItems.map((item) => (
-                  <TouchableOpacity key={item.key} style={styles.menuItem} activeOpacity={0.8} onPress={item.onPress}>
+                  <TouchableOpacity
+                    key={item.key}
+                    style={styles.menuItem}
+                    activeOpacity={0.8}
+                    onPress={item.onPress}
+                  >
                     <View style={styles.menuIconCircle}>
                       <Ionicons name={item.icon} size={22} color="#31429B" />
                     </View>
@@ -1085,7 +1268,10 @@ const HomeScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.sideMenuFooter}>
-                <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+                <TouchableOpacity
+                  style={styles.signOutButton}
+                  onPress={signOut}
+                >
                   <Text style={styles.signOutButtonText}>Sign Out</Text>
                 </TouchableOpacity>
               </View>
@@ -1100,17 +1286,26 @@ const HomeScreen = ({ navigation }) => {
           visible={isNotifVisible}
           onRequestClose={closeNotifications}
         >
-          <SafeAreaView style={[styles.modalOverlay, { alignItems: 'flex-end', justifyContent: 'flex-start' }]} edges={['top', 'bottom']}>
+          <SafeAreaView
+            style={[
+              styles.modalOverlay,
+              { alignItems: "flex-end", justifyContent: "flex-start" },
+            ]}
+            edges={["top", "bottom"]}
+          >
             <Animated.View
               style={[
                 styles.modalSideContainer,
                 { width: layout.notifWidth },
-                { transform: [{ translateX: notifTranslateX }] }
+                { transform: [{ translateX: notifTranslateX }] },
               ]}
             >
               {/* Top Blue Header */}
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={closeNotifications} style={styles.closeBtn}>
+                <TouchableOpacity
+                  onPress={closeNotifications}
+                  style={styles.closeBtn}
+                >
                   <Ionicons name="close" size={28} color="#F2C919" />
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>Notifications</Text>
@@ -1124,12 +1319,14 @@ const HomeScreen = ({ navigation }) => {
               {isLoadingNotifications ? (
                 <View style={styles.emptyNotifWrap}>
                   <ActivityIndicator size="small" color="#31429B" />
-                  <Text style={styles.emptyNotifText}>Loading notifications...</Text>
+                  <Text style={styles.emptyNotifText}>
+                    Loading notifications...
+                  </Text>
                 </View>
               ) : null}
               <FlatList
                 data={notifData}
-                keyExtractor={(item) => String(item?.id || '')}
+                keyExtractor={(item) => String(item?.id || "")}
                 contentContainerStyle={styles.notifList}
                 ListEmptyComponent={renderEmptyNotifications}
                 renderItem={renderNotificationItem}

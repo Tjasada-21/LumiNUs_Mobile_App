@@ -1,5 +1,5 @@
-import supabase from './supabase';
-import { sendPushNotification } from './NotificationSender';
+import supabase from "./supabase";
+import { sendPushNotification } from "./NotificationSender";
 
 let pollTimer = null;
 let isInitialized = false;
@@ -18,32 +18,30 @@ const cleanupEvents = () => {
 const sendEventNotification = async (event) => {
   try {
     const { data: alumniRows, error: alumniError } = await supabase
-      .from('alumnis')
-      .select('push_token')
-      .not('push_token', 'is', null);
+      .from("alumnis")
+      .select("push_token")
+      .not("push_token", "is", null);
 
     if (alumniError || !Array.isArray(alumniRows) || alumniRows.length === 0) {
       return;
     }
 
-    const tokens = alumniRows
-      .map((row) => row.push_token)
-      .filter(Boolean);
+    const tokens = alumniRows.map((row) => row.push_token).filter(Boolean);
 
     if (tokens.length === 0) {
       return;
     }
 
-    const title = event.title || 'New Event';
-    const body = event.description || 'Check out the latest event.';
+    const title = event.title || "New Event";
+    const body = event.description || "Check out the latest event.";
 
     // Try to fetch a representative image for the event
     let imageUrl = null;
     try {
       const { data: imgRows, error: imgErr } = await supabase
-        .from('images_events')
-        .select('image_path')
-        .eq('event_id', event.id)
+        .from("images_events")
+        .select("image_path")
+        .eq("event_id", event.id)
         .limit(1);
 
       if (!imgErr && Array.isArray(imgRows) && imgRows.length > 0) {
@@ -51,10 +49,14 @@ const sendEventNotification = async (event) => {
       }
 
       // If image path is a storage path (not a full URL), try to convert to a public URL
-      if (imageUrl && typeof imageUrl === 'string' && !imageUrl.startsWith('http')) {
+      if (
+        imageUrl &&
+        typeof imageUrl === "string" &&
+        !imageUrl.startsWith("http")
+      ) {
         try {
           const { data: publicUrlData } = await supabase.storage
-            .from('luminus_assets')
+            .from("luminus_assets")
             .getPublicUrl(imageUrl);
           if (publicUrlData && publicUrlData.publicUrl) {
             imageUrl = publicUrlData.publicUrl;
@@ -67,18 +69,13 @@ const sendEventNotification = async (event) => {
       // ignore image fetch errors
     }
 
-    await sendPushNotification(
-      tokens,
-      `🎉 ${title}`,
-      body.substring(0, 150),
-      {
-        type: 'event',
-        eventId: event.id,
-        screen: 'Home',
-        targetScreen: 'EventsScreen',
-        image: imageUrl,
-      }
-    );
+    await sendPushNotification(tokens, `🎉 ${title}`, body.substring(0, 150), {
+      type: "event",
+      eventId: event.id,
+      screen: "Home",
+      targetScreen: "EventsScreen",
+      image: imageUrl,
+    });
   } catch (error) {
     // Silently handle notification errors
   }
@@ -92,13 +89,16 @@ const getLatestEventMarker = (row) => {
 const pollForNewEvents = async () => {
   try {
     const query = supabase
-      .from('events')
-      .select('id, title, description, created_at')
-      .order('created_at', { ascending: true })
+      .from("events")
+      .select("id, title, description, created_at")
+      .order("created_at", { ascending: true })
       .limit(50);
 
     const { data, error } = lastSeenEventCreatedAt
-      ? await query.gt('created_at', new Date(lastSeenEventCreatedAt).toISOString())
+      ? await query.gt(
+          "created_at",
+          new Date(lastSeenEventCreatedAt).toISOString(),
+        )
       : await query;
 
     if (error || !Array.isArray(data) || data.length === 0) {
@@ -152,9 +152,9 @@ export const startEventNotifier = async () => {
 
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('id, created_at')
-      .order('created_at', { ascending: false })
+      .from("events")
+      .select("id, created_at")
+      .order("created_at", { ascending: false })
       .limit(1);
 
     if (!error && Array.isArray(data) && data.length > 0) {

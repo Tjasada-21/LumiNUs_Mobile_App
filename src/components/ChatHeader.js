@@ -1,6 +1,6 @@
-import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 const ChatHeader = ({
   title,
@@ -16,7 +16,7 @@ const ChatHeader = ({
 }) => {
   const handleInfoPress = () => {
     if (navigation && chatData) {
-      navigation.navigate('ChatDetailsScreen', chatData);
+      navigation.navigate("ChatDetailsScreen", chatData);
     } else if (onInfoPress) {
       onInfoPress();
     }
@@ -24,15 +24,16 @@ const ChatHeader = ({
   return (
     <View style={styles.chatHeaderWrap}>
       <View style={styles.chatHeader}>
-        <Pressable style={styles.headerIconButton} onPress={onBackPress} hitSlop={8}>
+        <Pressable
+          style={styles.headerIconButton}
+          onPress={onBackPress}
+          hitSlop={8}
+        >
           <Ionicons name="arrow-back" size={22} color="#31429B" />
         </Pressable>
 
         <Pressable style={styles.headerProfileWrap} onPress={onProfilePress}>
-          <Image
-            source={{ uri: avatarUri }}
-            style={styles.headerAvatar}
-          />
+          <Image source={{ uri: avatarUri }} style={styles.headerAvatar} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {title}
@@ -44,14 +45,30 @@ const ChatHeader = ({
         </Pressable>
 
         <View style={styles.headerActions}>
-          <Pressable style={styles.headerIconButton} onPress={onCallPress} hitSlop={8}>
+          <Pressable
+            style={styles.headerIconButton}
+            onPress={onCallPress}
+            hitSlop={8}
+          >
             <Ionicons name="call-outline" size={22} color="#31429B" />
           </Pressable>
-          <Pressable style={styles.headerIconButton} onPress={onVideoPress} hitSlop={8}>
+          <Pressable
+            style={styles.headerIconButton}
+            onPress={onVideoPress}
+            hitSlop={8}
+          >
             <Ionicons name="videocam-outline" size={22} color="#31429B" />
           </Pressable>
-          <Pressable style={styles.headerIconButton} onPress={handleInfoPress} hitSlop={8}>
-            <Ionicons name="information-circle-outline" size={24} color="#31429B" />
+          <Pressable
+            style={styles.headerIconButton}
+            onPress={handleInfoPress}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={24}
+              color="#31429B"
+            />
           </Pressable>
         </View>
       </View>
@@ -61,36 +78,36 @@ const ChatHeader = ({
 
 const styles = StyleSheet.create({
   chatHeaderWrap: {
-    backgroundColor: '#FFFFFF',
-    width: '100%',
-    alignSelf: 'stretch',
+    backgroundColor: "#FFFFFF",
+    width: "100%",
+    alignSelf: "stretch",
   },
   chatHeader: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingTop: 8,
     paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerIconButton: {
     width: 34,
     height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 3,
   },
   headerProfileWrap: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     minWidth: 0,
   },
   headerAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
   },
   headerTextWrap: {
     flex: 1,
@@ -99,17 +116,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
   },
   headerSubtitle: {
     marginTop: 2,
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
   },
 });

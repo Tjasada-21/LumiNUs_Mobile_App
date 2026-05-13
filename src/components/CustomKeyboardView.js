@@ -1,5 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 const CustomKeyboardView = ({
   children,
@@ -8,15 +15,15 @@ const CustomKeyboardView = ({
   keyboardVerticalOffset = 10,
   ...props
 }) => {
-  const isIOS = Platform.OS === 'ios';
+  const isIOS = Platform.OS === "ios";
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
       setKeyboardVisible(true);
     });
 
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
       setKeyboardVisible(false);
     });
 
@@ -26,12 +33,19 @@ const CustomKeyboardView = ({
     };
   }, []);
 
-  const keyboardBehavior = keyboardVisible ? (isIOS ? 'padding' : 'height') : undefined;
-  const renderSafeNode = (node) => React.Children.map(node, (child) => (
-    typeof child === 'string' || typeof child === 'number'
-      ? <Text>{child}</Text>
-      : child
-  ));
+  const keyboardBehavior = keyboardVisible
+    ? isIOS
+      ? "padding"
+      : "height"
+    : undefined;
+  const renderSafeNode = (node) =>
+    React.Children.map(node, (child) =>
+      typeof child === "string" || typeof child === "number" ? (
+        <Text>{child}</Text>
+      ) : (
+        child
+      ),
+    );
 
   return (
     <KeyboardAvoidingView
@@ -44,7 +58,9 @@ const CustomKeyboardView = ({
         <View style={styles.contentContainer}>
           <View style={styles.inner}>{renderSafeNode(children)}</View>
         </View>
-        {footer ? <View style={styles.footer}>{renderSafeNode(footer)}</View> : null}
+        {footer ? (
+          <View style={styles.footer}>{renderSafeNode(footer)}</View>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -65,7 +81,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     flexShrink: 0,
   },
 });

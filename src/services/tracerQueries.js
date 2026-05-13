@@ -1,7 +1,7 @@
-import supabase from './supabase';
-import { normalizeTracerForms, normalizeTracerForm } from './schemaMapper';
+import supabase from "./supabase";
+import { normalizeTracerForms, normalizeTracerForm } from "./schemaMapper";
 
-export const DRAFT_SUBMITTED_AT_SENTINEL = '1970-01-01T00:00:00.000Z';
+export const DRAFT_SUBMITTED_AT_SENTINEL = "1970-01-01T00:00:00.000Z";
 
 /**
  * Tracer Forms & Surveys Queries
@@ -13,8 +13,9 @@ export const DRAFT_SUBMITTED_AT_SENTINEL = '1970-01-01T00:00:00.000Z';
 export const getActiveForms = async () => {
   try {
     const { data, error } = await supabase
-      .from('tracer_forms')
-      .select(`
+      .from("tracer_forms")
+      .select(
+        `
         *,
         admin:admin_id(id, admin_first_name, admin_last_name),
         questions:tracer_questions(
@@ -27,14 +28,15 @@ export const getActiveForms = async () => {
           settings,
           answer_options:tracer_answer_options(id, option_label, option_value)
         )
-      `)
-      .eq('status', 1) // 1 = active
-      .order('form_title', { ascending: true });
+      `,
+      )
+      .eq("status", 1) // 1 = active
+      .order("form_title", { ascending: true });
 
     if (error) throw error;
     return normalizeTracerForms(data || []);
   } catch (error) {
-    console.error('[tracer] Get forms error:', error.message);
+    console.error("[tracer] Get forms error:", error.message);
     throw error;
   }
 };
@@ -45,8 +47,9 @@ export const getActiveForms = async () => {
 export const getTracerFormById = async (formId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_forms')
-      .select(`
+      .from("tracer_forms")
+      .select(
+        `
         *,
         admin:admin_id(id, admin_first_name, admin_last_name),
         questions:tracer_questions(
@@ -59,14 +62,15 @@ export const getTracerFormById = async (formId) => {
           settings,
           answer_options:tracer_answer_options(id, option_label, option_value)
         )
-      `)
-      .eq('id', formId)
+      `,
+      )
+      .eq("id", formId)
       .single();
 
     if (error) throw error;
     return normalizeTracerForm(data);
   } catch (error) {
-    console.error('[tracer] Get form error:', error.message);
+    console.error("[tracer] Get form error:", error.message);
     throw error;
   }
 };
@@ -77,8 +81,9 @@ export const getTracerFormById = async (formId) => {
 export const getUserTracerResponses = async (alumniId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
-      .select(`
+      .from("tracer_responses")
+      .select(
+        `
         *,
         form:form_id(id, form_title, form_description),
         answers:tracer_answers(
@@ -87,15 +92,16 @@ export const getUserTracerResponses = async (alumniId) => {
           answer_value,
           question:tracer_questions(id, question_text, type)
         )
-      `)
-      .eq('alumni_id', alumniId)
-      .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
-      .order('submitted_at', { ascending: false });
+      `,
+      )
+      .eq("alumni_id", alumniId)
+      .neq("submitted_at", DRAFT_SUBMITTED_AT_SENTINEL)
+      .order("submitted_at", { ascending: false });
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[tracer] Get responses error:', error.message);
+    console.error("[tracer] Get responses error:", error.message);
     throw error;
   }
 };
@@ -106,8 +112,9 @@ export const getUserTracerResponses = async (alumniId) => {
 export const getTracerResponse = async (responseId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
-      .select(`
+      .from("tracer_responses")
+      .select(
+        `
         *,
         form:form_id(id, form_title, form_description),
         answers:tracer_answers(
@@ -116,14 +123,15 @@ export const getTracerResponse = async (responseId) => {
           answer_value,
           question:tracer_questions(id, question_text, type)
         )
-      `)
-      .eq('id', responseId)
+      `,
+      )
+      .eq("id", responseId)
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[tracer] Get response error:', error.message);
+    console.error("[tracer] Get response error:", error.message);
     throw error;
   }
 };
@@ -134,17 +142,17 @@ export const getTracerResponse = async (responseId) => {
 export const hasSubmittedForm = async (alumniId, formId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
-      .select('id')
-      .eq('alumni_id', alumniId)
-      .eq('form_id', formId)
-      .neq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
+      .from("tracer_responses")
+      .select("id")
+      .eq("alumni_id", alumniId)
+      .eq("form_id", formId)
+      .neq("submitted_at", DRAFT_SUBMITTED_AT_SENTINEL)
       .maybeSingle();
 
     if (error) throw error;
     return !!data;
   } catch (error) {
-    console.error('[tracer] Has submitted error:', error.message);
+    console.error("[tracer] Has submitted error:", error.message);
     throw error;
   }
 };
@@ -156,33 +164,35 @@ export const submitTracerForm = async (alumniId, formId, answers) => {
   try {
     // Create response record
     const { data: responseData, error: responseError } = await supabase
-      .from('tracer_responses')
-      .insert([{
-        alumni_id: alumniId,
-        form_id: formId,
-        submitted_at: new Date().toISOString(),
-      }])
+      .from("tracer_responses")
+      .insert([
+        {
+          alumni_id: alumniId,
+          form_id: formId,
+          submitted_at: new Date().toISOString(),
+        },
+      ])
       .select()
       .single();
 
     if (responseError) throw responseError;
 
     // Insert answers
-    const answerRecords = answers.map(ans => ({
+    const answerRecords = answers.map((ans) => ({
       tracer_response_id: responseData.id,
       tq_id: ans.questionId,
       answer_value: ans.value,
     }));
 
     const { error: answersError } = await supabase
-      .from('tracer_answers')
+      .from("tracer_answers")
       .insert(answerRecords);
 
     if (answersError) throw answersError;
 
     return responseData;
   } catch (error) {
-    console.error('[tracer] Submit form error:', error.message);
+    console.error("[tracer] Submit form error:", error.message);
     throw error;
   }
 };
@@ -193,19 +203,19 @@ export const submitTracerForm = async (alumniId, formId, answers) => {
 export const getDraftResponse = async (alumniId, formId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
-      .select('id, alumni_id, form_id, submitted_at, created_at, updated_at')
-      .eq('alumni_id', alumniId)
-      .eq('form_id', formId)
-      .eq('submitted_at', DRAFT_SUBMITTED_AT_SENTINEL)
-      .order('id', { ascending: false })
+      .from("tracer_responses")
+      .select("id, alumni_id, form_id, submitted_at, created_at, updated_at")
+      .eq("alumni_id", alumniId)
+      .eq("form_id", formId)
+      .eq("submitted_at", DRAFT_SUBMITTED_AT_SENTINEL)
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
     return data || null;
   } catch (error) {
-    console.error('[tracer] Get draft response error:', error.message);
+    console.error("[tracer] Get draft response error:", error.message);
     throw error;
   }
 };
@@ -216,19 +226,21 @@ export const getDraftResponse = async (alumniId, formId) => {
 export const createDraftResponse = async (alumniId, formId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
-      .insert([{
-        alumni_id: alumniId,
-        form_id: formId,
-        submitted_at: DRAFT_SUBMITTED_AT_SENTINEL,
-      }])
-      .select('id, alumni_id, form_id, submitted_at, created_at, updated_at')
+      .from("tracer_responses")
+      .insert([
+        {
+          alumni_id: alumniId,
+          form_id: formId,
+          submitted_at: DRAFT_SUBMITTED_AT_SENTINEL,
+        },
+      ])
+      .select("id, alumni_id, form_id, submitted_at, created_at, updated_at")
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[tracer] Create draft response error:', error.message);
+    console.error("[tracer] Create draft response error:", error.message);
     throw error;
   }
 };
@@ -242,7 +254,10 @@ export const getOrCreateDraftResponse = async (alumniId, formId) => {
     if (existing?.id) return existing;
     return await createDraftResponse(alumniId, formId);
   } catch (error) {
-    console.error('[tracer] Get or create draft response error:', error.message);
+    console.error(
+      "[tracer] Get or create draft response error:",
+      error.message,
+    );
     throw error;
   }
 };
@@ -253,14 +268,14 @@ export const getOrCreateDraftResponse = async (alumniId, formId) => {
 export const getDraftAnswers = async (responseId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_answers')
-      .select('id, tq_id, answer_value')
-      .eq('tracer_response_id', responseId);
+      .from("tracer_answers")
+      .select("id, tq_id, answer_value")
+      .eq("tracer_response_id", responseId);
 
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('[tracer] Get draft answers error:', error.message);
+    console.error("[tracer] Get draft answers error:", error.message);
     throw error;
   }
 };
@@ -271,16 +286,16 @@ export const getDraftAnswers = async (responseId) => {
 export const submitDraftResponse = async (responseId) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
+      .from("tracer_responses")
       .update({ submitted_at: new Date().toISOString() })
-      .eq('id', responseId)
+      .eq("id", responseId)
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[tracer] Submit draft response error:', error.message);
+    console.error("[tracer] Submit draft response error:", error.message);
     throw error;
   }
 };
@@ -291,16 +306,16 @@ export const submitDraftResponse = async (responseId) => {
 export const updateTracerResponse = async (responseId, updates) => {
   try {
     const { data, error } = await supabase
-      .from('tracer_responses')
+      .from("tracer_responses")
       .update(updates)
-      .eq('id', responseId)
+      .eq("id", responseId)
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[tracer] Update response error:', error.message);
+    console.error("[tracer] Update response error:", error.message);
     throw error;
   }
 };
@@ -312,10 +327,10 @@ export const saveAnswerDraft = async (responseId, questionId, value) => {
   try {
     // Check if answer exists
     const { data: existingData, error: existingError } = await supabase
-      .from('tracer_answers')
-      .select('id')
-      .eq('tracer_response_id', responseId)
-      .eq('tq_id', questionId)
+      .from("tracer_answers")
+      .select("id")
+      .eq("tracer_response_id", responseId)
+      .eq("tq_id", questionId)
       .maybeSingle();
 
     if (existingError) throw existingError;
@@ -323,9 +338,9 @@ export const saveAnswerDraft = async (responseId, questionId, value) => {
     if (existingData) {
       // Update existing
       const { data, error } = await supabase
-        .from('tracer_answers')
+        .from("tracer_answers")
         .update({ answer_value: value })
-        .eq('id', existingData.id)
+        .eq("id", existingData.id)
         .select()
         .single();
 
@@ -335,19 +350,21 @@ export const saveAnswerDraft = async (responseId, questionId, value) => {
 
     // Create new
     const { data, error } = await supabase
-      .from('tracer_answers')
-      .insert([{
-        tracer_response_id: responseId,
-        tq_id: questionId,
-        answer_value: value,
-      }])
+      .from("tracer_answers")
+      .insert([
+        {
+          tracer_response_id: responseId,
+          tq_id: questionId,
+          answer_value: value,
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('[tracer] Save answer error:', error.message);
+    console.error("[tracer] Save answer error:", error.message);
     throw error;
   }
 };
@@ -358,25 +375,28 @@ export const saveAnswerDraft = async (responseId, questionId, value) => {
 export const getFormStatistics = async (formId) => {
   try {
     const { data: responses, error: responsesError } = await supabase
-      .from('tracer_responses')
-      .select('id')
-      .eq('form_id', formId);
+      .from("tracer_responses")
+      .select("id")
+      .eq("form_id", formId);
 
     if (responsesError) throw responsesError;
 
     // Get questions
     const { data: questions, error: questionsError } = await supabase
-      .from('tracer_questions')
-      .select('id, question_text, type')
-      .eq('form_id', formId);
+      .from("tracer_questions")
+      .select("id, question_text, type")
+      .eq("form_id", formId);
 
     if (questionsError) throw questionsError;
 
     // Get answer distribution
     const { data: answers, error: answersError } = await supabase
-      .from('tracer_answers')
-      .select('tq_id, answer_value')
-      .in('tracer_response_id', responses.map(r => r.id));
+      .from("tracer_answers")
+      .select("tq_id, answer_value")
+      .in(
+        "tracer_response_id",
+        responses.map((r) => r.id),
+      );
 
     if (answersError) throw answersError;
 
@@ -386,7 +406,7 @@ export const getFormStatistics = async (formId) => {
       answers: answers,
     };
   } catch (error) {
-    console.error('[tracer] Get statistics error:', error.message);
+    console.error("[tracer] Get statistics error:", error.message);
     throw error;
   }
 };

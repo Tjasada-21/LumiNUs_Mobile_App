@@ -1,8 +1,17 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import * as Notifications from 'expo-notifications';
-import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
-import { startAnnouncementNotifier } from '../services/announcementNotifier';
-import { startEventNotifier } from '../services/eventNotifier';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import * as Notifications from "expo-notifications";
+import {
+  registerForPushNotificationsAsync,
+  saveTokenToSupabase,
+} from "../services/notificationService";
+import { startAnnouncementNotifier } from "../services/announcementNotifier";
+import { startEventNotifier } from "../services/eventNotifier";
 
 const NotificationContext = createContext();
 
@@ -50,18 +59,21 @@ export const NotificationProvider = ({ children }) => {
     };
   }, []);
 
-  const sendNotification = useCallback(async (title, body, data = {}) => {
-    try {
-      if (isPermissionGranted) {
-        await Notifications.scheduleNotificationAsync({
-          content: { title, body, data },
-          trigger: null,
-        });
+  const sendNotification = useCallback(
+    async (title, body, data = {}) => {
+      try {
+        if (isPermissionGranted) {
+          await Notifications.scheduleNotificationAsync({
+            content: { title, body, data },
+            trigger: null,
+          });
+        }
+      } catch (error) {
+        // Silently handle send errors
       }
-    } catch (error) {
-      // Silently handle send errors
-    }
-  }, [isPermissionGranted]);
+    },
+    [isPermissionGranted],
+  );
 
   const value = {
     isPermissionGranted,
@@ -79,7 +91,9 @@ export const NotificationProvider = ({ children }) => {
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider');
+    throw new Error(
+      "useNotifications must be used within NotificationProvider",
+    );
   }
   return context;
 };

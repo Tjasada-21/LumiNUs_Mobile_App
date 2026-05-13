@@ -1,6 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { addAuthStateListener, getCurrentUser } from '../services/supabaseAuth';
-import { getAlumniPhotoFromStorage } from '../services/alumniQueries';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { addAuthStateListener, getCurrentUser } from "../services/supabaseAuth";
+import { getAlumniPhotoFromStorage } from "../services/alumniQueries";
 
 const CurrentUserProfileContext = createContext(null);
 
@@ -15,7 +22,9 @@ export const CurrentUserProfileProvider = ({ children }) => {
         return null;
       }
 
-      const livePhoto = await getAlumniPhotoFromStorage(profile.id).catch(() => null);
+      const livePhoto = await getAlumniPhotoFromStorage(profile.id).catch(
+        () => null,
+      );
       const resolvedProfile = {
         ...profile,
         alumni_photo: livePhoto ?? profile.alumni_photo ?? null,
@@ -24,7 +33,10 @@ export const CurrentUserProfileProvider = ({ children }) => {
       setCurrentUserProfile(resolvedProfile);
       return resolvedProfile;
     } catch (error) {
-      console.error('[CurrentUserProfile] Refresh failed:', error?.message || error);
+      console.error(
+        "[CurrentUserProfile] Refresh failed:",
+        error?.message || error,
+      );
       setCurrentUserProfile(null);
       return null;
     }
@@ -39,7 +51,9 @@ export const CurrentUserProfileProvider = ({ children }) => {
         return;
       }
 
-      const livePhoto = await getAlumniPhotoFromStorage(user.id).catch(() => null);
+      const livePhoto = await getAlumniPhotoFromStorage(user.id).catch(
+        () => null,
+      );
       setCurrentUserProfile({
         ...user,
         alumni_photo: livePhoto ?? user.alumni_photo ?? null,
@@ -49,11 +63,14 @@ export const CurrentUserProfileProvider = ({ children }) => {
     return unsubscribe;
   }, [refreshCurrentUserProfile]);
 
-  const value = useMemo(() => ({
-    currentUserProfile,
-    setCurrentUserProfile,
-    refreshCurrentUserProfile,
-  }), [currentUserProfile, refreshCurrentUserProfile]);
+  const value = useMemo(
+    () => ({
+      currentUserProfile,
+      setCurrentUserProfile,
+      refreshCurrentUserProfile,
+    }),
+    [currentUserProfile, refreshCurrentUserProfile],
+  );
 
   return (
     <CurrentUserProfileContext.Provider value={value}>
@@ -66,7 +83,9 @@ export const useCurrentUserProfile = () => {
   const context = useContext(CurrentUserProfileContext);
 
   if (!context) {
-    throw new Error('useCurrentUserProfile must be used within CurrentUserProfileProvider');
+    throw new Error(
+      "useCurrentUserProfile must be used within CurrentUserProfileProvider",
+    );
   }
 
   return context;

@@ -3,27 +3,37 @@
  * Handles conversion of relative Supabase paths to full public URLs
  */
 
-const SUPABASE_URL = 'https://pmnirrvwibzqjlutbnwz.supabase.co';
-const LUMINUS_ASSETS_BUCKET = 'luminus_assets';
-const EVENT_IMAGES_FOLDER = 'events_images';
-const PERK_IMAGES_FOLDER = 'perks_images';
-const ANNOUNCEMENT_IMAGE_FOLDERS = ['announcements_images', 'announcement_images'];
+const SUPABASE_URL = "https://pmnirrvwibzqjlutbnwz.supabase.co";
+const LUMINUS_ASSETS_BUCKET = "luminus_assets";
+const EVENT_IMAGES_FOLDER = "events_images";
+const PERK_IMAGES_FOLDER = "perks_images";
+const ANNOUNCEMENT_IMAGE_FOLDERS = [
+  "announcements_images",
+  "announcement_images",
+];
 
-const DEFAULT_AVATAR_BACKGROUND = '#31429B';
-const DEFAULT_AVATAR_FOREGROUND = '#FFFFFF';
+const DEFAULT_AVATAR_BACKGROUND = "#31429B";
+const DEFAULT_AVATAR_FOREGROUND = "#FFFFFF";
 
 const getAvatarInitials = (name) => {
-  const rawName = String(name || 'User').trim();
+  const rawName = String(name || "User").trim();
   if (!rawName) {
-    return 'U';
+    return "U";
   }
 
   const parts = rawName.split(/\s+/).filter(Boolean).slice(0, 2);
-  const initials = parts.map((part) => part.charAt(0)).join('').toUpperCase();
-  return initials || rawName.charAt(0).toUpperCase() || 'U';
+  const initials = parts
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+  return initials || rawName.charAt(0).toUpperCase() || "U";
 };
 
-const createLocalAvatarDataUri = (name, background = DEFAULT_AVATAR_BACKGROUND, foreground = DEFAULT_AVATAR_FOREGROUND) => {
+const createLocalAvatarDataUri = (
+  name,
+  background = DEFAULT_AVATAR_BACKGROUND,
+  foreground = DEFAULT_AVATAR_FOREGROUND,
+) => {
   const initials = getAvatarInitials(name);
   const safeBackground = String(background || DEFAULT_AVATAR_BACKGROUND);
   const safeForeground = String(foreground || DEFAULT_AVATAR_FOREGROUND);
@@ -40,7 +50,9 @@ const createLocalAvatarDataUri = (name, background = DEFAULT_AVATAR_BACKGROUND, 
         fill="${safeForeground}"
       >${initials}</text>
     </svg>
-  `.trim().replace(/\s{2,}/g, ' ');
+  `
+    .trim()
+    .replace(/\s{2,}/g, " ");
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
@@ -53,7 +65,7 @@ const createLocalAvatarDataUri = (name, background = DEFAULT_AVATAR_BACKGROUND, 
  */
 export const normalizeLuminusImageUri = (uri) => {
   if (!uri) {
-    return '';
+    return "";
   }
 
   const uriString = String(uri);
@@ -64,7 +76,7 @@ export const normalizeLuminusImageUri = (uri) => {
   }
 
   // It's a relative path - construct the full Supabase public URL
-  const cleanPath = uriString.replace(/^\/+/, '');
+  const cleanPath = uriString.replace(/^\/+/, "");
   return `${SUPABASE_URL}/storage/v1/object/public/${LUMINUS_ASSETS_BUCKET}/${cleanPath}`;
 };
 
@@ -87,7 +99,7 @@ export const getAvatarUri = (name, photoUri) => {
  */
 export const normalizeEventImageUri = (uri) => {
   if (!uri) {
-    return '';
+    return "";
   }
 
   const uriString = String(uri);
@@ -96,7 +108,7 @@ export const normalizeEventImageUri = (uri) => {
     return uriString;
   }
 
-  const cleanPath = uriString.replace(/^\/+/, '');
+  const cleanPath = uriString.replace(/^\/+/, "");
   const prefixedPath = cleanPath.startsWith(`${EVENT_IMAGES_FOLDER}/`)
     ? cleanPath
     : `${EVENT_IMAGES_FOLDER}/${cleanPath}`;
@@ -109,7 +121,7 @@ export const normalizeEventImageUri = (uri) => {
  */
 export const normalizePerkImageUri = (uri) => {
   if (!uri) {
-    return '';
+    return "";
   }
 
   const uriString = String(uri);
@@ -122,16 +134,15 @@ export const normalizePerkImageUri = (uri) => {
   // - perks_images/file.jpg
   // - luminus_assets/perks_images/file.jpg
   // - storage/v1/object/public/luminus_assets/perks_images/file.jpg
-  const cleanPath = uriString
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '');
+  const cleanPath = uriString.trim().replace(/\\/g, "/").replace(/^\/+/, "");
 
   const withoutStoragePrefix = cleanPath
-    .replace(/^storage\/v1\/object\/public\//i, '')
-    .replace(/^public\//i, '');
+    .replace(/^storage\/v1\/object\/public\//i, "")
+    .replace(/^public\//i, "");
 
-  const withoutBucketPrefix = withoutStoragePrefix.startsWith(`${LUMINUS_ASSETS_BUCKET}/`)
+  const withoutBucketPrefix = withoutStoragePrefix.startsWith(
+    `${LUMINUS_ASSETS_BUCKET}/`,
+  )
     ? withoutStoragePrefix.slice(`${LUMINUS_ASSETS_BUCKET}/`.length)
     : withoutStoragePrefix;
 
@@ -147,7 +158,7 @@ export const normalizePerkImageUri = (uri) => {
  */
 export const normalizeAnnouncementImageUri = (uri) => {
   if (!uri) {
-    return '';
+    return "";
   }
 
   const uriString = String(uri);
@@ -156,9 +167,13 @@ export const normalizeAnnouncementImageUri = (uri) => {
     return uriString;
   }
 
-  const cleanPath = uriString.replace(/^\/+/, '');
-  const hasKnownPrefix = ANNOUNCEMENT_IMAGE_FOLDERS.some((folder) => cleanPath.startsWith(`${folder}/`));
-  const prefixedPath = hasKnownPrefix ? cleanPath : `announcements_images/${cleanPath}`;
+  const cleanPath = uriString.replace(/^\/+/, "");
+  const hasKnownPrefix = ANNOUNCEMENT_IMAGE_FOLDERS.some((folder) =>
+    cleanPath.startsWith(`${folder}/`),
+  );
+  const prefixedPath = hasKnownPrefix
+    ? cleanPath
+    : `announcements_images/${cleanPath}`;
 
   return `${SUPABASE_URL}/storage/v1/object/public/${LUMINUS_ASSETS_BUCKET}/${prefixedPath}`;
 };

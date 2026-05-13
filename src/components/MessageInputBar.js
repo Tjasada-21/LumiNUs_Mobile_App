@@ -1,10 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, View, TouchableOpacity, StyleSheet, Text, LayoutAnimation, UIManager } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import SmartTextInput from './SmartTextInput';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Platform,
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  LayoutAnimation,
+  UIManager,
+  LogBox,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import SmartTextInput from "./SmartTextInput";
 
+// Suppress known New Architecture no-op warning and enable LayoutAnimation on Android
+LogBox.ignoreLogs([
+  "setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.",
+]);
 // Enable LayoutAnimation on Android (suppress warning for New Architecture)
-if (Platform.OS === 'android') {
+if (Platform.OS === "android") {
   try {
     if (UIManager.setLayoutAnimationEnabledExperimental) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -15,7 +28,7 @@ if (Platform.OS === 'android') {
 }
 
 const MessageInputBar = ({
-  value = '',
+  value = "",
   onChangeText,
   onSend,
   onAttach,
@@ -53,10 +66,16 @@ const MessageInputBar = ({
   };
 
   const composerInputHeight = hasText ? inputHeight : 38;
-  const composerTextAlignVertical = Platform.OS === 'android' ? (hasText ? 'top' : 'center') : 'center';
+  const composerTextAlignVertical =
+    Platform.OS === "android" ? (hasText ? "top" : "center") : "center";
 
   return (
-    <View style={[styles.wrapper, { width: '100%', paddingBottom: 0, marginBottom: 0 }]}> 
+    <View
+      style={[
+        styles.wrapper,
+        { width: "100%", paddingBottom: 0, marginBottom: 0 },
+      ]}
+    >
       {isReplying && replyTo ? (
         <View style={styles.replyBar}>
           <View style={styles.replyContent}>
@@ -64,13 +83,17 @@ const MessageInputBar = ({
             <View
               style={[
                 styles.replyBubble,
-                replyTo?.isOutgoing ? styles.replyBubbleOutgoing : styles.replyBubbleIncoming,
+                replyTo?.isOutgoing
+                  ? styles.replyBubbleOutgoing
+                  : styles.replyBubbleIncoming,
               ]}
             >
               <Text
                 style={[
                   styles.replyBubbleText,
-                  replyTo?.isOutgoing ? styles.replyBubbleTextOutgoing : styles.replyBubbleTextIncoming,
+                  replyTo?.isOutgoing
+                    ? styles.replyBubbleTextOutgoing
+                    : styles.replyBubbleTextIncoming,
                 ]}
                 numberOfLines={2}
               >
@@ -111,7 +134,7 @@ const MessageInputBar = ({
             returnKeyType="default"
             blurOnSubmit={false}
           />
-          
+
           <View style={styles.actionsWrap}>
             {!isTyping ? (
               // Idle State: Show the Instagram-style utility icons inside the pill
@@ -119,10 +142,18 @@ const MessageInputBar = ({
                 <TouchableOpacity style={styles.actionIcon} activeOpacity={0.6}>
                   <Ionicons name="mic-outline" size={24} color="#31429B" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionIcon} onPress={onAttach} activeOpacity={0.6}>
+                <TouchableOpacity
+                  style={styles.actionIcon}
+                  onPress={onAttach}
+                  activeOpacity={0.6}
+                >
                   <Ionicons name="image-outline" size={24} color="#31429B" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionIcon} onPress={onEmoji} activeOpacity={0.6}>
+                <TouchableOpacity
+                  style={styles.actionIcon}
+                  onPress={onEmoji}
+                  activeOpacity={0.6}
+                >
                   <Ionicons name="happy-outline" size={24} color="#31429B" />
                 </TouchableOpacity>
               </View>
@@ -131,7 +162,10 @@ const MessageInputBar = ({
               <TouchableOpacity
                 onPress={onSend}
                 disabled={disabled || !canSend}
-                style={[styles.sendButton, (!canSend || disabled) && styles.sendButtonDisabled]}
+                style={[
+                  styles.sendButton,
+                  (!canSend || disabled) && styles.sendButtonDisabled,
+                ]}
                 activeOpacity={0.8}
               >
                 <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -146,77 +180,77 @@ const MessageInputBar = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     paddingTop: 0,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
   },
   replyBar: {
-    flexDirection: 'row',
-    backgroundColor: 'transparent',
+    flexDirection: "row",
+    backgroundColor: "transparent",
     paddingHorizontal: 14,
     paddingVertical: 6,
     marginHorizontal: 10,
     marginBottom: 6,
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   replyContent: {
     flex: 1,
     marginRight: 10,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   replyLabel: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 6,
     letterSpacing: 0.2,
   },
   replyBubble: {
-    width: '72%',
+    width: "72%",
     minWidth: 170,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     borderRadius: 30,
     paddingHorizontal: 18,
     paddingVertical: 11,
   },
   replyBubbleIncoming: {
-    backgroundColor: 'rgba(255, 255, 255, 0.64)',
+    backgroundColor: "rgba(255, 255, 255, 0.64)",
   },
   replyBubbleOutgoing: {
-    backgroundColor: 'rgba(183, 28, 28, 0.72)',
+    backgroundColor: "rgba(183, 28, 28, 0.72)",
   },
   replyBubbleText: {
     fontSize: 16,
     lineHeight: 20,
   },
   replyBubbleTextIncoming: {
-    color: '#111111',
+    color: "#111111",
   },
   replyBubbleTextOutgoing: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     paddingHorizontal: 12,
     paddingBottom: 8,
   },
   cameraButton: {
     marginRight: 10,
     marginBottom: 4, // Align with the bottom of the pill
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cameraCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#31429B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#31429B",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -224,51 +258,51 @@ const styles = StyleSheet.create({
   },
   pill: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end', // Keeps icons at the bottom when text area expands
-    backgroundColor: '#EEF0F7',
+    flexDirection: "row",
+    alignItems: "flex-end", // Keeps icons at the bottom when text area expands
+    backgroundColor: "#EEF0F7",
     borderRadius: 24, // Slightly rounder for the IG look
     paddingHorizontal: 14,
     paddingVertical: 6,
     minHeight: 50,
     borderWidth: 1,
-    borderColor: '#D7DDF0',
+    borderColor: "#D7DDF0",
   },
   textInput: {
     flex: 1,
     fontSize: 15,
-    color: '#24346F',
+    color: "#24346F",
     paddingTop: 6,
     paddingBottom: 6,
     marginRight: 8,
     maxHeight: 104,
   },
   actionsWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingBottom: 2, // Aligns icons with the single-line text input
   },
   idleIconsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingRight: 4,
   },
   actionIcon: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#31429B',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#31429B",
   },
   sendButtonDisabled: {
     opacity: 0.5,
-    backgroundColor: '#9AA4CF',
+    backgroundColor: "#9AA4CF",
   },
 });
 

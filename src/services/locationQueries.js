@@ -1,4 +1,4 @@
-const PSGC_BASE_URL = 'https://psgc.gitlab.io/api';
+const PSGC_BASE_URL = "https://psgc.gitlab.io/api";
 
 const regionCache = { data: null };
 const provinceCache = new Map();
@@ -8,7 +8,7 @@ const barangayCache = new Map();
 const fetchJson = async (url) => {
   const response = await fetch(url, {
     headers: {
-      Accept: 'application/json',
+      Accept: "application/json",
     },
   });
 
@@ -22,7 +22,7 @@ const fetchJson = async (url) => {
 const normalizeOption = (item) => ({
   code: item.code,
   name: item.name,
-  oldName: item.oldName || '',
+  oldName: item.oldName || "",
   isCapital: Boolean(item.isCapital),
   isCity: Boolean(item.isCity),
   isMunicipality: Boolean(item.isMunicipality),
@@ -70,7 +70,9 @@ export const getProvincesByRegion = async (regionCode) => {
     return provinceCache.get(regionCode);
   }
 
-  const data = await fetchJson(`${PSGC_BASE_URL}/regions/${regionCode}/provinces.json`);
+  const data = await fetchJson(
+    `${PSGC_BASE_URL}/regions/${regionCode}/provinces.json`,
+  );
   const provinces = Array.isArray(data) ? data.map(normalizeOption) : [];
   provinceCache.set(regionCode, provinces);
   return provinces;
@@ -83,7 +85,9 @@ export const getCitiesMunicipalitiesByProvince = async (provinceCode) => {
     return municipalityCache.get(provinceCode);
   }
 
-  const data = await fetchJson(`${PSGC_BASE_URL}/provinces/${provinceCode}/cities-municipalities.json`);
+  const data = await fetchJson(
+    `${PSGC_BASE_URL}/provinces/${provinceCode}/cities-municipalities.json`,
+  );
   const municipalities = Array.isArray(data) ? data.map(normalizeOption) : [];
   municipalityCache.set(provinceCode, municipalities);
   return municipalities;
@@ -106,7 +110,7 @@ export const getBarangaysByCityMunicipality = async (cityMunicipalityCode) => {
     ? data.map((item) => ({
         code: item.code,
         name: item.name,
-        oldName: item.oldName || '',
+        oldName: item.oldName || "",
       }))
     : [];
 

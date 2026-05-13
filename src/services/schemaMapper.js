@@ -3,7 +3,7 @@
  * Maps Supabase admin table columns to standard display format
  */
 
-import { normalizeEventImageUri } from '../utils/imageUtils';
+import { normalizeEventImageUri } from "../utils/imageUtils";
 
 /**
  * Normalize admin object fields
@@ -14,9 +14,9 @@ export const normalizeAdminFields = (admin) => {
 
   return {
     ...admin,
-    first_name: admin.admin_first_name || admin.first_name || '',
-    last_name: admin.admin_last_name || admin.last_name || '',
-    email: admin.admin_email || admin.email || '',
+    first_name: admin.admin_first_name || admin.first_name || "",
+    last_name: admin.admin_last_name || admin.last_name || "",
+    email: admin.admin_email || admin.email || "",
   };
 };
 
@@ -29,15 +29,21 @@ export const normalizeEvent = (event) => {
   const normalizedImages = Array.isArray(event.images)
     ? event.images.map((image) => ({
         ...image,
-        image_path: normalizeEventImageUri(image?.image_path ?? image?.image_url ?? image?.url ?? image?.path ?? ''),
+        image_path: normalizeEventImageUri(
+          image?.image_path ??
+            image?.image_url ??
+            image?.url ??
+            image?.path ??
+            "",
+        ),
       }))
     : [];
 
   const normalizedCoverImage = normalizeEventImageUri(
-    event.cover_image_url
-      ?? normalizedImages[0]?.image_path
-      ?? event.cover_image
-      ?? ''
+    event.cover_image_url ??
+      normalizedImages[0]?.image_path ??
+      event.cover_image ??
+      "",
   );
 
   return {

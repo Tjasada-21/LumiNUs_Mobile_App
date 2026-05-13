@@ -1,24 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import BrandHeader from '../components/BrandHeader';
-import api from '../services/api';
-import styles from '../styles/ResetPasswordScreen.styles';
-import { ThemedAlert } from '../components/ThemedAlert';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BrandHeader from "../components/BrandHeader";
+import api from "../services/api";
+import styles from "../styles/ResetPasswordScreen.styles";
+
+import { ThemedAlert } from "../components/ThemedAlert";
 
 const ResetPasswordScreen = ({ navigation, route }) => {
   // SECTION: Layout values
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width - 48, 330);
 
-  const [studentIdNumber, setStudentIdNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [studentIdNumber, setStudentIdNumber] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
 
   // SECTION: Restore preset student number
   useEffect(() => {
-    const presetStudentNumber = route?.params?.student_id_number || '';
+    const presetStudentNumber = route?.params?.student_id_number || "";
 
     if (presetStudentNumber) {
       setStudentIdNumber(presetStudentNumber);
@@ -30,29 +37,36 @@ const ResetPasswordScreen = ({ navigation, route }) => {
     const trimmedStudentNumber = studentIdNumber.trim();
 
     if (!trimmedStudentNumber || !password || !passwordConfirmation) {
-      ThemedAlert.alert('Missing fields', 'Fill in all reset details before continuing.');
+      ThemedAlert.alert(
+        "Missing fields",
+        "Fill in all reset details before continuing.",
+      );
       return;
     }
 
     if (password !== passwordConfirmation) {
-      ThemedAlert.alert('Password mismatch', 'The new passwords do not match.');
+      ThemedAlert.alert("Password mismatch", "The new passwords do not match.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await api.post('/alumni/reset-password', {
+      const response = await api.post("/alumni/reset-password", {
         student_id_number: trimmedStudentNumber,
         password,
         password_confirmation: passwordConfirmation,
       });
 
-      ThemedAlert.alert('Password Updated', response.data?.message || 'Your password has been updated successfully.');
+      ThemedAlert.alert(
+        "Password Updated",
+        response.data?.message ||
+          "Your password has been updated successfully.",
+      );
       navigation.goBack();
     } catch (error) {
       const serverData = error.response?.data;
-      let friendly = 'Failed to reset your password.';
+      let friendly = "Failed to reset your password.";
 
       if (serverData?.errors) {
         const firstKey = Object.keys(serverData.errors)[0];
@@ -63,14 +77,14 @@ const ResetPasswordScreen = ({ navigation, route }) => {
         friendly = error.message;
       }
 
-      ThemedAlert.alert('Reset Failed', friendly);
+      ThemedAlert.alert("Reset Failed", friendly);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* SECTION: Password reset form */}
       <View style={styles.page}>
         <BrandHeader />
@@ -126,7 +140,9 @@ const ResetPasswordScreen = ({ navigation, route }) => {
             onPress={handleResetPassword}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{loading ? 'Saving...' : 'Save New Password'}</Text>
+            <Text style={styles.buttonText}>
+              {loading ? "Saving..." : "Save New Password"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

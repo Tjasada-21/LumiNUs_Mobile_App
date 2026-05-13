@@ -8,19 +8,21 @@ export const diagnoseEnvironment = () => {
     timestamp: new Date().toISOString(),
     env: {
       SUPABASE_URL: {
-        from_process_env: process.env.EXPO_PUBLIC_SUPABASE_URL || 'undefined',
-        length: (process.env.EXPO_PUBLIC_SUPABASE_URL || '').length,
+        from_process_env: process.env.EXPO_PUBLIC_SUPABASE_URL || "undefined",
+        length: (process.env.EXPO_PUBLIC_SUPABASE_URL || "").length,
         present: Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL),
       },
       SUPABASE_ANON_KEY: {
-        from_process_env: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? `${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.substring(0, 20)}...` : 'undefined',
-        length: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').length,
+        from_process_env: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+          ? `${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.substring(0, 20)}...`
+          : "undefined",
+        length: (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "").length,
         present: Boolean(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
       },
     },
     hardcoded_fallback: {
-      url: 'https://pmnirrvwibzqjlutbnwz.supabase.co',
-      key_preview: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      url: "https://pmnirrvwibzqjlutbnwz.supabase.co",
+      key_preview: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     },
   };
 

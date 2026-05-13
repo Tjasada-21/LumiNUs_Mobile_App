@@ -1142,30 +1142,24 @@ const UserFeedScreen = ({ navigation }) => {
 		const segments = text.split(MENTION_PATTERN);
 
 		return (
-			<>
-				{segments.map((segment, index) => {
-					const isMention = MENTION_PATTERN.test(segment);
-					MENTION_PATTERN.lastIndex = 0;
+			segments.map((segment, index) => {
+				const isMention = MENTION_PATTERN.test(segment);
+				MENTION_PATTERN.lastIndex = 0;
 
-					if (!isMention) {
-						return (
-							<Text key={`segment-${index}`} style={captionStyle}>
-								{segment}
-							</Text>
-						);
-					}
+				if (!isMention) {
+					return segment;
+				}
 
-					return (
-						<Text
-							key={`mention-${index}-${segment}`}
-							style={[captionStyle, styles.captionMention]}
-							onPress={() => handleCaptionMentionPress(segment)}
-						>
-							{segment}
-						</Text>
-					);
-				})}
-			</>
+				return (
+					<Text
+						key={`mention-${index}-${segment}`}
+						style={[captionStyle, styles.captionMention]}
+						onPress={() => handleCaptionMentionPress(segment)}
+					>
+						{segment}
+					</Text>
+				);
+			})
 		);
 	};
 
@@ -2277,7 +2271,7 @@ const UserFeedScreen = ({ navigation }) => {
 								</View>
 						)}
 						</View>
-					)}
+					
 
 					<View style={styles.emptySpace} />
 				</ScrollView>

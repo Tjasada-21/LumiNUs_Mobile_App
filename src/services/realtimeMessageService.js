@@ -1,5 +1,4 @@
 import supabase from './supabase';
-import { getAuthToken } from './authStorage';
 import { decryptMessage } from '../utils/cryptoUtils';
 
 const toDecryptedRealtimeMessage = (message) => {

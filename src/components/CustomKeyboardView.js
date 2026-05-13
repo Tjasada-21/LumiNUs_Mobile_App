@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
 const CustomKeyboardView = ({
   children,
@@ -27,6 +27,11 @@ const CustomKeyboardView = ({
   }, []);
 
   const keyboardBehavior = keyboardVisible ? (isIOS ? 'padding' : 'height') : undefined;
+  const renderSafeNode = (node) => React.Children.map(node, (child) => (
+    typeof child === 'string' || typeof child === 'number'
+      ? <Text>{child}</Text>
+      : child
+  ));
 
   return (
     <KeyboardAvoidingView
@@ -37,9 +42,9 @@ const CustomKeyboardView = ({
     >
       <View style={styles.screen}>
         <View style={styles.contentContainer}>
-          <View style={styles.inner}>{children}</View>
+          <View style={styles.inner}>{renderSafeNode(children)}</View>
         </View>
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? <View style={styles.footer}>{renderSafeNode(footer)}</View> : null}
       </View>
     </KeyboardAvoidingView>
   );

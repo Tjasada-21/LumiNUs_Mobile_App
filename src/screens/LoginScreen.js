@@ -7,7 +7,6 @@ import SmartTextInput from '../components/SmartTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { signInUser, getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
-import { clearAuthCredentials } from '../services/authStorage';
 import supabase from '../services/supabase';
 import styles from '../styles/LoginScreen.styles';
 import { useUnreadMessages } from '../context/UnreadMessagesContext';
@@ -35,7 +34,7 @@ const LoginScreen = ({ navigation }) => {
             const accountStatus = Number(activeProfile.account_status);
 
             if (accountStatus === 2) {
-              await clearAuthCredentials();
+              await supabase.auth.signOut();
               ThemedAlert.alert(
                 'Account Disabled',
                 'You previously disabled this account. Please contact the Alumni Office to restore your access.'
@@ -44,7 +43,7 @@ const LoginScreen = ({ navigation }) => {
             }
 
             if (accountStatus === 3) {
-              await clearAuthCredentials();
+              await supabase.auth.signOut();
               ThemedAlert.alert(
                 'Account Suspended',
                 'This account has been banned for violating the terms of service. Access is permanently revoked.'
@@ -95,7 +94,7 @@ const LoginScreen = ({ navigation }) => {
         const accountStatus = Number(alumniProfile.account_status);
 
         if (accountStatus === 2) {
-          await clearAuthCredentials();
+          await supabase.auth.signOut();
           ThemedAlert.alert(
             'Account Disabled',
             'You previously disabled this account. Please contact the Alumni Office to restore your access.'
@@ -104,7 +103,7 @@ const LoginScreen = ({ navigation }) => {
         }
 
         if (accountStatus === 3) {
-          await clearAuthCredentials();
+          await supabase.auth.signOut();
           ThemedAlert.alert(
             'Account Suspended',
             'This account has been banned for violating the terms of service. Access is permanently revoked.'

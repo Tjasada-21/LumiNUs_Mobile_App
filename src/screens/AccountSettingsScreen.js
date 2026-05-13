@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAlumniByEmail, uploadAlumniPhoto, updateAlumniProfile, removeAlumniPhoto, getAlumniPhotoFromStorage } from '../services/alumniQueries';
 import supabase from '../services/supabase';
 import { getCurrentUser } from '../services/supabaseAuth';
-import { clearAuthCredentials } from '../services/authStorage';
 import { getAvatarUri } from '../utils/imageUtils';
 import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
@@ -333,7 +332,7 @@ const AccountSettingsScreen = ({ navigation }) => {
               setUserData(updated || userData);
               setCurrentUserProfile(null);
 
-              await clearAuthCredentials();
+              await supabase.auth.signOut();
 
               navigation.reset({
                 index: 0,

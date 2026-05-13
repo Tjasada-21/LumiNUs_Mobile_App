@@ -9,7 +9,6 @@ import BrandHeader from '../components/BrandHeader';
 import SmartTextInput from '../components/SmartTextInput';
 import styles from '../styles/NewMessageScreen.styles';
 import { getAvatarUri } from '../utils/imageUtils';
-// authStorage no longer used; Supabase auth is used
 
 const NewMessageScreen = ({ navigation }) => {
 	// SECTION: Layout values

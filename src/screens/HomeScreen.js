@@ -16,7 +16,6 @@ import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import BrandHeader from '../components/BrandHeader';
 import { responsiveHeight, responsiveWidth } from '../utils/responsive';
 import styles from '../styles/HomeScreen.styles';
-import { clearAuthCredentials } from '../services/authStorage';
 import { dismissNotification, getDismissedNotifications } from '../services/utilityQueries';
 import { registerForPushNotificationsAsync, saveTokenToSupabase } from '../services/notificationService';
 
@@ -504,7 +503,6 @@ const HomeScreen = ({ navigation }) => {
         // Silently handle sign out errors
       }
 
-      await clearAuthCredentials();
     } catch (err) {
       // Silently handle logout errors
     }

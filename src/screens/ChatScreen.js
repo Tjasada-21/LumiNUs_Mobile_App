@@ -24,7 +24,6 @@ import { useCurrentUserProfile } from '../context/CurrentUserProfileContext';
 import { useUnreadMessages } from '../context/UnreadMessagesContext';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/ChatScreen.styles';
-// authStorage no longer used; Supabase auth is used instead
 import { ThemedAlert } from '../components/ThemedAlert';
 
 const CONTACTS_CACHE_TTL_MS = 15000;

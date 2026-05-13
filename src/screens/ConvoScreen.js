@@ -998,7 +998,7 @@ export default function ConvoScreen() {
     const currentMessageDate = getMessageDate(item);
     const previousMessageDate = getMessageDate(messagesRef.current[index - 1]);
     const showMessageTime = !isSameMinute(currentMessageDate, previousMessageDate);
-    const messageTime = showMessageTime ? formatMessageTime(currentMessageDate) : '';
+    const messageTime = showMessageTime ? formatMessageTime(currentMessageDate) : null;
     const sendStatus = item?.localStatus ?? null;
 
     const decryptedItem = { ...item };

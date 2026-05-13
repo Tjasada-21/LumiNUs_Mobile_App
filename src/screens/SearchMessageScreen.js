@@ -7,7 +7,6 @@ import { getFollowing } from '../services/connectionQueries';
 import { searchAlumni, getAlumniByEmail } from '../services/alumniQueries';
 import BrandHeader from '../components/BrandHeader';
 import styles from '../styles/SearchMessageScreen.styles';
-import { getAuthToken } from '../services/authStorage';
 import { getAvatarUri } from '../utils/imageUtils';
 
 const SearchMessageScreen = ({ navigation }) => {

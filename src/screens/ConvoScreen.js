@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  NativeModules,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -55,6 +56,7 @@ import MessageBubble from "../components/MessageBubble";
 import MessageInputBar from "../components/MessageInputBar";
 import { useUnreadMessages } from "../context/UnreadMessagesContext";
 import { ThemedAlert } from "../components/ThemedAlert";
+import { sendPushNotification } from "../services/NotificationSender";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "👏"];
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -1241,6 +1243,98 @@ export default function ConvoScreen() {
     updateTypingStatus,
   ]);
 
+  const initiateCall = async (callType = "video") => {
+    // WebRTC P2P mesh for groups requires a slightly different architecture,
+    // so we lock this to Direct Messages for now.
+    if (isGroup) {
+      ThemedAlert.alert(
+        "Coming Soon",
+        "Group calls are currently in development.",
+      );
+      return;
+    }
+
+    if (!currentUserId || !contactId) return;
+
+    if (!NativeModules?.WebRTCModule) {
+      ThemedAlert.alert(
+        "Call Unavailable",
+        "WebRTC is not available in this build. Use a development client or a custom build with the WebRTC native module installed.",
+      );
+      return;
+    }
+
+    try {
+      // 1. Register the call in Supabase to trigger the recipient's "Ringing" push notification
+      const { data: callData, error } = await supabase
+        .from("calls")
+        .insert({
+          caller_id: currentUserId,
+          receiver_id: contactId,
+          status: "ringing",
+          type: callType,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      try {
+        const { data: receiverProfile, error: receiverError } = await supabase
+          .from("alumnis")
+          .select("push_token, first_name, last_name")
+          .eq("id", contactId)
+          .single();
+
+        if (!receiverError && receiverProfile?.push_token) {
+          const callLabel = callType === "video" ? "video" : "voice";
+          const callerLabel =
+            `${currentUserProfile?.first_name ?? "Someone"} ${currentUserProfile?.last_name ?? ""}`.trim();
+
+          await sendPushNotification(
+            [receiverProfile.push_token],
+            `${callerLabel || "Someone"} is calling you`,
+            `Incoming ${callLabel} call.`,
+            {
+              screen: "IncomingCallScreen",
+              type: "call",
+              callId: callData.id,
+              callerId: currentUserId,
+              callType,
+            },
+          );
+        }
+      } catch (pushError) {
+        console.warn("[Call] Failed to send incoming call push:", pushError);
+      }
+
+      // 2. Immediately launch the WebRTC engine as the Caller
+      // Use getParent() to navigate to the root-level CallScreen since this is nested in a tab navigator
+      const rootNav = navigation.getParent?.();
+      if (rootNav?.navigate) {
+        rootNav.navigate("CallScreen", {
+          callId: callData.id,
+          currentUserId: currentUserId,
+          isCaller: true,
+          type: callType,
+        });
+      } else {
+        navigation.navigate("CallScreen", {
+          callId: callData.id,
+          currentUserId: currentUserId,
+          isCaller: true,
+          type: callType,
+        });
+      }
+    } catch (error) {
+      console.error(`[Call] Failed to start ${callType} call:`, error);
+      ThemedAlert.alert(
+        "Call Failed",
+        "Unable to connect to the server right now.",
+      );
+    }
+  };
+
   const renderMessageItem = useCallback(
     ({ item, index }) => {
       const senderId =
@@ -1464,8 +1558,8 @@ export default function ConvoScreen() {
               avatarUri={getAvatarUri(conversationName, conversationAvatar)}
               onBackPress={() => navigation.goBack()}
               onProfilePress={() => {}}
-              onCallPress={() => {}}
-              onVideoPress={() => {}}
+              onCallPress={() => initiateCall("audio")}
+              onVideoPress={() => initiateCall("video")}
               onInfoPress={() => {
                 if (isGroup) {
                   navigation.navigate("ChatDetailsScreen", {

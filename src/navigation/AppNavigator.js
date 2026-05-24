@@ -1,5 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { NativeModules, Pressable, Text, View } from "react-native";
 import LoginScreen from "../screens/LoginScreen";
 import MainTabNavigator from "./MainTabNavigator";
 import AccountSettingsScreen from "../screens/AccountSettingsScreen";
@@ -20,6 +21,49 @@ import VerifyResetOtpScreen from "../screens/VerifyResetOtpScreen";
 import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 import DraftsScreen from "../screens/DraftScreen";
 import GlobalSearchScreen from "../screens/GlobalSearchScreen";
+import IncomingCallScreen from "../screens/IncomingCallScreen";
+
+const CallScreenEntry = (props) => {
+  if (!NativeModules?.WebRTCModule) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#111111",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 18,
+            fontWeight: "700",
+            textAlign: "center",
+            marginBottom: 12,
+          }}
+        >
+          Calls require a development build with WebRTC installed.
+        </Text>
+        <Pressable
+          onPress={() => props.navigation?.goBack?.()}
+          style={{
+            backgroundColor: "#31429B",
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const CallScreen = require("../screens/CallScreen").default;
+  return <CallScreen {...props} />;
+};
 
 const Stack = createNativeStackNavigator();
 
@@ -68,6 +112,16 @@ const AppNavigator = ({ initialRouteName = "Login" }) => {
         name="VerifyResetOtp"
         component={VerifyResetOtpScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="IncomingCallScreen"
+        component={IncomingCallScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
+      />
+      <Stack.Screen
+        name="CallScreen"
+        component={CallScreenEntry}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
       {/* We will add Register and Home screens here later! */}
     </Stack.Navigator>

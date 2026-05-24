@@ -183,7 +183,8 @@ const EventRegistrationScreen = () => {
       );
     } catch (error) {
       const message =
-        error.response?.data?.message ??
+        error.message ||
+        error.response?.data?.message ||
         "Unable to submit your registration right now.";
       ThemedAlert.alert("Registration failed", message, [{ text: "OK" }], {
         variant: "error",

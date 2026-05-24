@@ -17,15 +17,6 @@ LogBox.ignoreLogs([
   "setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.",
 ]);
 // Enable LayoutAnimation on Android (suppress warning for New Architecture)
-if (Platform.OS === "android") {
-  try {
-    if (UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  } catch (e) {
-    // Silently fail on New Architecture where this is not supported
-  }
-}
 
 const MessageInputBar = ({
   value = "",

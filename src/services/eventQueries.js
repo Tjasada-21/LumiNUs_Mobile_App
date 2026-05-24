@@ -298,36 +298,22 @@ export const getEventRegistrations = async (eventId) => {
  */
 export const registerForEvent = async (eventId, alumniId) => {
   try {
-    // Check if already registered
-    const { data: existingData, error: existingError } = await supabase
-      .from("event_registrations")
-      .select("id")
-      .eq("event_id", eventId)
-      .eq("alumni_id", alumniId)
-      .maybeSingle();
-
-    if (existingError) throw existingError;
-
-    if (existingData) {
-      return existingData;
-    }
-
-    const { data, error } = await supabase
-      .from("event_registrations")
-      .insert([
-        {
-          event_id: eventId,
-          alumni_id: alumniId,
-          rsvp_date: new Date().toISOString().slice(0, 10),
-          registration_confirmation: false,
-          status: 1,
-        },
-      ])
-      .select()
-      .single();
+    // Call our secure Postgres function
+    const { data, error } = await supabase.rpc("register_for_event", {
+      p_event_id: eventId,
+      p_alumni_id: alumniId,
+    });
 
     if (error) throw error;
-    return data;
+
+    // Check if the RPC successfully verified capacity and inserted
+    if (!data.success) {
+      throw new Error(
+        data.error || "Registration failed due to capacity or server error.",
+      );
+    }
+
+    return data.data;
   } catch (error) {
     console.error("[registrations] Register error:", error.message);
     throw error;

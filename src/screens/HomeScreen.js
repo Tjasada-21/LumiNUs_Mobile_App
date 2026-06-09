@@ -511,6 +511,17 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  // HANDLER: Open NU Lipa online application portal
+  const openMastersWebsite = async () => {
+    const url = "https://onlineapp.nu-lipa.edu.ph/portal/services.php";
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      console.error("Cannot open URL:", url);
+    }
+  };
+
   // HANDLER: Open the yearbook screen
   const openViewYearbook = () => {
     navigation.navigate("ViewYearbook");
@@ -648,14 +659,7 @@ const HomeScreen = ({ navigation }) => {
       icon: "book-outline",
       onPress: () => {
         closeMenu();
-        const parentNavigator = navigation.getParent?.();
-
-        if (parentNavigator?.navigate) {
-          parentNavigator.navigate("Explore", { screen: "Perks" });
-          return;
-        }
-
-        navigation.navigate("Explore", { screen: "Perks" });
+        void openMastersWebsite();
       },
     },
     {

@@ -31,6 +31,7 @@ export default function App() {
     'Poppins-SemiBold': Poppins_600SemiBold,
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [animationFinished, setAnimationFinished] = useState(false); // NEW State to hold the router back
   const [initialRouteName, setInitialRouteName] = useState('Login');
   const navigationRef = useRef(null);
 
@@ -96,7 +97,6 @@ export default function App() {
         return;
       }
 
-      // Prefer explicit screen payloads when available.
       if (data.screen) {
         if (data.targetScreen) {
           navigationRef.current.navigate(data.screen, {
@@ -112,7 +112,6 @@ export default function App() {
         return;
       }
 
-      // Fallback mappings for payloads that only include notification type.
       if (data.type === 'event') {
         navigationRef.current.navigate('Home', {
           screen: 'EventsScreen',
@@ -132,17 +131,19 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  // Show an in-app splash while fonts and auth bootstrap complete
-  if (!fontsLoaded || isCheckingAuth) {
+  // FIXED RULE: Show splash screen until fonts are ready, auth is checked, AND the full custom animation finishes playing
+  if (!fontsLoaded || isCheckingAuth || !animationFinished) {
     let animation = null;
     try {
-      // optional animation JSON; keep in assets/animations/LumiNUs_splash.json
       animation = require('./assets/animations/LumiNUs_splash.json');
-    } catch (e) {
-      // animation not present — fallback to image inside the component
-    }
+    } catch (e) {}
 
-    return <SplashScreenLottie animationSource={animation} />;
+    return (
+      <SplashScreenLottie 
+        animationSource={animation} 
+        onReady={() => setAnimationFinished(true)} // Handle closure signal safely
+      />
+    );
   }
 
   // Set a global default Text style so all screens use Poppins by default
@@ -169,6 +170,3 @@ export default function App() {
     </NotificationProvider>
   );
 }
-
-
-

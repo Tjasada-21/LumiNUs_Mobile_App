@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import BrandHeader from "../components/BrandHeader";
 import supabase from "../services/supabase";
 import styles from "../styles/ForgetPasswordScreen.styles";
 import SmartTextInput from "../components/SmartTextInput";
@@ -21,6 +21,15 @@ const ForgetPasswordScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width - 48, 360);
+  const contentReveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(contentReveal, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [contentReveal]);
 
   // HANDLER: Request a reset email via Supabase OTP
   const handleSendEmail = async () => {
@@ -73,9 +82,29 @@ const ForgetPasswordScreen = ({ navigation }) => {
         >
           {/* SECTION: Password reset form */}
           <View style={styles.page}>
-            <BrandHeader />
-
-            <View style={[styles.content, { width: contentWidth }]}>
+            <Animated.View
+              style={[
+                styles.content,
+                { width: contentWidth },
+                {
+                  opacity: contentReveal,
+                  transform: [
+                    {
+                      translateY: contentReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [16, 0],
+                      }),
+                    },
+                    {
+                      scale: contentReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.988, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <View style={styles.iconWrap}>
                 <View style={styles.lockTop} />
                 <View style={styles.lockBody}>
@@ -111,7 +140,7 @@ const ForgetPasswordScreen = ({ navigation }) => {
                   {loading ? "Sending..." : "Send Code"}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>

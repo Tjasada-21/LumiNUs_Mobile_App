@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ImageBackground,
   Image,
+  Animated,
 } from "react-native";
 import SmartTextInput from "../components/SmartTextInput";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +26,15 @@ const LoginScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const { refreshUnreadMessages } = useUnreadMessages();
+  const cardReveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(cardReveal, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    }).start();
+  }, [cardReveal]);
 
   // SECTION: Restore saved login
   useEffect(() => {
@@ -172,7 +182,28 @@ const LoginScreen = ({ navigation }) => {
       resizeMode="cover"
     >
       {/* SECTION: Login card */}
-      <View style={styles.cardContainer}>
+      <Animated.View
+        style={[
+          styles.cardContainer,
+          {
+            opacity: cardReveal,
+            transform: [
+              {
+                translateY: cardReveal.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [18, 0],
+                }),
+              },
+              {
+                scale: cardReveal.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.985, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         {/* SECTION: Logo */}
         <Image
           source={require("../../assets/images/lumi-n-us-logo-landscape-2.png")}
@@ -255,7 +286,7 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.buttonText}>Sign In</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </ImageBackground>
   );
 };

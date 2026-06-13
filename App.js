@@ -12,6 +12,7 @@ import {
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import ThemedAlertComponent from './src/components/ThemedAlert';
+import SplashScreenLottie from './src/screens/SplashScreenLottie';
 import { initializeAuthStateListener, getCurrentUser } from './src/services/supabaseAuth';
 import supabase, { isSupabaseReady } from './src/services/supabase';
 import { CurrentUserProfileProvider } from './src/context/CurrentUserProfileContext';
@@ -127,8 +128,17 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
+  // Show an in-app splash while fonts and auth bootstrap complete
   if (!fontsLoaded || isCheckingAuth) {
-    return null;
+    let animation = null;
+    try {
+      // optional animation JSON; keep in assets/animations/LumiNUs_splash.json
+      animation = require('./assets/animations/LumiNUs_splash.json');
+    } catch (e) {
+      // animation not present — fallback to image inside the component
+    }
+
+    return <SplashScreenLottie animationSource={animation} />;
   }
 
   // Set a global default Text style so all screens use Poppins by default

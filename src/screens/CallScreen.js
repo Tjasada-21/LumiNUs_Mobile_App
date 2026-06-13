@@ -115,9 +115,24 @@ const CallScreen = ({ route, navigation }) => {
     }
   };
 
-  const endCall = () => {
-    hangUp();
-    navigation.goBack();
+  const endCall = async () => {
+    try {
+      if (callId) {
+        await supabase
+          .from("calls")
+          .update({ status: "ended" })
+          .eq("id", callId);
+      }
+    } catch (err) {
+      console.warn("[Call] Failed to mark call ended:", err?.message || err);
+    } finally {
+      try {
+        hangUp();
+      } catch (e) {
+        // best-effort cleanup
+      }
+      navigation.goBack();
+    }
   };
 
   return (
@@ -128,6 +143,7 @@ const CallScreen = ({ route, navigation }) => {
           streamURL={remoteStream.toURL()}
           style={styles.remoteVideo}
           objectFit="cover"
+          pointerEvents="none"
         />
       ) : (
         <View style={styles.connectingWrap}>
@@ -142,12 +158,17 @@ const CallScreen = ({ route, navigation }) => {
           style={styles.localVideo}
           objectFit="cover"
           zOrder={1}
+          pointerEvents="none"
         />
       )}
 
       {/* Call Controls */}
-      <View style={styles.controlsRow}>
-        <TouchableOpacity style={styles.controlButton} onPress={toggleMute}>
+      <View style={styles.controlsRow} pointerEvents="box-none">
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={toggleMute}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Ionicons
             name={isMuted ? "mic-off" : "mic"}
             size={28}
@@ -158,6 +179,7 @@ const CallScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={[styles.controlButton, styles.endCallButton]}
           onPress={endCall}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           <Ionicons
             name="call"
@@ -194,6 +216,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 30,
+    zIndex: 20,
   },
   controlButton: {
     width: 60,
@@ -202,9 +225,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   endCallButton: {
     backgroundColor: "#EF4444",
+    elevation: 8,
   },
 });
 

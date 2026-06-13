@@ -19,6 +19,17 @@ export const createSharedScreenStyles = (screenWidth = 375) => ({
     justifyContent: "center",
     paddingHorizontal: responsiveSpacing(screenWidth, 24, 16, 32),
   },
+  surface: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E5EAFB",
+    shadowColor: "#1F2A64",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
   title: {
     fontSize: responsiveFontSize(screenWidth, 28, 22, 34),
     fontWeight: "700",

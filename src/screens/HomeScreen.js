@@ -16,7 +16,6 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { CommonActions } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -24,10 +23,9 @@ import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { getAllEvents } from "../services/eventQueries";
 import { getUserPosts } from "../services/postQueries";
-import { getAlumniProfile, getAlumniByEmail } from "../services/alumniQueries";
 import { getAvatarUri } from "../utils/imageUtils";
 import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
-import BrandHeader from "../components/BrandHeader";
+import HomeHeader from "../components/HomeHeader";
 import { responsiveHeight, responsiveWidth } from "../utils/responsive";
 import styles from "../styles/HomeScreen.styles";
 import {
@@ -137,16 +135,16 @@ const HomeScreen = ({ navigation }) => {
   const isCompactWidth = width < 375;
   const isTablet = width >= 768;
   const layout = {
-    headerLogoWidth: responsiveWidth(width, 0.28, 122, isTablet ? 176 : 146),
-    headerLogoHeight: responsiveHeight(height, 0.045, 30, 42),
     horizontalPadding: isTablet ? 28 : isCompactWidth ? 16 : 20,
     menuWidth: Math.min(width * 0.92, 340),
     notifWidth: Math.min(width * 0.88, 340),
-    promoCardWidth: responsiveWidth(width, 0.75, 240, isTablet ? 360 : 300),
-    promoCardHeight: responsiveHeight(height, 0.17, 118, 150),
-    quickLinkWidth: responsiveWidth(width, 0.42, 150, isTablet ? 230 : 192),
-    quickLinkIconSize: responsiveWidth(width, 0.09, 28, 42),
-    quickLinkIconNUSize: responsiveWidth(width, 0.07, 24, 34),
+    heroCardWidth: width - (isTablet ? 56 : isCompactWidth ? 24 : 32),
+    heroCardHeight: responsiveHeight(height, 0.23, 190, 240),
+    serviceIconSize: responsiveWidth(width, 0.11, 36, 46),
+    promoCardWidth: responsiveWidth(width, 0.56, 190, isTablet ? 280 : 220),
+    promoCardHeight: responsiveHeight(height, 0.25, 190, 230),
+    explorerCardWidth: width - (isTablet ? 90 : isCompactWidth ? 36 : 52),
+    explorerCardHeight: responsiveHeight(height, 0.46, 360, 490),
   };
 
   // SECTION: Screen state
@@ -511,6 +509,21 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const openPerksScreen = () => {
+    const parentNavigator = navigation.getParent?.();
+
+    if (parentNavigator?.navigate) {
+      parentNavigator.navigate("Explore", { screen: "Perks" });
+      return;
+    }
+
+    navigation.navigate("Explore", { screen: "Perks" });
+  };
+
+  const openTracerScreen = () => {
+    navigation.navigate("AlumniTracer");
+  };
+
   // HANDLER: Open NU Lipa online application portal
   const openMastersWebsite = async () => {
     const url = "https://onlineapp.nu-lipa.edu.ph/portal/services.php";
@@ -671,6 +684,45 @@ const HomeScreen = ({ navigation }) => {
         closeMenu();
         navigation.navigate("Explore");
       },
+    },
+  ];
+
+  const serviceItems = [
+    {
+      key: "view-all",
+      label: "View All",
+      icon: require("../../assets/images/nulogo.png"),
+      onPress: () => navigation.navigate("Explore"),
+    },
+    {
+      key: "events",
+      label: "Events",
+      icon: require("../../assets/images/view-events-icon.png"),
+      onPress: openEventsScreen,
+    },
+    {
+      key: "perks",
+      label: "Perks",
+      icon: require("../../assets/images/view-perks-icon-in-blue-1.png"),
+      onPress: openPerksScreen,
+    },
+    {
+      key: "yearbook",
+      label: "Yearbook",
+      icon: require("../../assets/images/view-yearbook-icon.png"),
+      onPress: openViewYearbook,
+    },
+    {
+      key: "website",
+      label: "NU Website",
+      icon: require("../../assets/images/nulogo.png"),
+      onPress: openNUWebsite,
+    },
+    {
+      key: "nuquest",
+      label: "NUQuest",
+      icon: require("../../assets/images/trace-icon-in-blue.png"),
+      onPress: openTracerScreen,
     },
   ];
 
@@ -957,9 +1009,9 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeAreaTop} edges={["top"]}>
+    <View style={styles.safeAreaTop}>
       <View style={styles.container}>
-        <BrandHeader />
+        <HomeHeader />
         <ScrollView
           ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
@@ -973,9 +1025,8 @@ const HomeScreen = ({ navigation }) => {
             />
           }
         >
-          {/* SECTION: User profile and ID card */}
-          <View style={styles.profileCardWrapper}>
-            <View style={styles.profileSection}>
+          <View style={styles.homeContentShell}>
+            <View style={styles.greetingRow}>
               <View style={styles.profileInfo}>
                 <TouchableOpacity
                   style={styles.avatarRingTouchable}
@@ -993,23 +1044,15 @@ const HomeScreen = ({ navigation }) => {
                     style={styles.avatar}
                   />
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={openMenu}
                   style={styles.profileTextWrap}
                 >
-                  <View style={styles.nameRow}>
-                    <Text style={styles.greeting}>
-                      Hi,{" "}
-                      {activeUserData
-                        ? `${activeUserData.first_name}`
-                        : "Loading..."}
-                      !
-                    </Text>
-                  </View>
-                  <Text style={styles.studentId}>
-                    Student{" "}
-                    {activeUserData ? activeUserData.student_id_number : "..."}
+                  <Text style={styles.greetingIntro}>Good Day!</Text>
+                  <Text style={styles.greetingName} numberOfLines={1}>
+                    {activeUserData ? `${activeUserData.first_name} ${activeUserData.last_name}` : "Juan Miguel Dela Cruz"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1017,9 +1060,10 @@ const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.bellIcon}
                 onPress={openNotifications}
+                activeOpacity={0.85}
               >
                 <View style={styles.bellIconInner}>
-                  <Ionicons name="notifications" size={24} color="#00205B" />
+                  <Ionicons name="notifications-outline" size={26} color="#31429B" />
                   {notificationCount > 0 ? (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
@@ -1033,7 +1077,15 @@ const HomeScreen = ({ navigation }) => {
 
             <View style={styles.idSection}>
               <Pressable onPress={toggleIdCard}>
-                <View style={styles.idCardPerspective}>
+                <View
+                  style={[
+                    styles.idCardPerspective,
+                    {
+                      width: layout.heroCardWidth,
+                      minHeight: layout.heroCardHeight,
+                    },
+                  ]}
+                >
                   <Animated.View
                     style={[
                       styles.idCardFace,
@@ -1103,22 +1155,48 @@ const HomeScreen = ({ navigation }) => {
                 </View>
               </Pressable>
             </View>
+
+            <View style={styles.servicesSection}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeaderTitle}>Services</Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("Explore")}
+                  activeOpacity={0.8}
+                  style={styles.sectionHeaderAction}
+                >
+                  <Text style={styles.sectionHeaderActionText}>View All</Text>
+                  <Ionicons name="arrow-forward" size={17} color="#31429B" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.servicesGrid}>
+                {serviceItems.map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={styles.serviceTile}
+                    activeOpacity={0.86}
+                    onPress={item.onPress}
+                  >
+                    <View style={styles.serviceIconCircle} />
+                    <Text style={styles.serviceLabel} numberOfLines={2}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
 
-          {/* SECTION: What's New */}
-          <View
-            style={[
-              styles.sectionContainer,
-              styles.sectionInset,
-              styles.sectionNudgeRight,
-            ]}
-          >
-            <Text style={styles.sectionTitle}>What's New</Text>
+          <View style={styles.newsSection}>
+            <View style={styles.newsCurve} />
+            <Text style={styles.newsTitle}>
+              WHAT'S <Text style={styles.newsTitleEmphasis}>NEW?</Text>
+            </Text>
+
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={styles.horizontalScroll}
-              contentContainerStyle={styles.horizontalScrollContent}
+              contentContainerStyle={styles.featuredScrollContent}
             >
               {isLoadingFeaturedEvents ? (
                 <View
@@ -1130,7 +1208,7 @@ const HomeScreen = ({ navigation }) => {
                     },
                   ]}
                 >
-                  <ActivityIndicator size="small" color="#31429B" />
+                  <ActivityIndicator size="small" color="#F2C919" />
                   <Text style={styles.promoLoadingText}>Loading events...</Text>
                 </View>
               ) : visibleFeaturedEvents.length > 0 ? (
@@ -1152,78 +1230,52 @@ const HomeScreen = ({ navigation }) => {
                 </View>
               )}
             </ScrollView>
-          </View>
 
-          {/* SECTION: Quick Links */}
-          <View
-            style={[
-              styles.sectionContainer,
-              styles.sectionInset,
-              styles.sectionNudgeRight,
-              styles.quickLinksSection,
-              { marginBottom: layout.quickLinksOverlap },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>Quick Links</Text>
+            <View style={styles.explorerSection}>
+              <View style={styles.explorerOrbLarge} />
+              <View style={styles.explorerOrbSmallLeft} />
+              <View style={styles.explorerOrbSmallRight} />
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickLinksScrollContent}
-            >
-              <TouchableOpacity
-                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
-                onPress={openViewYearbook}
-              >
-                <Image
-                  source={require("../../assets/images/view-yearbook-icon.png")}
-                  style={[
-                    styles.quickLinkIcon,
+              <Text style={styles.explorerTitle}>Alumni</Text>
+              <Text style={styles.explorerTitle}>Explorer</Text>
+              <Text style={styles.explorerSubtitle}>Digital Alumni Tracer</Text>
+
+              <View style={styles.explorerStage}>
+                <View style={styles.explorerGhostCardLeft} />
+                <View style={styles.explorerGhostCardRight} />
+
+                <Pressable
+                  onPress={openTracerScreen}
+                  style={({ pressed }) => [
+                    styles.explorerCard,
                     {
-                      width: layout.quickLinkIconSize,
-                      height: layout.quickLinkIconSize,
+                      width: layout.explorerCardWidth,
+                      minHeight: layout.explorerCardHeight,
                     },
+                    pressed ? styles.explorerCardPressed : null,
                   ]}
-                />
-                <Text style={styles.quickLinkText}>View My{"\n"}Yearbook</Text>
-              </TouchableOpacity>
+                >
+                  <View style={styles.explorerPhotoRing}>
+                    <Image
+                      source={require("../../assets/images/LumiNUs_Load.jpg")}
+                      style={styles.explorerPhoto}
+                      resizeMode="cover"
+                    />
+                  </View>
 
-              <TouchableOpacity
-                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
-                onPress={openEventsScreen}
-              >
-                <Image
-                  source={require("../../assets/images/view-events-icon.png")}
-                  style={[
-                    styles.quickLinkIcon,
-                    {
-                      width: layout.quickLinkIconSize,
-                      height: layout.quickLinkIconSize,
-                    },
-                  ]}
-                />
-                <Text style={styles.quickLinkText}>View{"\n"}Events</Text>
-              </TouchableOpacity>
+                  <Text style={styles.explorerCardTitle}>Career Navigator</Text>
+                  <Text style={styles.explorerCardDescription}>
+                    Details regarding your job alignment, salary range, and position details.
+                  </Text>
 
-              <TouchableOpacity
-                style={[styles.quickLinkBox, { width: layout.quickLinkWidth }]}
-                onPress={openNUWebsite}
-              >
-                <Image
-                  source={require("../../assets/images/nulogo.png")}
-                  style={[
-                    styles.quickLinkIconNU,
-                    {
-                      width: layout.quickLinkIconNUSize,
-                      height: layout.quickLinkIconNUSize,
-                    },
-                  ]}
-                />
-                <Text style={styles.quickLinkText}>
-                  National-U{"\n"}Website
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+                  <View style={styles.explorerArrowButton}>
+                    <Ionicons name="arrow-forward" size={34} color="#F2C919" />
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
 
@@ -1290,12 +1342,11 @@ const HomeScreen = ({ navigation }) => {
           visible={isNotifVisible}
           onRequestClose={closeNotifications}
         >
-          <SafeAreaView
+          <View
             style={[
               styles.modalOverlay,
               { alignItems: "flex-end", justifyContent: "flex-start" },
             ]}
-            edges={["top", "bottom"]}
           >
             <Animated.View
               style={[
@@ -1336,10 +1387,10 @@ const HomeScreen = ({ navigation }) => {
                 renderItem={renderNotificationItem}
               />
             </Animated.View>
-          </SafeAreaView>
+          </View>
         </Modal>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

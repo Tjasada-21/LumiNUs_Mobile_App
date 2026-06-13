@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   },
   bubbleWrapper: {
     position: "relative",
-    maxWidth: "75%",
+    maxWidth: "78%",
     flexShrink: 1,
   },
   bubbleWrapperOutgoing: {
@@ -376,27 +376,35 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   bubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 22,
     flexShrink: 1,
     maxWidth: "100%",
+    borderWidth: 1,
+    shadowColor: "#1F2937",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   bubbleOutgoing: {
-    backgroundColor: "#3797F0",
+    backgroundColor: "#31429B",
     alignSelf: "flex-end",
     marginRight: 4,
+    borderColor: "#31429B",
   },
   bubbleIncoming: {
-    backgroundColor: "#EFEFEF",
+    backgroundColor: "#F9FAFB",
     alignSelf: "flex-start",
+    borderColor: "#DCE2F3",
   },
   bubbleWithReaction: {
     marginBottom: 8,
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 22,
     flexShrink: 1,
     flexWrap: "wrap",
   },
@@ -437,7 +445,7 @@ const styles = StyleSheet.create({
     bottom: -6,
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
@@ -461,7 +469,7 @@ const styles = StyleSheet.create({
   messageMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 6,
     gap: 8,
   },
   messageMetaRowOutgoing: {

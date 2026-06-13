@@ -103,11 +103,12 @@ const MainTabNavigator = () => {
           return (
             <View style={styles.iconContainer}>
               <Ionicons name={iconName} size={iconSize} color={color} />
+              {focused ? <View style={styles.activeIndicator} /> : null}
               {showUnreadBadge ? <View style={styles.unreadBadge} /> : null}
             </View>
           );
         },
-        tabBarActiveTintColor: "#31429B",
+        tabBarActiveTintColor: "#F2C919",
         tabBarInactiveTintColor: "#8E8E93",
         tabBarShowLabel: false,
         headerShown: false,
@@ -197,6 +198,13 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
+  },
+  activeIndicator: {
+    width: 16,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: "#F2C919",
+    marginTop: 4,
   },
   unreadBadge: {
     position: "absolute",

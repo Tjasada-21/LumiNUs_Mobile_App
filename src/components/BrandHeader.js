@@ -143,6 +143,13 @@ const BrandHeader = () => {
 const styles = StyleSheet.create({
   brandHeader: {
     backgroundColor: "#31429B",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.12)",
+    shadowColor: "#1F2A64",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   brandRow: {
     paddingHorizontal: 16,
@@ -193,14 +200,19 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 420,
     backgroundColor: "#F9FAFB",
-    borderRadius: 24,
-    padding: 16,
+    borderRadius: 28,
+    padding: 18,
     alignItems: "center",
+    shadowColor: "#1F2A64",
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
   modalImage: {
     width: "100%",
     height: 340,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: "#F3F4F6",
   },
   modalCloseButton: {
@@ -209,6 +221,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
+    shadowColor: "#1F2A64",
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   modalCloseText: {
     color: "#F9FAFB",

@@ -2,7 +2,7 @@
 import 'react-native-url-polyfill/auto';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TextInput } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { useFonts } from 'expo-font';
@@ -25,6 +25,10 @@ export default function App() {
     Poppins_400Regular,
     Poppins_600SemiBold,
     Poppins_700Bold,
+    Poppins: Poppins_400Regular,
+    'Poppins-Regular': Poppins_400Regular,
+    'Poppins-Bold': Poppins_700Bold,
+    'Poppins-SemiBold': Poppins_600SemiBold,
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [initialRouteName, setInitialRouteName] = useState('Login');
@@ -145,6 +149,11 @@ export default function App() {
   if (Text) {
     Text.defaultProps = Text.defaultProps || {};
     Text.defaultProps.style = { ...(Text.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
+  }
+
+  if (TextInput) {
+    TextInput.defaultProps = TextInput.defaultProps || {};
+    TextInput.defaultProps.style = { ...(TextInput.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
   }
 
   return (

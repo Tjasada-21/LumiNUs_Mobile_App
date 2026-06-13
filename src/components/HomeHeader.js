@@ -1,41 +1,26 @@
 import React from "react";
-import { Image, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Image, StyleSheet, View, useWindowDimensions, Platform } from "react-native";
 import { responsiveHeight, responsiveWidth } from "../utils/responsive";
 
 const HomeHeader = () => {
   const { width, height } = useWindowDimensions();
-  const isCompactWidth = width < 375;
   const isTablet = width >= 768;
 
   const layout = {
-    containerHorizontalMargin: 0,
-    containerTopMargin: 0,
-    leftLogoWidth: responsiveWidth(width, 0.22, 74, isTablet ? 108 : 90),
-    leftLogoHeight: responsiveHeight(height, 0.04, 22, 32),
-    rightLogoWidth: responsiveWidth(width, 0.38, 132, isTablet ? 200 : 166),
-    rightLogoHeight: responsiveHeight(height, 0.042, 24, 36),
-    cardMinHeight: responsiveHeight(height, 0.088, 76, 92),
+    leftLogoWidth: responsiveWidth(width, 0.3, 120, isTablet ? 160 : 140),
+    leftLogoHeight: responsiveHeight(height, 0.06, 40, 50),
+    rightLogoWidth: responsiveWidth(width, 0.38, 140, isTablet ? 200 : 166),
+    rightLogoHeight: responsiveHeight(height, 0.042, 30, 36),
+    cardMinHeight: responsiveHeight(height, 0.088, 80, 92),
   };
 
   return (
-    <View
-      style={[
-        styles.shell,
-        {
-          marginHorizontal: layout.containerHorizontalMargin,
-          marginTop: layout.containerTopMargin,
-          minHeight: layout.cardMinHeight,
-        },
-      ]}
-    >
+    <View style={[styles.shell, { minHeight: layout.cardMinHeight }]}>
       <Image
         source={require("../../assets/images/NU Lipa AAO Logo.png")}
         style={[
           styles.leftLogo,
-          {
-            width: layout.leftLogoWidth,
-            height: layout.leftLogoHeight,
-          },
+          { width: layout.leftLogoWidth, height: layout.leftLogoHeight },
         ]}
         resizeMode="contain"
       />
@@ -43,10 +28,7 @@ const HomeHeader = () => {
         source={require("../../assets/images/LumiNUs Logo.png")}
         style={[
           styles.rightLogo,
-          {
-            width: layout.rightLogoWidth,
-            height: layout.rightLogoHeight,
-          },
+          { width: layout.rightLogoWidth, height: layout.rightLogoHeight },
         ]}
         resizeMode="contain"
       />
@@ -60,16 +42,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 0,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 7,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    zIndex: 10,
   },
   leftLogo: {
     maxWidth: 112,

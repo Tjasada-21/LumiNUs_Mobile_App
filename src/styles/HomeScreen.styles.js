@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     color: "#31429B",
     fontSize: 20,
-    fontWeight: "900",
+    fontWeight: "1000",
     fontFamily: "Poppins_700Bold",
   },
   sectionHeaderAction: {

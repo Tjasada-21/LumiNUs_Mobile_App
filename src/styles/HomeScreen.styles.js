@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     color: "#262C3F",
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: "900",
+    fontWeight: "1000",
     marginTop: 2,
     maxWidth: 240,
     fontFamily: "Poppins_700Bold",
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   },
   idName: {
     color: "#FFFFFF",
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "900",
     lineHeight: 20,
     marginTop: "20%",

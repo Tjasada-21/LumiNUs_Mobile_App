@@ -369,7 +369,7 @@ const HomeScreen = ({ navigation }) => {
                 <TouchableOpacity activeOpacity={0.8} onPress={openMenu} style={styles.profileTextWrap}>
                   <Text style={styles.greetingIntro}>Good Day!</Text>
                   <Text style={styles.greetingName} numberOfLines={1}>
-                    {activeUserData ? `${activeUserData.first_name} ${activeUserData.last_name}` : "Alumni"}
+                    {activeUserData ? `${activeUserData.first_name}` : "Alumni"}
                   </Text>
                 </TouchableOpacity>
               </View>

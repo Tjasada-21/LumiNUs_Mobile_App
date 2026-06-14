@@ -123,8 +123,9 @@ const AppNavigator = ({ initialRouteName = "Login" }) => {
         component={CallScreenEntry}
         options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
-      {/* We will add Register and Home screens here later! */}
+      <Stack.Screen name="NotificationsScreen" component={require('../screens/NotificationsScreen').default} />
     </Stack.Navigator>
+    
   );
 };
 

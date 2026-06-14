@@ -83,8 +83,6 @@ const HomeScreen = ({ navigation }) => {
     heroCardWidth: width - (isTablet ? 64 : isCompactWidth ? 32 : 40),
     promoCardWidth: responsiveWidth(width, 0.6, 220, isTablet ? 300 : 250),
     promoCardHeight: responsiveHeight(height, 0.28, 220, 260),
-    explorerCardWidth: width - (isTablet ? 120 : isCompactWidth ? 48 : 64),
-    explorerCardHeight: responsiveHeight(height, 0.5, 380, 500),
   };
 
   const [userData, setUserData] = useState(null);
@@ -99,21 +97,22 @@ const HomeScreen = ({ navigation }) => {
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const menuTranslateX = useRef(new Animated.Value(-Math.min(width * 0.92, 360))).current;
-  const [isNotifVisible, setIsNotifVisible] = useState(false);
-  const notifTranslateX = useRef(new Animated.Value(width)).current;
-
+  
   const curveSize = width * 2.5;
 
   const openNotifications = () => {
-    setIsNotifVisible(true);
-    requestAnimationFrame(() => {
-      Animated.timing(notifTranslateX, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-    });
+    navigation.navigate("NotificationsScreen");
   };
 
-  const closeNotifications = () => {
-    Animated.timing(notifTranslateX, { toValue: width, duration: 200, useNativeDriver: true })
-      .start(() => setIsNotifVisible(false));
+  const closeMenu = () => {
+    Animated.timing(menuTranslateX, { toValue: -layout.menuWidth, duration: 200, useNativeDriver: true })
+      .start(() => setIsMenuVisible(false));
+  };
+  const openMenu = () => {
+    setIsMenuVisible(true);
+    requestAnimationFrame(() => {
+      Animated.timing(menuTranslateX, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+    });
   };
 
   const fetchNotifications = useCallback(async () => {
@@ -136,11 +135,6 @@ const HomeScreen = ({ navigation }) => {
         postIds.length > 0 ? supabase.from("reposts").select(`id, post_id, caption, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
         supabase.from("announcements").select(`id, title, announcement_description, date_posted, admin:admin_id(id, admin_first_name, admin_last_name, photo)`).order("date_posted", { ascending: false }).limit(20),
       ]);
-
-      if (commentsResult.error) throw commentsResult.error;
-      if (reactionsResult.error) throw reactionsResult.error;
-      if (repostsResult.error) throw repostsResult.error;
-      if (announcementsResult.error) throw announcementsResult.error;
 
       const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
       const notificationsFeed = [];
@@ -183,6 +177,8 @@ const HomeScreen = ({ navigation }) => {
       });
 
       setNotifications(deduplicatedNotifications);
+    } catch(err) {
+      console.warn("Error fetching notifs: ", err);
     } finally {
       setIsLoadingNotifications(false);
     }
@@ -210,18 +206,6 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [fetchFeaturedEvents, fetchNotifications]);
 
-  const openMenu = () => {
-    setIsMenuVisible(true);
-    requestAnimationFrame(() => {
-      Animated.timing(menuTranslateX, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-    });
-  };
-
-  const closeMenu = () => {
-    Animated.timing(menuTranslateX, { toValue: -layout.menuWidth, duration: 200, useNativeDriver: true })
-      .start(() => setIsMenuVisible(false));
-  };
-
   useFocusEffect(
     useCallback(() => {
       scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
@@ -243,11 +227,11 @@ const HomeScreen = ({ navigation }) => {
 
       fetchUserData();
       fetchFeaturedEvents();
+      fetchNotifications();
       return () => { isActive = false; };
-    }, [fetchFeaturedEvents])
+    }, [fetchFeaturedEvents, fetchNotifications])
   );
 
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
   useEffect(() => {
     const setupNotifications = async () => {
       const token = await registerForPushNotificationsAsync();
@@ -337,8 +321,9 @@ const HomeScreen = ({ navigation }) => {
   const frontRotateY = flipAnimation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
   const backRotateY = flipAnimation.interpolate({ inputRange: [0, 1], outputRange: ["180deg", "360deg"] });
   const graduationYear = userData?.year_graduated ? String(userData.year_graduated).slice(0, 4) : "LOADING...";
-  const notifData = Array.isArray(notifications) ? notifications : [];
-  const notificationCount = notifData.length;
+  
+  const notificationCount = Array.isArray(notifications) ? notifications.length : 0;
+  
   const visibleFeaturedEvents = Array.isArray(featuredEvents) ? featuredEvents.filter((event) => {
     if (event?.end_date) { const endDate = new Date(event.end_date); if (!Number.isNaN(endDate.getTime()) && endDate < new Date()) return false; }
     else if (event?.start_date) { const startDate = new Date(event.start_date); if (!Number.isNaN(startDate.getTime()) && startDate < new Date()) return false; }
@@ -353,70 +338,12 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate("ViewEventsScreen", { event: eventPayload });
   };
 
-  const formatNotificationTime = (value) => {
-    if (!value) return "";
-    const parsedDate = new Date(value);
-    if (Number.isNaN(parsedDate.getTime())) return "";
-    const elapsedMinutes = Math.max(1, Math.floor((Date.now() - parsedDate.getTime()) / (1000 * 60)));
-    if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
-    const elapsedHours = Math.floor(elapsedMinutes / 60);
-    if (elapsedHours < 24) return `${elapsedHours}h ago`;
-    const elapsedDays = Math.floor(elapsedHours / 24);
-    if (elapsedDays < 30) return `${elapsedDays}d ago`;
-    const elapsedMonths = Math.floor(elapsedDays / 30);
-    if (elapsedMonths < 12) return `${elapsedMonths}mo ago`;
-    return `${Math.floor(elapsedDays / 365)}y ago`;
-  };
-
-  const removeNotification = useCallback(async (notificationKey) => {
-    const currentProfile = currentUserProfile ?? userData ?? (await getCurrentUser().catch(() => null));
-    const currentUserId = currentProfile?.id ?? null;
-    if (currentUserId && notificationKey) {
-      await dismissNotification(currentUserId, notificationKey).catch((err) => console.error(err));
-    }
-    setNotifications((curr) => curr.filter((item) => item?.id !== notificationKey));
-  }, [currentUserProfile, userData]);
-
-  const renderEmptyNotifications = () => (
-    <View style={styles.emptyNotifWrap}>
-      <Text style={styles.emptyNotifText}>No notifications yet.</Text>
-    </View>
-  );
-
   const renderFeaturedEventCard = (event) => {
     const imageSource = event?.cover_image_url ? { uri: event.cover_image_url } : require("../../assets/icons/Group.png");
     return (
       <Pressable key={`featured-event-${event?.id ?? event?.title}`} style={({ pressed }) => [ styles.featuredEventCard, { width: layout.promoCardWidth }, pressed && styles.featuredEventCardPressed ]} onPress={() => openEventDetails(event)}>
         <Image source={imageSource} style={styles.featuredEventImage} resizeMode={event?.cover_image_url ? "cover" : "contain"} />
       </Pressable>
-    );
-  };
-
-  const renderNotificationItem = ({ item }) => {
-    const isAnnouncement = item?.type === "announcement";
-    const name = isAnnouncement ? "NU LIPA ALUMNI" : `${item?.actor?.first_name ?? ""} ${item?.actor?.last_name ?? ""}`.trim();
-    const time = formatNotificationTime(item?.created_at);
-    const avatarUri = isAnnouncement ? null : getAvatarUri(name, item?.actor?.alumni_photo);
-    const actionText = isAnnouncement ? "posted an announcement." : item?.type === "comment" ? "commented on your post." : item?.type === "reaction" ? `${String(item?.reaction ?? "liked").toLowerCase()} your post.` : "reposted your post.";
-    
-    return (
-      <NotificationRow onRemove={() => removeNotification(item?.id)}>
-        {(handleAnimatedRemove) => (
-          <View style={styles.notifCard}>
-            {isAnnouncement ? ( <Image source={require("../../assets/images/nu-lipa-logo-portrait-white-version-21.png")} style={styles.notifAvatar} resizeMode="contain" /> ) : ( <Image source={{ uri: avatarUri }} style={styles.notifAvatar} /> )}
-            <View style={styles.notifBody}>
-              <View style={styles.notifTopRow}>
-                <Text style={styles.notifName}>{name}</Text>
-              </View>
-              <Text style={styles.notifAction}>{actionText}</Text>
-              {!!time && <Text style={styles.notifTime}>{time}</Text>}
-            </View>
-            <TouchableOpacity style={styles.notifDeleteButton} activeOpacity={0.75} onPress={handleAnimatedRemove}>
-              <Ionicons name="close" size={16} color="#B91C1C" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </NotificationRow>
     );
   };
 
@@ -460,7 +387,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.idSection}>
-              <Pressable onPress={toggleIdCard} style={{ width: layout.heroCardWidth }}>
+              <Pressable onPress={toggleIdCard}>
                 <View style={styles.idCardPerspective}>
                   <Animated.View style={[styles.idCardFace, styles.idCardFrontFace, { transform: [{ perspective: 1000 }, { rotateY: frontRotateY }] }]}>
                     <ImageBackground source={require("../../assets/images/BlankID_Front 1.png")} style={styles.idBackground} imageStyle={styles.idBackgroundImage} resizeMode="contain">
@@ -477,6 +404,11 @@ const HomeScreen = ({ navigation }) => {
                   </Animated.View>
                 </View>
               </Pressable>
+
+              <View style={styles.accountIdRow}>
+                <Text style={styles.accountIdLabel}>Account ID: </Text>
+                <Text style={styles.accountIdValue}>LIPA2026123456</Text>
+              </View>
             </View>
 
             <View style={styles.servicesSection}>
@@ -501,7 +433,6 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* THE MAGIC JEDI CURVE */}
           <View style={styles.curveContainer}>
             <View
               style={[
@@ -518,7 +449,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.newsSection}>
             <Text style={styles.newsTitle}>WHAT'S <Text style={styles.newsTitleEmphasis}>NEW?</Text></Text>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredScrollContent}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ zIndex: 10 }} contentContainerStyle={styles.featuredScrollContent}>
               {isLoadingFeaturedEvents ? (
                 <View style={[styles.promoLoadingCard, { width: layout.promoCardWidth, height: layout.promoCardHeight }]}>
                   <ActivityIndicator size="small" color="#F2C919" />
@@ -534,52 +465,27 @@ const HomeScreen = ({ navigation }) => {
               )}
             </ScrollView>
 
+            {/* UPGRADED EXPLORER SECTION WITH POSTER IMAGE */}
             <View style={styles.explorerSection}>
-              {/* Background Dashed Rings */}
-              <View style={styles.dashedRing1} />
-              <View style={styles.dashedRing2} />
-              <View style={styles.dashedRing3} />
-
-              {/* Decorative Orbs/Dots */}
-              <View style={[styles.orb, styles.orbGreenTop]} />
-              <View style={[styles.orb, styles.orbGreyTopLeft]} />
-              <View style={[styles.orb, styles.orbGreyTopRight]} />
-              <View style={[styles.orb, styles.orbYellowLeft]} />
-              <View style={[styles.orb, styles.orbGreenRight]} />
-              <View style={[styles.orb, styles.orbYellowRight]} />
-              <View style={[styles.orb, styles.orbGreyBottomLeft]} />
-
-              <Text style={styles.explorerTitle}>Alumni{"\n"}Explorer</Text>
-              <Text style={styles.explorerSubtitle}>Digital Alumni Tracer</Text>
-
-              <View style={styles.explorerStage}>
-                {/* Background Ghost Cards with Outer Circles */}
-                <View style={styles.explorerGhostCardLeft}>
-                  <View style={styles.ghostOuterCircleLeft} />
-                </View>
-                <View style={styles.explorerGhostCardRight}>
-                  <View style={styles.ghostOuterCircleRight} />
-                </View>
-
-                {/* Main Interactive Card */}
-                <Pressable onPress={openTracerScreen} style={({ pressed }) => [ styles.explorerCard, { width: layout.explorerCardWidth, minHeight: layout.explorerCardHeight }, pressed && styles.explorerCardPressed ]}>
-                  <View style={styles.explorerPhotoRing}>
-                    <Image source={require("../../assets/images/LumiNUs_Load.jpg")} style={styles.explorerPhoto} resizeMode="cover" />
-                  </View>
-                  
-                  <Text style={styles.explorerCardTitle}>Career{"\n"}Navigator</Text>
-                  <Text style={styles.explorerCardDescription}>Details regarding your job alignment,{"\n"}salary range, and position details.</Text>
-                  
-                  {/* Overlapping Bottom Button */}
-                  <View style={styles.explorerArrowButton}>
-                    <Ionicons name="arrow-forward" size={36} color="#FFFFFF" />
-                  </View>
-                </Pressable>
-              </View>
+              <Image 
+                source={require("../../assets/images/TracerPoster.png")} 
+                style={styles.tracerPosterImage} 
+                resizeMode="cover" 
+              />
+              <TouchableOpacity 
+                style={styles.exploreButton} 
+                activeOpacity={0.9} 
+                onPress={openTracerScreen}
+              >
+                <Text style={styles.exploreButtonText}>Explore</Text>
+                <Ionicons name="rocket-outline" size={24} color="#1A237E" />
+              </TouchableOpacity>
             </View>
+
           </View>
         </ScrollView>
 
+        {/* SIDE MENU MODAL ONLY */}
         <Modal transparent visible={isMenuVisible} animationType="none" onRequestClose={closeMenu}>
           <View style={styles.sideMenuRoot}>
             <Pressable style={styles.sideMenuOverlay} onPress={closeMenu} />
@@ -605,21 +511,6 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={styles.signOutButtonText}>Sign Out</Text>
                 </TouchableOpacity>
               </View>
-            </Animated.View>
-          </View>
-        </Modal>
-
-        <Modal animationType="none" transparent visible={isNotifVisible} onRequestClose={closeNotifications}>
-          <View style={styles.modalOverlay}>
-            <Animated.View style={[styles.modalSideContainer, { width: layout.notifWidth, transform: [{ translateX: notifTranslateX }] }]}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={closeNotifications} style={styles.closeBtn}><Ionicons name="close" size={28} color="#F2C919" /></TouchableOpacity>
-                <Text style={styles.modalTitle}>Notifications</Text>
-                <View style={styles.modalHeaderSpacer} />
-              </View>
-              <View style={styles.modalAccentLine} />
-              {isLoadingNotifications && <View style={styles.emptyNotifWrap}><ActivityIndicator size="small" color="#31429B" /><Text style={styles.emptyNotifText}>Loading notifications...</Text></View>}
-              <FlatList data={notifData} keyExtractor={(item) => String(item?.id || "")} contentContainerStyle={styles.notifList} ListEmptyComponent={renderEmptyNotifications} renderItem={renderNotificationItem} />
             </Animated.View>
           </View>
         </Modal>

@@ -1,9 +1,12 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Dimensions } from "react-native";
+
+const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   safeAreaTop: { flex: 1, backgroundColor: "#F7F8FC" },
   container: { flex: 1, backgroundColor: "#F7F8FC" },
   mainScrollContent: {
+    paddingTop: 90, // Pushes content below the floating header initially
     paddingBottom: 0,
     backgroundColor: "#F7F8FC",
   },
@@ -85,16 +88,27 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
   },
   idSection: {
+    backgroundColor: "#4251A0",
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    alignSelf: "center",
+    alignItems: "center",
     marginTop: 4,
     marginBottom: 16,
-    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   idCardPerspective: {
     position: "relative",
     alignSelf: "center",
     borderRadius: 20,
-    width: "100%",
-    aspectRatio: 1.52, 
+    width: 330,  
+    height: 217, 
     perspective: 1000,
   },
   idCardFace: {
@@ -149,6 +163,22 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
   idBackImage: { width: "100%", height: "100%", borderRadius: 24 },
+  accountIdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+  accountIdLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Poppins_700Bold", 
+  },
+  accountIdValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular", 
+  },
   servicesSection: {
     marginTop: 20,
   },
@@ -224,9 +254,9 @@ const styles = StyleSheet.create({
   },
 
   newsSection: {
-    backgroundColor: "#31429B",
+    backgroundColor: "#32418C",
     paddingTop: 12,
-    paddingBottom: 24,
+    paddingBottom: 0, // Removed padding to let the poster drop perfectly
     overflow: "hidden",
   },
   newsTitle: {
@@ -244,7 +274,7 @@ const styles = StyleSheet.create({
   featuredScrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 24,
+    paddingBottom: 24, // Reduced from 24 to let the poster sit higher
   },
   featuredEventCard: {
     width: 240,
@@ -311,189 +341,41 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
 
-  // --- ALUMNI EXPLORER SECTION ---
+  // --- UPGRADED ALUMNI EXPLORER SECTION (POSTER IMAGE) ---
   explorerSection: {
-    position: "relative",
+    backgroundColor: "#0F1954",
     alignItems: "center",
-    paddingTop: 40,
-    paddingBottom: 12,
-    overflow: "hidden", 
-  },
-  dashedRing1: {
-    position: "absolute",
-    top: 60,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    borderStyle: "dashed",
-  },
-  dashedRing2: {
-    position: "absolute",
-    top: -20,
-    width: 460,
-    height: 460,
-    borderRadius: 230,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    borderStyle: "dashed",
-  },
-  dashedRing3: {
-    position: "absolute",
-    top: -100,
-    width: 620,
-    height: 620,
-    borderRadius: 310,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    borderStyle: "dashed",
-  },
-  orb: {
-    position: "absolute",
-    borderRadius: 50,
-  },
-  orbGreenTop: { width: 14, height: 14, backgroundColor: "#4ADE80", top: 20, left: "25%" },
-  orbGreyTopLeft: { width: 12, height: 12, backgroundColor: "#94A3B8", top: 65, left: "15%" },
-  orbGreyTopRight: { width: 10, height: 10, backgroundColor: "#94A3B8", top: 15, right: "35%" },
-  orbYellowLeft: { width: 22, height: 22, backgroundColor: "#F2C919", top: 160, left: -10 },
-  orbGreenRight: { width: 12, height: 12, backgroundColor: "#4ADE80", top: 130, right: "12%" },
-  orbYellowRight: { width: 18, height: 18, backgroundColor: "#F2C919", top: 220, right: "18%" },
-  orbGreyBottomLeft: { width: 14, height: 14, backgroundColor: "#94A3B8", bottom: 120, left: "12%" },
-  explorerTitle: {
-    color: "#F2C919",
-    fontSize: 48,
-    lineHeight: 48,
-    fontWeight: "1200",
-    textAlign: "center",
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    fontFamily: "Poppins_700Bold",
-  },
-  explorerSubtitle: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "500",
-    marginTop: 12,
-    textAlign: "center",
-    letterSpacing: 0,
-    fontFamily: "Poppins_400Regular",
-  },
-  explorerStage: {
-    marginTop: 60,
     width: "100%",
+    marginTop: -20, // Cranked up the negative margin to swallow the gap entirely
+    zIndex: 1, // Forces the poster to slide BEHIND the cards so the card shadows stay intact
+  },
+  tracerPosterImage: {
+    width: width, 
+    height: undefined, // Remove the fixed height
+    aspectRatio: 9 / 17, // 3/4 is standard poster size (width/height). 
+  },
+  exploreButton: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 30, 
-  },
-  explorerGhostCardLeft: {
-    position: "absolute",
-    left: -40, 
-    width: 100,
-    height: 240,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    justifyContent: "center",
-  },
-  ghostOuterCircleLeft: {
-    position: "absolute",
-    left: -35,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFFFFF",
-  },
-  explorerGhostCardRight: {
-    position: "absolute",
-    right: -40, 
-    width: 100,
-    height: 240,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    justifyContent: "center",
-  },
-  ghostOuterCircleRight: {
-    position: "absolute",
-    right: -35,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFFFFF",
-  },
-  explorerCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 36,
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 40, 
+    backgroundColor: "#FFD21F", // Exact yellow from the mockup
+    width: "70%",
+    paddingVertical: 16,
+    borderRadius: 999,
+    marginTop: -24, // Overlaps the bottom of the poster slightly for that integrated feel
+    marginBottom: 40,
     shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-    position: "relative",
+    shadowRadius: 12,
+    elevation: 8,
   },
-  explorerCardPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.96,
-  },
-  explorerPhotoRing: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    marginTop: -90, 
-    backgroundColor: "#FFFFFF",
-    borderWidth: 10,
-    borderColor: "#FFFFFF",
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 6,
-    marginBottom: 16,
-  },
-  explorerPhoto: {
-    width: "100%",
-    height: "100%",
-  },
-  explorerCardTitle: {
-    color: "#31429B",
-    fontSize: 34,
-    lineHeight: 36,
+  exploreButtonText: {
+    color: "#1A237E", // Deep blue text for sharp contrast against yellow
+    fontSize: 20,
     fontWeight: "900",
-    textAlign: "center",
-    marginBottom: 12,
     fontFamily: "Poppins_700Bold",
-  },
-  explorerCardDescription: {
-    color: "#31429B",
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: "center",
-    maxWidth: 240,
-    fontWeight: "600",
-    fontFamily: "Poppins_400Regular",
-  },
-  explorerArrowButton: {
-    position: "absolute",
-    bottom: -18, 
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#F2C919",
-    borderWidth: 6,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    marginRight: 8,
   },
 
   // --- MENU & MODALS ---
@@ -525,20 +407,6 @@ const styles = StyleSheet.create({
     shadowColor: "#EF4444", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }
   },
   signOutButtonText: { color: "#FFF", fontSize: 16, fontWeight: "800", fontFamily: "Poppins_700Bold" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.4)", justifyContent: "flex-start", alignItems: "flex-end" },
-  modalSideContainer: { backgroundColor: "#F9FAFB", position: "absolute", right: 0, top: 0, bottom: 0, borderTopLeftRadius: 32, borderBottomLeftRadius: 32 },
-  modalHeader: { backgroundColor: "#31429B", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 20, paddingHorizontal: 24, paddingTop: 60 },
-  modalTitle: { color: "#FFF", fontSize: 20, fontWeight: "800", fontFamily: "Poppins_700Bold" },
-  modalAccentLine: { height: 6, backgroundColor: "#F2C919" },
-  notifList: { padding: 24, flexGrow: 1 },
-  notifCard: { flexDirection: "row", marginBottom: 28, alignItems: "flex-start" },
-  notifAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: "#F2C919", marginRight: 16 },
-  notifBody: { flex: 1 },
-  notifName: { color: "#31429B", fontWeight: "800", fontSize: 15, lineHeight: 20, fontFamily: "Poppins_700Bold" },
-  notifAction: { color: "#475569", fontSize: 13, lineHeight: 18, marginBottom: 4, fontFamily: "Poppins_400Regular" },
-  notifDetail: { color: "#64748B", fontSize: 12, lineHeight: 16, marginBottom: 4, fontFamily: "Poppins_400Regular" },
-  notifTime: { color: "#94A3B8", fontSize: 11, fontWeight: "600", fontFamily: "Poppins_400Regular" },
-  notifDeleteButton: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#FEE2E2", marginLeft: 12 },
 });
 
 export default styles;

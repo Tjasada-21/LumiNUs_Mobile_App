@@ -29,13 +29,15 @@ export default StyleSheet.create({
     zIndex: 10,
   },
   headerTitle: {
-    fontSize: 26,
+    top: 15,
+    fontSize: 20,
     fontWeight: "900",
     color: "#2C3E50",
     fontFamily: "Poppins_700Bold",
     marginRight: 12,
   },
   backButton: {
+    top: 15,
     padding: 4,
   },
 
@@ -131,7 +133,7 @@ export default StyleSheet.create({
   },
   footerLogo: {
     width: 160,
-    height: 40,
+    height: 50,
   },
 
   // UTILS

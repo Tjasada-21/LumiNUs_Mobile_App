@@ -1,473 +1,144 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
+  View,
   Text,
   TextInput,
-  View,
-  useWindowDimensions,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  SafeAreaView,
+  Platform,
+  KeyboardAvoidingView,
+  ActivityIndicator
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
-import { getFollowing } from "../services/connectionQueries";
-import { createGroupChat } from "../services/messageQueries";
-import BrandHeader from "../components/BrandHeader";
-import SmartTextInput from "../components/SmartTextInput";
-import styles from "../styles/NewMessageScreen.styles";
 import { getAvatarUri } from "../utils/imageUtils";
+import styles from "../styles/NewMessageScreen.styles";
 
-const NewMessageScreen = ({ navigation }) => {
-  // SECTION: Layout values
-  const { width } = useWindowDimensions();
-  const isCompactWidth = width < 375;
-  const horizontalPadding = isCompactWidth ? 14 : 16;
-  const avatarSize = isCompactWidth ? 40 : 42;
-
-  const [query, setQuery] = useState("");
-  const [groupModalVisible, setGroupModalVisible] = useState(false);
-  const [groupName, setGroupName] = useState("");
-  const [memberQuery, setMemberQuery] = useState("");
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const [connections, setConnections] = useState([]);
-  const [connectionsLoading, setConnectionsLoading] = useState(false);
-  const [connectionsError, setConnectionsError] = useState("");
-
-  const getConnectionName = (connection) => {
-    return (
-      `${connection?.first_name ?? ""} ${connection?.last_name ?? ""}`.trim() ||
-      "Alumni"
-    );
-  };
-
-  const getConnectionAvatar = (connection) => {
-    const connectionName = getConnectionName(connection);
-
-    return getAvatarUri(connectionName, connection?.alumni_photo);
-  };
-
-  // DERIVED VALUE: Filtered people list
-  const filteredPeople = useMemo(() => {
-    return [];
-  }, []);
-
-  // DERIVED VALUE: Filtered members for the group modal
-  const filteredMembers = useMemo(() => {
-    const normalizedQuery = memberQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return connections;
-    }
-
-    return connections.filter((connection) => {
-      const connectionName = getConnectionName(connection).toLowerCase();
-      return connectionName.includes(normalizedQuery);
-    });
-  }, [connections, memberQuery]);
-
-  // DERIVED VALUE: Filtered connections list
-  const filteredConnections = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return connections;
-    }
-
-    return connections.filter((connection) => {
-      const connectionName =
-        `${connection?.first_name ?? ""} ${connection?.last_name ?? ""}`
-          .trim()
-          .toLowerCase();
-      return connectionName.includes(normalizedQuery);
-    });
-  }, [connections, query]);
-
-  // DERIVED VALUE: Selected member display names
-  const selectedMemberNames = useMemo(
-    () => selectedMembers.map((person) => getConnectionName(person)),
-    [selectedMembers],
-  );
+export default function NewMessageScreen({ navigation }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchConnections = async () => {
-      try {
-        setConnectionsLoading(true);
-        setConnectionsError("");
-
-        const supaUser = await getCurrentUser();
-        if (!supaUser) {
-          if (isMounted) setConnectionsError("No active session found.");
-          return;
-        }
-
-        const following = await getFollowing(supaUser.id).catch(() => []);
-        if (!isMounted) return;
-        setConnections(
-          Array.isArray(following) ? following.map((f) => f.followed ?? f) : [],
-        );
-      } catch (fetchError) {
-        console.error("Failed to fetch connections:", fetchError);
-        if (isMounted) {
-          setConnectionsError("Unable to load connections right now.");
-        }
-      } finally {
-        if (isMounted) {
-          setConnectionsLoading(false);
-        }
-      }
-    };
-
-    fetchConnections();
-
-    return () => {
-      isMounted = false;
-    };
+    fetchUsers();
   }, []);
 
-  // HANDLER: Open the group chat modal
-  const openGroupChatModal = () => {
-    setGroupModalVisible(true);
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get the currently logged-in user so we don't show them in their own list
+      const currentUser = await getCurrentUser().catch(() => null);
+      const currentUserId = currentUser?.id;
+
+      // Fetch all alumni from Supabase
+      const { data, error } = await supabase
+        .from("alumnis")
+        .select("id, first_name, last_name, alumni_photo")
+        .order("first_name", { ascending: true });
+
+      if (error) throw error;
+
+      // Filter out the active user and set the state
+      const filteredUsers = (data || []).filter(user => user.id !== currentUserId);
+      setUsers(filteredUsers);
+    } catch (error) {
+      console.error("Error fetching alumni users:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // HANDLER: Close the group chat modal
-  const closeGroupChatModal = () => {
-    setGroupModalVisible(false);
-    setGroupName("");
-    setMemberQuery("");
-  };
+  // Real-time local search filtering
+  const displayedUsers = users.filter(user => {
+    const fullName = `${user.first_name || ""} ${user.last_name || ""}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  });
 
-  // HANDLER: Toggle a member in the group chat list
-  const toggleMemberSelection = (member) => {
-    setSelectedMembers((currentMembers) => {
-      const exists = currentMembers.some((item) => item.id === member.id);
-
-      if (exists) {
-        return currentMembers.filter((item) => item.id !== member.id);
-      }
-
-      return [...currentMembers, member];
+  const openChat = (selectedUser) => {
+    const fullName = `${selectedUser.first_name || ""} ${selectedUser.last_name || ""}`.trim();
+    navigation.navigate("ConvoScreen", {
+      contactId: selectedUser.id,
+      contactName: fullName,
+      contactAvatar: selectedUser.alumni_photo
     });
   };
 
-  // HANDLER: Create the group chat from selected members
-  const handleCreateGroupChat = async () => {
-    if (!groupName.trim() || selectedMembers.length < 2) {
-      // Optionally show error: group name required, at least 2 members
-      return;
-    }
-    try {
-      const supaUser = await getCurrentUser();
-      if (!supaUser) return;
-      const memberIds = selectedMembers.map((m) => m.id);
-      const group = await createGroupChat(
-        supaUser.id,
-        groupName.trim(),
-        memberIds,
-      );
-      closeGroupChatModal();
-      const normalizedSelectedMembers = selectedMembers.map((member) => ({
-        id: member?.id,
-        name: getConnectionName(member),
-        alumni_photo: member?.alumni_photo,
-      }));
-      // Navigate to ConvoScreen with group chat info
-      navigation.navigate("ConvoScreen", {
-        groupId: group.id,
-        groupName: group.name,
-        groupAvatar: group.avatar || null,
-        groupMembers: group.members || normalizedSelectedMembers,
-      });
-    } catch (error) {
-      // Optionally show error
-      closeGroupChatModal();
-    }
-  };
-
-  // RENDER HELPER: Connection row
-  const renderConnectionRow = (connection) => {
-    const connectionName = getConnectionName(connection);
-    const connectionAvatar = getConnectionAvatar(connection);
+  const renderItem = ({ item }) => {
+    const fullName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
+    const avatarUrl = getAvatarUri(fullName, item.alumni_photo);
 
     return (
-      <Pressable
-        key={String(connection?.connection_id ?? connection?.id)}
-        style={styles.connectionRow}
-        onPress={() => {}}
-        android_ripple={{ color: "#F1F5F9" }}
-      >
-        <Image
-          source={{ uri: connectionAvatar }}
-          style={styles.connectionAvatar}
-        />
-        <View style={styles.connectionTextWrap}>
-          <Text style={styles.connectionName} numberOfLines={1}>
-            {connectionName}
-          </Text>
-          <Text style={styles.connectionMeta}>Connected</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color="#8A94A6" />
-      </Pressable>
-    );
-  };
-
-  // RENDER HELPER: Group member row
-  const renderMemberRow = ({ item }) => {
-    const isSelected = selectedMembers.some((member) => member.id === item.id);
-    const memberName = getConnectionName(item);
-    const memberAvatar = getConnectionAvatar(item);
-
-    return (
-      <Pressable
-        style={styles.memberRow}
-        onPress={() => toggleMemberSelection(item)}
-        android_ripple={{ color: "#F1F5F9" }}
-      >
-        <Image
-          source={{ uri: memberAvatar }}
-          style={[
-            styles.memberAvatar,
-            {
-              width: avatarSize,
-              height: avatarSize,
-              borderRadius: avatarSize / 2,
-            },
-          ]}
-        />
-        <View style={styles.memberTextWrap}>
-          <Text style={styles.memberName} numberOfLines={1}>
-            {memberName}
-          </Text>
-          <Text style={styles.memberMeta}>
-            {isSelected ? "Selected" : "Tap to add to the group"}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.memberCheckCircle,
-            isSelected && styles.memberCheckCircleSelected,
-          ]}
-        >
-          {isSelected ? (
-            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-          ) : null}
-        </View>
-      </Pressable>
+      <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={() => openChat(item)}>
+        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+        <Text style={styles.nameText}>{fullName}</Text>
+      </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.container}>
-        <BrandHeader />
-        {/* SECTION: Message composer */}
-        <FlatList
-          data={filteredPeople}
-          renderItem={() => null}
-          keyExtractor={(item, index) => String(index)}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View>
-              <View style={styles.headerRow}>
-                <Pressable
-                  style={styles.backButton}
-                  onPress={() => navigation.goBack()}
-                  hitSlop={8}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#4A4A4A" />
-                </Pressable>
-                <Text style={styles.title}>New message</Text>
-              </View>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-undo-outline" size={26} color="#333333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>New message</Text>
+        </View>
 
-              <View style={styles.searchWrap}>
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Type a name or group"
-                  placeholderTextColor="#6D6D6D"
-                  style={styles.searchInput}
-                />
-              </View>
+        {/* SEARCH INPUT ROW */}
+        <View style={styles.searchRow}>
+          <Text style={styles.toLabel}>To:</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Type a name or group"
+            placeholderTextColor="#888888"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus={false}
+          />
+        </View>
 
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={styles.groupChatButton}
-                  onPress={openGroupChatModal}
-                  android_ripple={{ color: "#EAF0FF" }}
-                >
-                  <Ionicons name="people-outline" size={18} color="#31429B" />
-                  <Text style={styles.groupChatButtonText}>
-                    Create group chat
-                  </Text>
-                </Pressable>
+        {/* THIN DIVIDER LINE */}
+        <View style={styles.divider} />
 
-                <Pressable
-                  style={styles.notesButton}
-                  onPress={() => {}}
-                  android_ripple={{ color: "#EAF0FF" }}
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={18}
-                    color="#31429B"
-                  />
-                  <Text style={styles.notesButtonText}>Add notes</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.connectionsSection}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionLabel}>Connections</Text>
-                  <Text style={styles.sectionCount}>{connections.length}</Text>
-                </View>
-
-                {connectionsLoading ? (
-                  <View style={styles.connectionsLoadingWrap}>
-                    <ActivityIndicator color="#31429B" />
-                  </View>
-                ) : connectionsError ? (
-                  <View style={styles.connectionsEmptyWrap}>
-                    <Text style={styles.emptyText}>{connectionsError}</Text>
-                  </View>
-                ) : filteredConnections.length > 0 ? (
-                  <View style={styles.connectionsList}>
-                    {filteredConnections.map(renderConnectionRow)}
-                  </View>
-                ) : (
-                  <View style={styles.connectionsEmptyWrap}>
-                    <Text style={styles.emptyText}>No connections found.</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>
-                No matching names or groups found.
-              </Text>
-            </View>
-          }
-          contentContainerStyle={[
-            styles.content,
-            styles.resultsList,
-            { paddingHorizontal: horizontalPadding, paddingBottom: 24 },
-          ]}
-        />
-
-        <Modal
-          transparent
-          visible={groupModalVisible}
-          animationType="fade"
-          onRequestClose={closeGroupChatModal}
-        >
-          <View style={styles.modalOverlay}>
-            <Pressable
-              style={styles.modalBackdrop}
-              onPress={closeGroupChatModal}
-            />
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add members</Text>
-                <Pressable
-                  style={styles.modalCloseButton}
-                  onPress={closeGroupChatModal}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close" size={22} color="#31429B" />
-                </Pressable>
-              </View>
-
-              <Text style={styles.modalSubtitle}>
-                Choose people to include in the group chat.
-              </Text>
-
-              <Text style={styles.modalFieldLabel}>Group chat name</Text>
-              <SmartTextInput
-                value={groupName}
-                onChangeText={setGroupName}
-                placeholder="Enter a group chat name"
-                placeholderTextColor="#7A7A7A"
-                style={styles.modalNameInput}
-              />
-
-              <View style={styles.modalSearchWrap}>
-                <Ionicons name="search-outline" size={18} color="#7A7A7A" />
-                <TextInput
-                  value={memberQuery}
-                  onChangeText={setMemberQuery}
-                  placeholder="Search members"
-                  placeholderTextColor="#7A7A7A"
-                  style={styles.modalSearchInput}
-                />
-              </View>
-
-              {selectedMemberNames.length > 0 ? (
-                <View style={styles.selectedWrap}>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.selectedChipsRow}
-                  >
-                    {selectedMembers.map((member) => (
-                      <View
-                        key={String(member?.id)}
-                        style={styles.selectedChip}
-                      >
-                        <Text style={styles.selectedChipText}>
-                          {getConnectionName(member)}
-                        </Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null}
-
-              <FlatList
-                data={filteredMembers}
-                renderItem={renderMemberRow}
-                keyExtractor={(item) => String(item.id)}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.modalList}
-                ListEmptyComponent={
-                  <View style={styles.emptyWrap}>
-                    <Text style={styles.emptyText}>
-                      No matching connections found.
-                    </Text>
-                  </View>
-                }
-              />
-
-              <View style={styles.modalActionsRow}>
-                <Pressable
-                  style={styles.modalSecondaryButton}
-                  onPress={closeGroupChatModal}
-                  android_ripple={{ color: "#EAF0FF" }}
-                >
-                  <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.modalPrimaryButton}
-                  onPress={handleCreateGroupChat}
-                  android_ripple={{ color: "#24346F" }}
-                >
-                  <Text style={styles.modalPrimaryButtonText}>
-                    Create Group
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+        {/* LIST */}
+        {isLoading ? (
+          <View style={styles.centerWrap}>
+            <ActivityIndicator size="large" color="#31429B" />
           </View>
-        </Modal>
-      </View>
+        ) : (
+          <FlatList
+            data={displayedUsers}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <Text style={styles.sectionTitle}>Suggested</Text>
+            }
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No users found.</Text>
+            }
+          />
+        )}
+
+        {/* BLUE FOOTER */}
+        <View style={styles.footer}>
+          <Image
+            source={require("../../assets/images/luminus_text_logo.png")}
+            style={styles.footerLogo}
+            resizeMode="contain"
+          />
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
-
-export default NewMessageScreen;
+}

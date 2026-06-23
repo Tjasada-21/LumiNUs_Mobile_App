@@ -9,7 +9,6 @@ import {
   PanResponder,
   Linking,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 
@@ -45,7 +44,6 @@ const renderMessageContentWithMentions = (
         key={`${messageId}-mention-${index}-${segment}`}
         style={[
           styles.messageText,
-          isOutgoing ? styles.textOutgoing : styles.textIncoming,
           styles.mentionText,
           isOutgoing ? styles.mentionTextOutgoing : styles.mentionTextIncoming,
         ]}
@@ -74,14 +72,13 @@ const MessageBubble = ({
   );
   const showSendingStatus = isOutgoing && sendStatus === "sending";
   const showFailedStatus = isOutgoing && sendStatus === "failed";
-  const showSentStatus = isOutgoing && sendStatus === "sent";
+  
   const translateX = useRef(new Animated.Value(0)).current;
   const entranceProgress = useRef(new Animated.Value(0)).current;
   const swipeDirection = isOutgoing ? -1 : 1;
 
   useEffect(() => {
     entranceProgress.setValue(0);
-
     Animated.spring(entranceProgress, {
       toValue: 1,
       useNativeDriver: true,
@@ -110,7 +107,6 @@ const MessageBubble = ({
         },
         onPanResponderRelease: (_, gestureState) => {
           const shouldReply = swipeDirection * gestureState.dx > 55;
-
           Animated.spring(translateX, {
             toValue: 0,
             useNativeDriver: true,
@@ -195,9 +191,7 @@ const MessageBubble = ({
                     onPress={() => {
                       try {
                         if (uri) Linking.openURL(uri);
-                      } catch (e) {
-                        // ignore
-                      }
+                      } catch (e) {}
                     }}
                     activeOpacity={0.8}
                     style={styles.attachmentWrap}
@@ -243,11 +237,8 @@ const MessageBubble = ({
           </View>
         ) : null}
 
-        {messageTime ||
-        showSendingStatus ||
-        showSentStatus ||
-        showFailedStatus ||
-        (isOutgoing && read) ? (
+        {/* TIME & STATUS UNDERNEATH THE BUBBLE */}
+        {(messageTime || showSendingStatus || showFailedStatus) && (
           <View
             style={[
               styles.messageMetaRow,
@@ -256,65 +247,28 @@ const MessageBubble = ({
                 : styles.messageMetaRowIncoming,
             ]}
           >
-            {messageTime ? (
-              <Text style={styles.messageTime}>{messageTime}</Text>
-            ) : null}
             {showSendingStatus ? (
-              <View style={styles.statusWrap}>
-                <Ionicons name="time-outline" size={11} color="#6B7280" />
-                <Text style={styles.statusText}>Sending...</Text>
-              </View>
-            ) : null}
-            {showSentStatus ? (
-              <View style={styles.statusWrap}>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={11}
-                  color="#6B7280"
-                />
-                <Text style={styles.statusText}>Sent</Text>
-              </View>
-            ) : null}
-            {showFailedStatus ? (
-              <View style={styles.statusWrap}>
-                <Ionicons
-                  name="close-circle-outline"
-                  size={11}
-                  color="#D92D20"
-                />
-                <Text style={styles.statusTextFailed}>Not sent</Text>
-              </View>
-            ) : null}
-            {!showSendingStatus &&
-            !showFailedStatus &&
-            !showSentStatus &&
-            isOutgoing &&
-            read ? (
-              <Text style={styles.readReceipt}>Seen</Text>
-            ) : null}
+              <Text style={styles.messageTime}>Sending...</Text>
+            ) : showFailedStatus ? (
+              <Text style={styles.statusTextFailed}>Not sent</Text>
+            ) : (
+              <Text style={styles.messageTime}>
+                {isOutgoing ? `sent ${messageTime}` : messageTime}
+              </Text>
+            )}
           </View>
-        ) : null}
+        )}
       </Animated.View>
     </View>
   );
 };
 
 const areReactionsEqual = (firstReactions, secondReactions) => {
-  if (firstReactions === secondReactions) {
-    return true;
-  }
-
-  if (!firstReactions || !secondReactions) {
-    return false;
-  }
-
+  if (firstReactions === secondReactions) return true;
+  if (!firstReactions || !secondReactions) return false;
   const firstKeys = Object.keys(firstReactions);
   const secondKeys = Object.keys(secondReactions);
-
-  if (firstKeys.length !== secondKeys.length) {
-    return false;
-  }
-
+  if (firstKeys.length !== secondKeys.length) return false;
   return firstKeys.every((key) => firstReactions[key] === secondReactions[key]);
 };
 
@@ -322,13 +276,8 @@ const areMessageBubblePropsEqual = (prevProps, nextProps) => {
   const prevMsg = prevProps.message ?? {};
   const nextMsg = nextProps.message ?? {};
 
-  // Fast array length check instead of JSON.stringify
-  const prevAttLength = Array.isArray(prevMsg.attachments)
-    ? prevMsg.attachments.length
-    : 0;
-  const nextAttLength = Array.isArray(nextMsg.attachments)
-    ? nextMsg.attachments.length
-    : 0;
+  const prevAttLength = Array.isArray(prevMsg.attachments) ? prevMsg.attachments.length : 0;
+  const nextAttLength = Array.isArray(nextMsg.attachments) ? nextMsg.attachments.length : 0;
 
   return (
     prevProps.isOutgoing === nextProps.isOutgoing &&
@@ -355,18 +304,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginLeft: 8,
     marginRight: 8,
+    marginBottom: 20, // Push avatar up slightly so it aligns with the bubble, not the meta text
   },
   avatarSpacer: {
-    width: 36,
+    width: 48, // 32 avatar + 16 margins
   },
   bubbleWrapper: {
     position: "relative",
-    maxWidth: "78%",
+    maxWidth: "75%", // Slimmer max-width per modern design
     flexShrink: 1,
   },
   bubbleWrapperOutgoing: {
@@ -376,54 +326,52 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   bubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexShrink: 1,
     maxWidth: "100%",
-    borderWidth: 1,
-    shadowColor: "#1F2937",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
   },
+  // Teardrop shape for Outgoing
   bubbleOutgoing: {
     backgroundColor: "#31429B",
     alignSelf: "flex-end",
-    marginRight: 4,
-    borderColor: "#31429B",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 4, 
   },
+  // Teardrop shape for Incoming
   bubbleIncoming: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#E2E8F0", // Soft gray
     alignSelf: "flex-start",
-    borderColor: "#DCE2F3",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 20,
   },
   bubbleWithReaction: {
-    marginBottom: 8,
+    marginBottom: 12,
   },
   messageText: {
     fontSize: 16,
     lineHeight: 22,
-    flexShrink: 1,
-    flexWrap: "wrap",
+    fontFamily: "Poppins_400Regular",
   },
   textOutgoing: {
     color: "#FFFFFF",
   },
   textIncoming: {
-    color: "#1F2937",
+    color: "#1C1C1E",
   },
   mentionText: {
-    fontWeight: "900",
-    textDecorationLine: "underline",
-    color: "#F2C919",
+    fontWeight: "700",
+    fontFamily: "Poppins_700Bold",
   },
   mentionTextOutgoing: {
     color: "#F2C919",
   },
   mentionTextIncoming: {
-    color: "#F2C919",
+    color: "#31429B",
   },
   attachmentImage: {
     width: 200,
@@ -442,20 +390,15 @@ const styles = StyleSheet.create({
   },
   reactionBadge: {
     position: "absolute",
-    bottom: -6,
+    bottom: 12, // adjusted due to meta text below
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: "#EFEFEF",
+    borderColor: "#E2E8F0",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 2,
   },
   reactionBadgeOutgoing: {
     right: 12,
@@ -469,41 +412,26 @@ const styles = StyleSheet.create({
   messageMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 6,
-    gap: 8,
+    marginTop: 4,
   },
   messageMetaRowOutgoing: {
     justifyContent: "flex-end",
+    marginRight: 2, // Slight indent from the flat edge
   },
   messageMetaRowIncoming: {
     justifyContent: "flex-start",
+    marginLeft: 2,
   },
   messageTime: {
     fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  statusWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "600",
-    color: "#6B7280",
+    color: "#94A3B8",
+    fontFamily: "Poppins_400Regular",
   },
   statusTextFailed: {
     fontSize: 11,
-    lineHeight: 14,
     fontWeight: "600",
-    color: "#D92D20",
-  },
-  readReceipt: {
-    fontSize: 11,
-    color: "#8E8E8E",
+    color: "#DC2626",
+    fontFamily: "Poppins_600SemiBold",
   },
 });
 

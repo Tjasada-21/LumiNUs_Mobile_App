@@ -340,7 +340,6 @@ export default function ConvoScreen() {
 
     const query = mentionContext.query.toLowerCase();
 
-    // Swap 'connections' for 'mentionableUsers' here!
     return (mentionableUsers || [])
       .map((user) => {
         const firstName = user?.first_name ?? "";
@@ -404,7 +403,6 @@ export default function ConvoScreen() {
       setCurrentUserId(supaUser.id);
       setCurrentUserProfile(supaUser);
 
-      // Load connections (following) for mention suggestions
       try {
         const { getFollowing } = await import("../services/connectionQueries");
         const following = await getFollowing(supaUser.id).catch(() => []);
@@ -560,7 +558,6 @@ export default function ConvoScreen() {
         .toLowerCase();
       if (!mentionHandle) return;
 
-      // 1. Check our local unified list first
       const matchedLocal = (mentionableUsers || []).find((user) => {
         return (
           toMentionHandle(user?.first_name, user?.last_name) === mentionHandle
@@ -577,7 +574,6 @@ export default function ConvoScreen() {
         return;
       }
 
-      // 2. If not in local connections/group, fetch their ID from Supabase!
       try {
         const parts = mentionHandle.split("_");
         const first = parts[0] ? `${parts[0]}%` : "%";
@@ -665,7 +661,6 @@ export default function ConvoScreen() {
       let messageList = [];
 
       if (isGroup) {
-        // Fetch the first 30 messages at offset 0
         messageList = await getGroupMessages(
           groupId,
           currentUserId,
@@ -686,14 +681,13 @@ export default function ConvoScreen() {
         ).catch(() => []);
       }
 
-      // If we got fewer than the limit on the first try, there are no older messages
       if (messageList.length < MESSAGE_LIMIT) {
         setHasMoreMessages(false);
       } else {
         setHasMoreMessages(true);
       }
 
-      setPageOffset(0); // Reset offset on initial load
+      setPageOffset(0); 
       setMessages(sortMessagesDescending(messageList));
 
       if (isGroup && currentUserId) {
@@ -716,12 +710,9 @@ export default function ConvoScreen() {
             ).catch(() => {});
             await refreshUnreadMessages().catch(() => {});
           }
-        } catch (e) {
-          // ignore failures — best-effort
-        }
+        } catch (e) {}
       }
 
-      // Mark direct messages as read via messageQueries helper
       if (!isGroup && currentUserId) {
         try {
           const unreadIds = (Array.isArray(messageList) ? messageList : [])
@@ -739,9 +730,7 @@ export default function ConvoScreen() {
             await markMessagesAsRead(unreadIds).catch(() => {});
             await refreshUnreadMessages().catch(() => {});
           }
-        } catch (e) {
-          // ignore failures — best-effort
-        }
+        } catch (e) {}
       }
     } catch (error) {
       console.error("Failed to load conversation messages:", error);
@@ -813,7 +802,6 @@ export default function ConvoScreen() {
     };
   }, [draft, hasConversation, updateTypingStatus]);
 
-  // Set up real-time message subscriptions
   useEffect(() => {
     if (!hasConversation) {
       return;
@@ -827,9 +815,7 @@ export default function ConvoScreen() {
       }
 
       if (event === "insert") {
-        // New message received
         setMessages((currentMessages) => {
-          // Check if message already exists by ID
           const messageExistsById = currentMessages.some(
             (msg) => msg.id === newMessage.id,
           );
@@ -837,7 +823,6 @@ export default function ConvoScreen() {
             return currentMessages;
           }
 
-          // Check if this is an optimistic message confirmation by matching sender + content + approximate time
           const optimisticDuplicate = currentMessages.some(
             (msg) =>
               msg.sender_id === newMessage.sender_id &&
@@ -848,7 +833,6 @@ export default function ConvoScreen() {
               ) < 1000,
           );
           if (optimisticDuplicate) {
-            // Replace the optimistic message with the real one (so it gets the actual ID)
             return currentMessages.map((msg) =>
               msg.sender_id === newMessage.sender_id &&
               msg.content === newMessage.content &&
@@ -864,7 +848,6 @@ export default function ConvoScreen() {
           return [newMessage, ...currentMessages];
         });
 
-        // Load attachments if they exist (they may be inserted shortly after the message)
         const loadAttachments = async () => {
           const attachments = await getMessageAttachments(newMessage.id).catch(
             () => [],
@@ -877,11 +860,8 @@ export default function ConvoScreen() {
             );
           }
         };
-        setTimeout(loadAttachments, 500); // Wait 500ms for attachments to be inserted
-
-        // Scroll to bottom when new message arrives
+        setTimeout(loadAttachments, 500); 
       } else if (event === "update") {
-        // Message updated (reactions, read status, etc.)
         setMessages((currentMessages) =>
           sortMessagesDescending(
             currentMessages.map((message) =>
@@ -892,7 +872,6 @@ export default function ConvoScreen() {
           ),
         );
       } else if (event === "delete") {
-        // Message deleted
         setMessages((currentMessages) =>
           currentMessages.filter((message) => message.id !== newMessage.id),
         );
@@ -1006,7 +985,6 @@ export default function ConvoScreen() {
       }
 
       try {
-        // Optimistically update local state
         setMessages((currentMessages) =>
           currentMessages.map((message) => {
             if (message.id !== actionMessage.id) return message;
@@ -1014,7 +992,6 @@ export default function ConvoScreen() {
             const nextReactions = { ...(message.reactions || {}) };
             nextReactions[emoji] = (nextReactions[emoji] || 0) + 1;
 
-            // Fire update to Supabase
             (async () => {
               try {
                 if (isGroup) {
@@ -1201,7 +1178,6 @@ export default function ConvoScreen() {
         );
       }
 
-      // We explicitly set content: trimmedDraft so the sender sees their readable text, not the cipher!
       const confirmedMessage =
         sentMessage && typeof sentMessage === "object"
           ? {
@@ -1244,8 +1220,6 @@ export default function ConvoScreen() {
   ]);
 
   const initiateCall = async (callType = "video") => {
-    // WebRTC P2P mesh for groups requires a slightly different architecture,
-    // so we lock this to Direct Messages for now.
     if (isGroup) {
       ThemedAlert.alert(
         "Coming Soon",
@@ -1265,7 +1239,6 @@ export default function ConvoScreen() {
     }
 
     try {
-      // 1. Register the call in Supabase to trigger the recipient's "Ringing" push notification
       const { data: callData, error } = await supabase
         .from("calls")
         .insert({
@@ -1308,8 +1281,6 @@ export default function ConvoScreen() {
         console.warn("[Call] Failed to send incoming call push:", pushError);
       }
 
-      // 2. Immediately launch the WebRTC engine as the Caller
-      // Use getParent() to navigate to the root-level CallScreen since this is nested in a tab navigator
       const rootNav = navigation.getParent?.();
       if (rootNav?.navigate) {
         rootNav.navigate("CallScreen", {
@@ -1378,7 +1349,7 @@ export default function ConvoScreen() {
           isOutgoing={isOutgoing}
           showAvatar={!isOutgoing}
           senderAvatar={senderAvatar}
-          onLongPress={() => openMessageActions(decryptedItem)} // Pass decrypted item so replies show readable text
+          onLongPress={() => openMessageActions(decryptedItem)}
           onSwipeReply={handleSwipeReply}
           onMentionPress={handleMentionPress}
           read={Boolean(item?.read_at)}
@@ -1754,6 +1725,7 @@ const localStyles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "600",
-    color: "#6B7280",
+    fontFamily: "Poppins_400Regular",
+    color: "#94A3B8",
   },
 });

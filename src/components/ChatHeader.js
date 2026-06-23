@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 const ChatHeader = ({
@@ -8,8 +8,6 @@ const ChatHeader = ({
   avatarUri,
   onBackPress,
   onProfilePress,
-  onCallPress,
-  onVideoPress,
   onInfoPress,
   navigation,
   chatData,
@@ -21,6 +19,7 @@ const ChatHeader = ({
       onInfoPress();
     }
   };
+
   return (
     <View style={styles.chatHeaderWrap}>
       <View style={styles.chatHeader}>
@@ -29,7 +28,7 @@ const ChatHeader = ({
           onPress={onBackPress}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={22} color="#31429B" />
+          <Ionicons name="arrow-back" size={26} color="#31429B" />
         </Pressable>
 
         <Pressable style={styles.headerProfileWrap} onPress={onProfilePress}>
@@ -46,28 +45,14 @@ const ChatHeader = ({
 
         <View style={styles.headerActions}>
           <Pressable
-            style={styles.headerIconButton}
-            onPress={onCallPress}
-            hitSlop={8}
-          >
-            <Ionicons name="call-outline" size={22} color="#31429B" />
-          </Pressable>
-          <Pressable
-            style={styles.headerIconButton}
-            onPress={onVideoPress}
-            hitSlop={8}
-          >
-            <Ionicons name="videocam-outline" size={22} color="#31429B" />
-          </Pressable>
-          <Pressable
-            style={styles.headerIconButton}
+            style={styles.infoButtonSolid}
             onPress={handleInfoPress}
             hitSlop={8}
           >
             <Ionicons
-              name="information-circle-outline"
-              size={24}
-              color="#31429B"
+              name="information"
+              size={18}
+              color="#FFFFFF"
             />
           </Pressable>
         </View>
@@ -81,21 +66,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     width: "100%",
     alignSelf: "stretch",
+    // Slight shadow for a floating feel
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    zIndex: 10,
   },
   chatHeader: {
     backgroundColor: "#FFFFFF",
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: Platform.OS === "android" ? 16 : 8,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   headerIconButton: {
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 3,
+    marginRight: 4,
   },
   headerProfileWrap: {
     flex: 1,
@@ -104,30 +97,39 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E5E7EB",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#E2E8F0",
   },
   headerTextWrap: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 12,
     minWidth: 0,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "800",
-    color: "#1F2937",
+    color: "#1C1C1E",
+    fontFamily: "Poppins_700Bold",
   },
   headerSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#6B7280",
+    fontSize: 13,
+    color: "#94A3B8",
+    fontFamily: "Poppins_400Regular",
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+  },
+  infoButtonSolid: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#31429B",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
   },
 });
 

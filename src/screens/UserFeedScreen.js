@@ -370,6 +370,7 @@ const UserFeedScreen = ({ navigation }) => {
 	}, []);
 	const handleThemedAlertAction = (action) => { closeThemedAlert(); if (typeof action?.onPress === 'function') action.onPress(); };
 	const openGlobalSearch = useCallback(() => navigation.navigate('GlobalSearch'), [navigation]);
+	const openCreatePost = useCallback(() => navigation.navigate('CreatePostScreen'), [navigation]);
 
 	const displayedPosts = useMemo(() => {
 		const sourcePosts = Array.isArray(posts) ? [...posts] : [];
@@ -1004,7 +1005,6 @@ const UserFeedScreen = ({ navigation }) => {
 	};
 
 	return (
-		<SafeAreaView style={styles.safeArea} edges={['top']}>
 			<View style={styles.container}>
 				<HomeHeader />
 
@@ -1012,6 +1012,12 @@ const UserFeedScreen = ({ navigation }) => {
 					<Pressable style={styles.searchBar} onPress={openGlobalSearch}>
 						<Ionicons name="search-outline" size={20} color="#888888" style={styles.searchIcon} />
 						<Text style={styles.searchPlaceholderText}>Search</Text>
+					</Pressable>
+
+					{/* NEW CREATE POST BUTTON */}
+					<Pressable style={styles.createPostButton} onPress={openCreatePost}>
+						<Ionicons name="create" size={22} color="#333333" style={styles.createPostIcon} />
+						<Text style={styles.createPostText}>Create New Post</Text>
 					</Pressable>
 				</View>
 
@@ -1302,7 +1308,6 @@ const UserFeedScreen = ({ navigation }) => {
 					</View>
 				</Modal>
 			</View>
-		</SafeAreaView>
 	);
 };
 

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context"; // Import this
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HomeScreen from "../screens/HomeScreen";
 import ChatScreen from "../screens/ChatScreen";
@@ -18,7 +18,6 @@ import RegisteredEventsScreen from "../screens/RegisteredEventsScreen";
 import AlumniTracerScreen from "../screens/AlumniTracerScreen";
 import GlobalSearchScreen from "../screens/GlobalSearchScreen";
 import { useUnreadMessages } from "../context/UnreadMessagesContext";
-import { sharedScreenStyles } from "../styles/sharedStyles";
 
 const Tab = createBottomTabNavigator();
 
@@ -52,20 +51,25 @@ const MainTabNavigator = () => {
       shadowRadius: 4,
     };
 
-    // ... rest of your getTabBarStyle logic
-
-    if (route.name !== "Explore") {
-      return baseStyle;
-    }
-
-    const nestedRouteName = getFocusedRouteNameFromRoute(route);
-
-    if (!nestedRouteName || nestedRouteName === "ExploreHome") {
+    // Apply the deep blue background for Feed and Profile screens
+    if (route.name === "Feed" || route.name === "Profile") {
       return {
         ...baseStyle,
-        backgroundColor: "#F2C919",
-        borderTopWidth: 0,
+        backgroundColor: "#1F2B67",
+        borderTopWidth: 0, // Removes the white border line for a seamless dark look
       };
+    }
+
+    if (route.name === "Explore") {
+      const nestedRouteName = getFocusedRouteNameFromRoute(route);
+
+      if (!nestedRouteName || nestedRouteName === "ExploreHome") {
+        return {
+          ...baseStyle,
+          backgroundColor: "#F2C919",
+          borderTopWidth: 0,
+        };
+      }
     }
 
     return baseStyle;
@@ -129,8 +133,20 @@ const MainTabNavigator = () => {
           tabBarInactiveTintColor: "#31429B",
         }}
       />
-      <Tab.Screen name="Feed" component={FeedScreen} />
-      <Tab.Screen name="Profile" component={UserProfileScreen} />
+      <Tab.Screen 
+        name="Feed" 
+        component={FeedScreen} 
+        options={{
+          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Makes inactive icons visible on dark blue
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={UserProfileScreen} 
+        options={{
+          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Makes inactive icons visible on dark blue
+        }}
+      />
 
       {/* Hidden Screens */}
       <Tab.Screen

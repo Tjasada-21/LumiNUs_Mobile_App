@@ -3,10 +3,6 @@ import { Dimensions, StyleSheet, Platform } from "react-native";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF", // Matches the white background of HomeHeader
-  },
   container: {
     flex: 1,
     backgroundColor: "#F5F6FA", // Light grey background for the feed
@@ -43,6 +39,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#888888",
     fontFamily: "Poppins_400Regular",
+  },
+
+  // --- CREATE POST BUTTON ---
+  createPostButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18, // Pill shaped
+    paddingHorizontal: 16,
+    height: 52,
+    marginTop: 12, // Gap between search bar and create button
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  createPostIcon: {
+    marginRight: 8,
+  },
+  createPostText: {
+    fontSize: 18,
+    color: "#333333",
+    fontFamily: "Poppins_600SemiBold",
   },
 
   // --- REPOST WRAPPER ---

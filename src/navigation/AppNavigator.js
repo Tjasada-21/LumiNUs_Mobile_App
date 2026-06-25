@@ -22,60 +22,21 @@ import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 import DraftsScreen from "../screens/DraftScreen";
 import GlobalSearchScreen from "../screens/GlobalSearchScreen";
 import IncomingCallScreen from "../screens/IncomingCallScreen";
-
-const CallScreenEntry = (props) => {
-  if (!NativeModules?.WebRTCModule) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#111111",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
-        <Text
-          style={{
-            color: "#FFFFFF",
-            fontSize: 18,
-            fontWeight: "700",
-            textAlign: "center",
-            marginBottom: 12,
-          }}
-        >
-          Calls require a development build with WebRTC installed.
-        </Text>
-        <Pressable
-          onPress={() => props.navigation?.goBack?.()}
-          style={{
-            backgroundColor: "#31429B",
-            paddingHorizontal: 18,
-            paddingVertical: 10,
-            borderRadius: 12,
-          }}
-        >
-          <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const CallScreen = require("../screens/CallScreen").default;
-  return <CallScreen {...props} />;
-};
+import CallScreenEntry from "../screens/CallScreen";
+import AddSkillsScreen from "../screens/AddSkillsScreen";
+import WorkExperienceScreen from "../screens/WorkExperienceScreen";
+import WorkExperienceFormScreen from "../screens/WorkExperienceFormScreen";
 
 const Stack = createNativeStackNavigator();
 
-const AppNavigator = ({ initialRouteName = "Login" }) => {
+const AppNavigator = () => {
   return (
     <Stack.Navigator
-      initialRouteName={initialRouteName}
+      initialRouteName="Login"
       screenOptions={{
         headerShown: false,
-        animation: "fade_from_bottom",
-        animationTypeForReplace: "push",
-        contentStyle: { backgroundColor: "#F9FAFB" },
+        contentStyle: { backgroundColor: "#FFFFFF" },
+        animation: "slide_from_right",
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
@@ -83,11 +44,8 @@ const AppNavigator = ({ initialRouteName = "Login" }) => {
       <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} />
       <Stack.Screen name="ViewYearbook" component={ViewYearbookScreen} />
       <Stack.Screen name="AlumniTracer" component={AlumniTracerScreen} />
-      <Stack.Screen name="TracerForm" component={TracerFormScreen} />
-      <Stack.Screen
-        name="EventRegistration"
-        component={EventRegistrationScreen}
-      />
+      <Stack.Screen name="TracerFormScreen" component={TracerFormScreen} />
+      <Stack.Screen name="EventRegistrationScreen" component={EventRegistrationScreen} />
       <Stack.Screen name="ForgetPassword" component={ForgetPasswordScreen} />
       <Stack.Screen name="NewMessage" component={NewMessageScreen} />
       <Stack.Screen name="ConvoScreen" component={ConvoScreen} />
@@ -98,34 +56,16 @@ const AppNavigator = ({ initialRouteName = "Login" }) => {
       <Stack.Screen name="DraftsScreen" component={DraftsScreen} />
       <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
       <Stack.Screen name="ViewEventsScreen" component={ViewEventsScreen} />
-      <Stack.Screen
-        name="ChangePassword"
-        component={ChangePasswordScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="CompleteProfile"
-        component={CompleteProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="VerifyResetOtp"
-        component={VerifyResetOtpScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="IncomingCallScreen"
-        component={IncomingCallScreen}
-        options={{ headerShown: false, presentation: "fullScreenModal" }}
-      />
-      <Stack.Screen
-        name="CallScreen"
-        component={CallScreenEntry}
-        options={{ headerShown: false, presentation: "fullScreenModal" }}
-      />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
+      <Stack.Screen name="CallScreen" component={CallScreenEntry} options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="NotificationsScreen" component={require('../screens/NotificationsScreen').default} />
+      <Stack.Screen name="AddSkillsScreen" component={AddSkillsScreen} />
+      <Stack.Screen name="WorkExperienceScreen" component={WorkExperienceScreen} />
+      <Stack.Screen name="WorkExperienceFormScreen" component={WorkExperienceFormScreen} />
     </Stack.Navigator>
-    
   );
 };
 

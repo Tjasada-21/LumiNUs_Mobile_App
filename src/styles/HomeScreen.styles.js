@@ -6,7 +6,7 @@ const styles = StyleSheet.create({
   safeAreaTop: { flex: 1, backgroundColor: "#F7F8FC" },
   container: { flex: 1, backgroundColor: "#F7F8FC" },
   mainScrollContent: {
-    paddingTop: 90, // Pushes content below the floating header initially
+    paddingTop: 90, 
     paddingBottom: 0,
     backgroundColor: "#F7F8FC",
   },
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   newsSection: {
     backgroundColor: "#32418C",
     paddingTop: 12,
-    paddingBottom: 0, // Removed padding to let the poster drop perfectly
+    paddingBottom: 0, 
     overflow: "hidden",
   },
   newsTitle: {
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   featuredScrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 24, // Reduced from 24 to let the poster sit higher
+    paddingBottom: 24,
   },
   featuredEventCard: {
     width: 240,
@@ -341,28 +341,67 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
   },
 
-  // --- UPGRADED ALUMNI EXPLORER SECTION (POSTER IMAGE) ---
   explorerSection: {
     backgroundColor: "#0F1954",
     alignItems: "center",
     width: "100%",
-    marginTop: -20, // Cranked up the negative margin to swallow the gap entirely
-    zIndex: 1, // Forces the poster to slide BEHIND the cards so the card shadows stay intact
+    marginTop: -20,
+    zIndex: 1, 
   },
   tracerPosterImage: {
     width: width, 
-    height: undefined, // Remove the fixed height
-    aspectRatio: 9 / 17, // 3/4 is standard poster size (width/height). 
+    height: undefined, 
+    aspectRatio: 9 / 17, 
   },
+  
+  // --- NEW FEEDBACK SECTION ---
+  feedbackSection: {
+    paddingHorizontal: 20,
+    marginTop: -10, // Adjust this to sit right underneath the poster image graphics
+    marginBottom: 20,
+    alignItems: "flex-start",
+    width: "100%",
+  },
+  feedbackTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "900",
+    fontFamily: "Poppins_700Bold",
+    marginBottom: 16,
+    textAlign: "left",
+    width: "100%",
+  },
+  feedbackItem: {
+    flexDirection: "row",
+    marginBottom: 12,
+    alignItems: "flex-start",
+  },
+  feedbackEmoji: {
+    fontSize: 18,
+    marginRight: 10,
+    marginTop: 2, 
+  },
+  feedbackText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    lineHeight: 24,
+    flex: 1,
+  },
+  feedbackTextBold: {
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "800",
+  },
+
   exploreButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFD21F", // Exact yellow from the mockup
+    backgroundColor: "#FFD21F", 
     width: "70%",
     paddingVertical: 16,
     borderRadius: 999,
-    marginTop: -24, // Overlaps the bottom of the poster slightly for that integrated feel
+    marginTop: 10, 
     marginBottom: 40,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
@@ -371,7 +410,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   exploreButtonText: {
-    color: "#1A237E", // Deep blue text for sharp contrast against yellow
+    color: "#1A237E", 
     fontSize: 20,
     fontWeight: "900",
     fontFamily: "Poppins_700Bold",

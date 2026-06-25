@@ -22,7 +22,6 @@ import {
   sendFollowRequest,
 } from "../services/connectionQueries";
 import { getAllAlumni, getAlumniByEmail } from "../services/alumniQueries";
-import BrandHeader from "../components/BrandHeader";
 import styles from "../styles/ConnectionsScreen.styles";
 import { getAvatarUri } from "../utils/imageUtils";
 
@@ -36,11 +35,14 @@ const ConnectionsScreen = ({ navigation }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  
+  // Tab State: 'connections', 'approval', 'pending'
+  const [activeTab, setActiveTab] = useState("connections");
 
   useFocusEffect(
     useCallback(() => {
       setRefreshTick((prev) => prev + 1);
-    }, []),
+    }, [])
   );
 
   useEffect(() => {
@@ -116,8 +118,8 @@ const ConnectionsScreen = ({ navigation }) => {
             [...normalizedFollowing, ...normalizedFollowers].map((row) => [
               row.id,
               row,
-            ]),
-          ).values(),
+            ])
+          ).values()
         );
 
         if (!isMounted) return;
@@ -148,6 +150,14 @@ const ConnectionsScreen = ({ navigation }) => {
     navigation.navigate("ProfileView", { userId });
   };
 
+  const openMessage = (contact) => {
+    navigation.navigate("ConvoScreen", {
+      contactId: contact.id,
+      contactName: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || "Alumni",
+      contactAvatar: getAvatarUri(`${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim(), contact.alumni_photo),
+    });
+  };
+
   const handleAccept = async (row) => {
     try {
       await acceptFollowRequest(row.follower_alumni_id, row.followed_alumni_id);
@@ -175,388 +185,219 @@ const ConnectionsScreen = ({ navigation }) => {
     }
   };
 
-  const handleSendRequest = async (alumni) => {
-    if (!currentAlumniId || !alumni?.id) return;
-    try {
-      const result = await sendFollowRequest(currentAlumniId, alumni.id);
-      setPendingOutgoing((prev) => [
-        ...prev,
-        {
-          id: result?.id,
-          follower_alumni_id: currentAlumniId,
-          followed_alumni_id: alumni.id,
-          followed: alumni,
-        },
-      ]);
-    } catch (err) {
-      console.error("Failed to send connection request:", err);
-    }
-  };
-
   const visibleConnections = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return connections;
-    }
-
+    if (!normalizedQuery) return connections;
     return connections.filter((contact) => {
-      const fullName =
-        `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.toLowerCase();
-      const email = String(contact.email ?? "").toLowerCase();
+      const fullName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.toLowerCase();
       const program = String(contact.program ?? "").toLowerCase();
-
-      return (
-        fullName.includes(normalizedQuery) ||
-        email.includes(normalizedQuery) ||
-        program.includes(normalizedQuery)
-      );
+      return fullName.includes(normalizedQuery) || program.includes(normalizedQuery);
     });
   }, [connections, searchQuery]);
 
-  const connectedIds = useMemo(
-    () =>
-      new Set(
-        (connections || []).map((contact) => contact?.id).filter(Boolean),
-      ),
-    [connections],
-  );
-
-  const pendingOutgoingIds = useMemo(
-    () =>
-      new Set(
-        (pendingOutgoing || []).map((row) => row?.followed?.id).filter(Boolean),
-      ),
-    [pendingOutgoing],
-  );
-
-  const visibleSuggestions = useMemo(() => {
+  const visibleApprovals = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    return (allAlumni || []).filter((alumni) => {
-      if (
-        !alumni?.id ||
-        alumni.id === currentAlumniId ||
-        connectedIds.has(alumni.id) ||
-        pendingOutgoingIds.has(alumni.id)
-      ) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      const fullName =
-        `${alumni.first_name ?? ""} ${alumni.last_name ?? ""}`.toLowerCase();
-      const email = String(alumni.email ?? "").toLowerCase();
-      const program = String(alumni.program ?? "").toLowerCase();
-
-      return (
-        fullName.includes(normalizedQuery) ||
-        email.includes(normalizedQuery) ||
-        program.includes(normalizedQuery)
-      );
+    if (!normalizedQuery) return connectionRequests;
+    return connectionRequests.filter((row) => {
+      const fullName = `${row.follower?.first_name ?? ""} ${row.follower?.last_name ?? ""}`.toLowerCase();
+      return fullName.includes(normalizedQuery);
     });
-  }, [allAlumni, connectedIds, currentAlumniId, searchQuery]);
+  }, [connectionRequests, searchQuery]);
+
+  const visiblePending = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return pendingOutgoing;
+    return pendingOutgoing.filter((row) => {
+      const fullName = `${row.followed?.first_name ?? ""} ${row.followed?.last_name ?? ""}`.toLowerCase();
+      return fullName.includes(normalizedQuery);
+    });
+  }, [pendingOutgoing, searchQuery]);
 
   const goBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-
     navigation.navigate("HomeTab");
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
-        <BrandHeader />
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          <View style={styles.headerCard}>
-            <View style={styles.titleRow}>
-              <TouchableOpacity
-                style={styles.backButton}
-                activeOpacity={0.8}
-                onPress={goBack}
-              >
-                <Ionicons name="arrow-back" size={16} color="#31429B" />
-              </TouchableOpacity>
-              <Text style={styles.title}>Connections</Text>
-              <TouchableOpacity
-                style={styles.globalSearchButton}
-                activeOpacity={0.8}
-                onPress={() => navigation.navigate("GlobalSearch")}
-                accessibilityRole="button"
-                accessibilityLabel="Open global search"
-              >
-                <Ionicons name="search" size={16} color="#31429B" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.subtitle}>
-              Accepted connections show up here and can be opened as chat
-              contacts.
-            </Text>
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#64748B" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search connections"
-                placeholderTextColor="#94A3B8"
-                style={styles.searchInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+        
+        {/* WHITE HEADER */}
+        <View style={styles.whiteHeaderCard}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={goBack} hitSlop={10}>
+              <Ionicons name="arrow-back" size={26} color="#31429B" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Your Profile</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.smallAddButton}
+            onPress={() => navigation.navigate("GlobalSearch")}
+          >
+            <Ionicons name="person-add" size={16} color="#FFD404" />
+            <Text style={styles.smallAddText}>Add Connections</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* MIDDLE BLUE SECTION */}
+        <View style={styles.middleBlueSection}>
+          {/* COMPACT TABS */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === "connections" && styles.activeTabButton]}
+              onPress={() => setActiveTab("connections")}
+            >
+              <Text style={[styles.tabText, activeTab === "connections" && styles.activeTabText]}>
+                Your Connections
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === "approval" && styles.activeTabButton]}
+              onPress={() => setActiveTab("approval")}
+            >
+              <Text style={[styles.tabText, activeTab === "approval" && styles.activeTabText]}>
+                For Approval
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === "pending" && styles.activeTabButton]}
+              onPress={() => setActiveTab("pending")}
+            >
+              <Text style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}>
+                Pending
+              </Text>
+            </TouchableOpacity>
           </View>
 
+          {/* SEARCH BAR */}
+          <View style={styles.searchBarContainer}>
+            <Ionicons name="search" size={18} color="#94A3B8" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search"
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </View>
+
+        {/* WHITE BOTTOM SHEET */}
+        <View style={styles.whiteBottomSheet}>
           {loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator color="#31429B" />
+            <View style={styles.centerWrap}>
+              <ActivityIndicator size="large" color="#31429B" />
             </View>
           ) : errorMessage ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>{errorMessage}</Text>
-            </View>
-          ) : connections.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No connections yet.</Text>
-              <Text style={styles.emptyText}>
-                Accepted requests will appear here.
-              </Text>
-            </View>
-          ) : visibleConnections.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No matching connections.</Text>
-              <Text style={styles.emptyText}>
-                Try searching with a different name, email, or program.
-              </Text>
+            <View style={styles.centerWrap}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
           ) : (
-            <View style={styles.contactList}>
-              {visibleConnections.map((contact) => {
-                const contactName =
-                  `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() ||
-                  "Alumni";
-                const contactAvatar = getAvatarUri(
-                  contactName,
-                  contact.alumni_photo,
-                );
-
-                return (
-                  <TouchableOpacity
-                    key={String(contact.connection_id ?? contact.id)}
-                    style={styles.contactCard}
-                    activeOpacity={0.85}
-                    onPress={() => openProfile(contact.id)}
-                  >
-                    <Image
-                      source={{ uri: contactAvatar }}
-                      style={styles.contactAvatar}
-                    />
-                    <View style={styles.contactTextWrap}>
-                      <Text style={styles.contactName} numberOfLines={1}>
-                        {contactName}
-                      </Text>
-                      <Text style={styles.contactMeta}>Connected</Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color="#8A94A6"
-                    />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          {!loading && !errorMessage && connectionRequests.length > 0 ? (
-            <View style={styles.pendingSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeading}>Connection Requests</Text>
-                <View style={styles.sectionBadge}>
-                  <Text style={styles.sectionBadgeText}>
-                    {connectionRequests.length}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.contactList}>
-                {connectionRequests.map((row) => {
-                  const requester = row.follower || {};
-                  const requesterName =
-                    `${requester.first_name ?? ""} ${requester.last_name ?? ""}`.trim() ||
-                    "Alumni";
-                  const requesterAvatar = getAvatarUri(
-                    requesterName,
-                    requester.alumni_photo,
-                  );
-
-                  return (
-                    <View key={`request-${row.id}`} style={styles.contactCard}>
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => openProfile(requester.id)}
-                        style={styles.contactCardInner}
-                      >
-                        <Image
-                          source={{ uri: requesterAvatar }}
-                          style={styles.contactAvatar}
-                        />
-                        <View style={styles.contactTextWrap}>
-                          <Text style={styles.contactName} numberOfLines={1}>
-                            {requesterName}
-                          </Text>
-                          <Text style={styles.contactMeta}>
-                            {requester.program || "Alumni"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                      <View style={styles.requestActions}>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          activeOpacity={0.8}
-                          onPress={() => handleAccept(row)}
-                        >
-                          <Ionicons
-                            name="checkmark"
-                            size={15}
-                            color="#FFFFFF"
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.declineButton}
-                          activeOpacity={0.8}
-                          onPress={() => handleDecline(row)}
-                        >
-                          <Ionicons name="close" size={15} color="#64748B" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-
-          {!loading && !errorMessage && pendingOutgoing.length > 0 ? (
-            <View style={styles.pendingSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeading}>Pending Connections</Text>
-                <Text style={styles.sectionCaption}>
-                  {pendingOutgoing.length} sent
-                </Text>
-              </View>
-              <View style={styles.contactList}>
-                {pendingOutgoing.map((row) => {
-                  const target = row.followed || {};
-                  const targetName =
-                    `${target.first_name ?? ""} ${target.last_name ?? ""}`.trim() ||
-                    "Alumni";
-                  const targetAvatar = getAvatarUri(
-                    targetName,
-                    target.alumni_photo,
-                  );
-
-                  return (
-                    <TouchableOpacity
-                      key={`pending-${row.id}`}
-                      style={styles.contactCard}
-                      activeOpacity={0.85}
-                      onPress={() => openProfile(target.id)}
-                    >
-                      <Image
-                        source={{ uri: targetAvatar }}
-                        style={styles.contactAvatar}
-                      />
-                      <View style={styles.contactTextWrap}>
-                        <Text style={styles.contactName} numberOfLines={1}>
-                          {targetName}
-                        </Text>
-                        <Text style={styles.contactMeta}>
-                          {target.program || "Alumni"}
-                        </Text>
-                      </View>
-                      <View style={styles.pendingBadge}>
-                        <Text style={styles.pendingBadgeText}>Pending</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-
-          {!loading && !errorMessage ? (
-            <View style={styles.suggestionsSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeading}>Suggestions</Text>
-                <Text style={styles.sectionCaption}>All Alumni</Text>
-              </View>
-
-              {visibleSuggestions.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <Text style={styles.emptyTitle}>
-                    No alumni suggestions available.
-                  </Text>
-                  <Text style={styles.emptyText}>
-                    Try adjusting your search to discover more alumni.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.contactList}>
-                  {visibleSuggestions.map((alumni) => {
-                    const alumniName =
-                      `${alumni.first_name ?? ""} ${alumni.last_name ?? ""}`.trim() ||
-                      "Alumni";
-                    const alumniAvatar = getAvatarUri(
-                      alumniName,
-                      alumni.alumni_photo,
-                    );
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+              
+              {/* YOUR CONNECTIONS TAB */}
+              {activeTab === "connections" && (
+                visibleConnections.length === 0 ? (
+                  <View style={styles.centerWrap}>
+                    <Text style={styles.emptyText}>No connections found.</Text>
+                  </View>
+                ) : (
+                  visibleConnections.map((contact) => {
+                    const contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || "Alumni";
+                    const contactAvatar = getAvatarUri(contactName, contact.alumni_photo);
+                    const gradYear = contact.year_graduated ? String(contact.year_graduated).match(/\d{4}/)?.[0] : "XXXX";
 
                     return (
-                      <TouchableOpacity
-                        key={`suggestion-${String(alumni.id)}`}
-                        style={styles.contactCard}
-                        activeOpacity={0.85}
-                        onPress={() => openProfile(alumni.id)}
-                      >
-                        <Image
-                          source={{ uri: alumniAvatar }}
-                          style={styles.contactAvatar}
-                        />
-                        <View style={styles.contactTextWrap}>
-                          <Text style={styles.contactName} numberOfLines={1}>
-                            {alumniName}
-                          </Text>
-                          <Text style={styles.contactMeta}>
-                            {alumni.program || "Alumni"}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.connectButton}
-                          activeOpacity={0.8}
-                          onPress={() => handleSendRequest(alumni)}
-                        >
-                          <Ionicons
-                            name="person-add"
-                            size={15}
-                            color="#FFFFFF"
-                          />
+                      <View key={`conn-${contact.id}`} style={styles.listItem}>
+                        <TouchableOpacity style={styles.listInfoArea} onPress={() => openProfile(contact.id)}>
+                          <Image source={{ uri: contactAvatar }} style={styles.avatar} />
+                          <View style={styles.textWrap}>
+                            <Text style={styles.nameText} numberOfLines={1}>{contactName}</Text>
+                            <Text style={styles.metaText} numberOfLines={1}>Class of {gradYear} | {contact.program || "Alumni"}</Text>
+                          </View>
                         </TouchableOpacity>
-                      </TouchableOpacity>
+                        <TouchableOpacity style={styles.messageButton} onPress={() => openMessage(contact)}>
+                          <Text style={styles.messageButtonText}>Message</Text>
+                        </TouchableOpacity>
+                      </View>
                     );
-                  })}
-                </View>
+                  })
+                )
               )}
-            </View>
-          ) : null}
-        </ScrollView>
+
+              {/* FOR APPROVAL TAB */}
+              {activeTab === "approval" && (
+                visibleApprovals.length === 0 ? (
+                  <View style={styles.centerWrap}>
+                    <Text style={styles.emptyText}>No pending requests to approve.</Text>
+                  </View>
+                ) : (
+                  visibleApprovals.map((row) => {
+                    const requester = row.follower || {};
+                    const requesterName = `${requester.first_name ?? ""} ${requester.last_name ?? ""}`.trim() || "Alumni";
+                    const requesterAvatar = getAvatarUri(requesterName, requester.alumni_photo);
+                    const gradYear = requester.year_graduated ? String(requester.year_graduated).match(/\d{4}/)?.[0] : "XXXX";
+
+                    return (
+                      <View key={`req-${row.id}`} style={styles.listItem}>
+                        <TouchableOpacity style={styles.listInfoArea} onPress={() => openProfile(requester.id)}>
+                          <Image source={{ uri: requesterAvatar }} style={styles.avatar} />
+                          <View style={styles.textWrap}>
+                            <Text style={styles.nameText} numberOfLines={1}>{requesterName}</Text>
+                            <Text style={styles.metaText} numberOfLines={1}>Class of {gradYear} | {requester.program || "Alumni"}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        <View style={styles.actionRow}>
+                          <TouchableOpacity style={[styles.messageButton, { marginRight: 6 }]} onPress={() => handleAccept(row)}>
+                            <Text style={styles.messageButtonText}>Accept</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.messageButton, styles.declineButton]} onPress={() => handleDecline(row)}>
+                            <Text style={[styles.messageButtonText, styles.declineButtonText]}>Decline</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })
+                )
+              )}
+
+              {/* PENDING TAB */}
+              {activeTab === "pending" && (
+                visiblePending.length === 0 ? (
+                  <View style={styles.centerWrap}>
+                    <Text style={styles.emptyText}>No outgoing requests pending.</Text>
+                  </View>
+                ) : (
+                  visiblePending.map((row) => {
+                    const target = row.followed || {};
+                    const targetName = `${target.first_name ?? ""} ${target.last_name ?? ""}`.trim() || "Alumni";
+                    const targetAvatar = getAvatarUri(targetName, target.alumni_photo);
+                    const gradYear = target.year_graduated ? String(target.year_graduated).match(/\d{4}/)?.[0] : "XXXX";
+
+                    return (
+                      <View key={`pend-${row.id}`} style={styles.listItem}>
+                        <TouchableOpacity style={styles.listInfoArea} onPress={() => openProfile(target.id)}>
+                          <Image source={{ uri: targetAvatar }} style={styles.avatar} />
+                          <View style={styles.textWrap}>
+                            <Text style={styles.nameText} numberOfLines={1}>{targetName}</Text>
+                            <Text style={styles.metaText} numberOfLines={1}>Class of {gradYear} | {target.program || "Alumni"}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        <View style={[styles.messageButton, styles.disabledButton]}>
+                          <Text style={[styles.messageButtonText, styles.disabledButtonText]}>Pending</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )
+              )}
+
+            </ScrollView>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );

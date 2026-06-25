@@ -3,219 +3,209 @@ import { StyleSheet } from "react-native";
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#31429B",
+    backgroundColor: "#FFFFFF", 
   },
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FB",
+    backgroundColor: "#31429B", 
   },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
+  
+  // --- WHITE HEADER CARD ---
+  whiteHeaderCard: {
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 10,
     paddingBottom: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    zIndex: 10,
   },
-  headerCard: {
-    marginTop: 14,
-    marginBottom: 14,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 22,
-    padding: 16,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  title: {
-    color: "#31429B",
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: "900",
-  },
-  titleRow: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
-  globalSearchButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-    backgroundColor: "#EEF2FF",
+  headerTitle: {
+    color: "#1C1C1E",
+    fontSize: 20,
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    marginRight: 24, // Maintained the gap for the back arrow
   },
-  backButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-    backgroundColor: "#EEF2FF",
-  },
-  subtitle: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  searchWrap: {
-    marginTop: 12,
+  smallAddButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 12,
+    backgroundColor: "#31429B",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  smallAddText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+
+  // --- MIDDLE BLUE SECTION ---
+  middleBlueSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 24,
+    backgroundColor: "#31429B",
+  },
+
+  // --- COMPACT TABS ---
+ tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 999,
+    padding: 2, // Reduced padding to make the container thinner
+    marginBottom: 16,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6, // Reduced height for thinner tabs
+    borderRadius: 999,
+  },
+  activeTabButton: {
+    backgroundColor: "#31429B",
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  tabText: {
+    fontSize: 9, // Slightly smaller font
+    color: "#94A3B8",
+    fontFamily: "Poppins_500Medium",
+    fontWeight: "500",
+  },
+  activeTabText: {
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+  },
+
+  // --- SEARCH BAR ---
+  searchBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 16,
     height: 42,
+  },
+  searchIcon: {
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    color: "#1F2937",
     fontSize: 14,
+    color: "#1C1C1E",
+    fontFamily: "Poppins_400Regular",
   },
-  loadingWrap: {
-    paddingVertical: 24,
+
+  // --- WHITE BOTTOM SHEET ---
+  whiteBottomSheet: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  listContent: {
+    paddingBottom: 40,
+  },
+  centerWrap: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
   },
-  emptyCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 18,
-    padding: 18,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    color: "#31429B",
-    fontSize: 16,
-    fontWeight: "800",
+  errorText: {
+    color: "#B42318",
+    fontSize: 14,
+    fontFamily: "Poppins_500Medium",
   },
   emptyText: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: "center",
+    color: "#94A3B8",
+    fontSize: 14,
+    fontFamily: "Poppins_500Medium",
   },
-  contactList: {
-    paddingBottom: 8,
-  },
-  suggestionsSection: {
-    marginTop: 4,
-  },
-  sectionHeaderRow: {
+
+  // --- LIST ITEMS (SEAMLESS) ---
+  listItem: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  sectionHeading: {
-    color: "#31429B",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  sectionCaption: {
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  contactCard: {
+  listInfoArea: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    flex: 1,
+    paddingRight: 10,
   },
-  contactAvatar: {
+  avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#E2E8F0",
+    marginRight: 14,
   },
-  contactTextWrap: {
+  textWrap: {
     flex: 1,
   },
-  contactName: {
-    color: "#31429B",
+  nameText: {
+    color: "#1C1C1E",
     fontSize: 15,
-    fontWeight: "800",
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    marginBottom: 2,
   },
-  contactMeta: {
-    marginTop: 2,
-    color: "#6B7280",
+  metaText: {
+    color: "#475569",
     fontSize: 12,
+    fontFamily: "Poppins_400Regular",
   },
-  connectButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#31429B",
-    alignItems: "center",
+
+  // --- BUTTONS ---
+  messageButton: {
+    backgroundColor: "#FFD404",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 999,
     justifyContent: "center",
+    alignItems: "center",
   },
-  contactCardInner: {
-    flex: 1,
+  messageButtonText: {
+    color: "#31429B",
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+  },
+  actionRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  requestActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  acceptButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#31429B",
-    alignItems: "center",
-    justifyContent: "center",
   },
   declineButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
   },
-  pendingBadge: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  declineButtonText: {
+    color: "#475569",
   },
-  pendingBadgeText: {
-    color: "#31429B",
-    fontSize: 11,
-    fontWeight: "700",
+  disabledButton: {
+    backgroundColor: "#F1F5F9",
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  pendingSection: {
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  sectionBadge: {
-    backgroundColor: "#31429B",
-    borderRadius: 10,
-    minWidth: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  sectionBadgeText: {
-    color: "#F9FAFB",
-    fontSize: 11,
-    fontWeight: "800",
+  disabledButtonText: {
+    color: "#94A3B8",
   },
 });
 

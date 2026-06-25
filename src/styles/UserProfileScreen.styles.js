@@ -10,6 +10,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   content: {
+    // Add top padding to clear the absolute HomeHeader
     paddingTop: Platform.OS === 'ios' ? 120 : 100,
     flexGrow: 1,
     backgroundColor: "#FFFFFF",
@@ -132,32 +133,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // --- DARK SECTION ---
+  // --- DARK SECTION (No Margin so it stretches full width!) ---
   darkSection: {
     backgroundColor: "#1F2B67",
-    paddingLeft: 20, 
     paddingTop: 32,
     paddingBottom: 40,
-    overflow: "hidden", 
-  },
-  sectionHeadingYellow: {
-    fontSize: 20,
-    color: "#FFD404",
-    fontFamily: "Poppins_700Bold",
-    marginBottom: 12,
-  },
-  biographyText: {
-    fontSize: 14,
-    lineHeight: 24,
-    color: "#FFFFFF",
-    fontFamily: "Poppins_400Regular",
-    marginBottom: 32,
+    width: "100%",
   },
   darkSectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
+    paddingHorizontal: 20, // Insets the header items
+  },
+  sectionHeadingYellow: {
+    fontSize: 20,
+    color: "#FFD404",
+    fontFamily: "Poppins_700Bold",
   },
   outlineEditPill: {
     flexDirection: "row",
@@ -174,19 +167,28 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Poppins_500Medium",
   },
+  biographyText: {
+    fontSize: 14,
+    lineHeight: 24,
+    color: "#FFFFFF",
+    fontFamily: "Poppins_400Regular",
+    marginBottom: 32,
+    paddingHorizontal: 20, // Insets the bio text
+  },
 
   // --- WORK EXPERIENCE CARDS ---
   workScrollContent: {
     gap: 16,
     paddingBottom: 32,
+    paddingHorizontal: 20, // Padded inside the scroll view so cards peek out naturally
   },
   workCard: {
-    width: 240,
+    width: 260,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 20,
     alignItems: "center",
-    marginRight: 16,
+    // No marginRight needed here since `gap` handles spacing
   },
   workMenuIcon: {
     position: "absolute",
@@ -231,6 +233,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
     marginBottom: 24,
+    paddingHorizontal: 20, // Insets the skills
   },
   skillPill: {
     backgroundColor: "rgba(255, 255, 255, 0.4)",

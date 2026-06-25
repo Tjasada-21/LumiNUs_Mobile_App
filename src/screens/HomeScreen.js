@@ -465,13 +465,42 @@ const HomeScreen = ({ navigation }) => {
               )}
             </ScrollView>
 
-            {/* UPGRADED EXPLORER SECTION WITH POSTER IMAGE */}
             <View style={styles.explorerSection}>
               <Image 
                 source={require("../../assets/images/TracerPoster.png")} 
                 style={styles.tracerPosterImage} 
                 resizeMode="cover" 
               />
+              
+              {/* NEW FEEDBACK SECTION */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackTitle}>Why Your Feedback Matters?</Text>
+                
+                <View style={styles.feedbackItem}>
+                  <Text style={styles.feedbackEmoji}>🎓</Text>
+                  <Text style={styles.feedbackText}>
+                    <Text style={styles.feedbackTextBold}>Help future Bulldogs: </Text>
+                    Your feedback shapes NU LIPA's programs and curriculum
+                  </Text>
+                </View>
+                
+                <View style={styles.feedbackItem}>
+                  <Text style={styles.feedbackEmoji}>💼</Text>
+                  <Text style={styles.feedbackText}>
+                    <Text style={styles.feedbackTextBold}>Unlock opportunities: </Text>
+                    Get priority access to the Alumni Job Board & career events
+                  </Text>
+                </View>
+                
+                <View style={styles.feedbackItem}>
+                  <Text style={styles.feedbackEmoji}>🤝</Text>
+                  <Text style={styles.feedbackText}>
+                    <Text style={styles.feedbackTextBold}>Stay connected: </Text>
+                    Help us build a stronger alumni network for referrals & mentorships
+                  </Text>
+                </View>
+              </View>
+
               <TouchableOpacity 
                 style={styles.exploreButton} 
                 activeOpacity={0.9} 
@@ -485,7 +514,6 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* SIDE MENU MODAL ONLY */}
         <Modal transparent visible={isMenuVisible} animationType="none" onRequestClose={closeMenu}>
           <View style={styles.sideMenuRoot}>
             <Pressable style={styles.sideMenuOverlay} onPress={closeMenu} />

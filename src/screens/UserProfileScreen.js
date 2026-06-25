@@ -329,7 +329,7 @@ const UserProfileScreen = ({ navigation }) => {
               </View>
 
               {/* DARK BLUE SECTION WITH SPACE BACKGROUND */}
-              <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="cover">
+              <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="conver">
                 
                 {/* Biography */}
                 <View style={styles.darkSectionHeaderRow}>
@@ -342,13 +342,16 @@ const UserProfileScreen = ({ navigation }) => {
                 <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
 
                 {/* Work Experience */}
-                <View style={styles.darkSectionHeaderRow}>
-                  <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
-                  <TouchableOpacity style={styles.outlineEditPill} onPress={() => openWorkModal(null)}>
-                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.outlineEditText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
+<View style={styles.darkSectionHeaderRow}>
+  <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
+  <TouchableOpacity 
+    style={styles.outlineEditPill} 
+    onPress={() => navigation.navigate("WorkExperienceScreen")}
+  >
+    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+    <Text style={styles.outlineEditText}>Edit</Text>
+  </TouchableOpacity>
+</View>
                 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
                   {workExperiences.map((emp, index) => (
@@ -364,13 +367,17 @@ const UserProfileScreen = ({ navigation }) => {
                 </ScrollView>
 
                 {/* Skills */}
-                <View style={styles.darkSectionHeaderRow}>
-                  <Text style={styles.sectionHeadingYellow}>Skills</Text>
-                  <TouchableOpacity style={styles.outlineEditPill}>
-                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.outlineEditText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
+<View style={styles.darkSectionHeaderRow}>
+  <Text style={styles.sectionHeadingYellow}>Skills</Text>
+  {/* Add the onPress prop here to navigate to the new screen */}
+  <TouchableOpacity 
+    style={styles.outlineEditPill} 
+    onPress={() => navigation.navigate("AddSkillsScreen")}
+  >
+    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+    <Text style={styles.outlineEditText}>Edit</Text>
+  </TouchableOpacity>
+</View>
 
                 <View style={styles.skillsGrid}>
                   {skills.map((skill, i) => (

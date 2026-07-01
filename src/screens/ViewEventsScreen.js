@@ -11,15 +11,14 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { WebView } from "react-native-webview";
-import BrandHeader from "../components/BrandHeader";
+import TopHeaderDark from "../components/TopHeaderDark";
 import api from "../services/api";
 import styles from "../styles/ViewEventsScreen.styles";
-
 import { ThemedAlert } from "../components/ThemedAlert";
 
 const formatDateRange = (startDate, endDate) => {
@@ -67,15 +66,8 @@ const ViewEventsScreen = () => {
   const [selectedGalleryImage, setSelectedGalleryImage] = React.useState(null);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = React.useState(0);
   const [galleryScale, setGalleryScale] = React.useState(1);
-  const [galleryTranslate, setGalleryTranslate] = React.useState({
-    x: 0,
-    y: 0,
-  });
-  const [resolvedVenueCoordinates, setResolvedVenueCoordinates] =
-    React.useState(null);
-  const [resolvingVenueCoordinates, setResolvingVenueCoordinates] =
-    React.useState(false);
-  const [mapLoadFailed, setMapLoadFailed] = React.useState(false);
+  const [galleryTranslate, setGalleryTranslate] = React.useState({ x: 0, y: 0 });
+  
   const pinchStartDistanceRef = React.useRef(0);
   const pinchStartScaleRef = React.useRef(1);
   const dragStartRef = React.useRef({ x: 0, y: 0 });
@@ -86,7 +78,6 @@ const ViewEventsScreen = () => {
       navigation.goBack();
       return;
     }
-
     navigation.navigate("Home", { screen: "EventsScreen" });
   };
 
@@ -95,75 +86,11 @@ const ViewEventsScreen = () => {
   const eventDescription = String(event?.description ?? "");
   const dateRange = formatDateRange(event?.start_date, event?.end_date);
   const platform = String(event?.platform ?? "Not set");
-  const platformUrl = String(event?.platform_url ?? "").trim();
-  const rawEventType = String(
-    event?.event_type ??
-      event?.eventType ??
-      event?.type ??
-      event?.event_category ??
-      "",
-  ).trim();
   const venueName = String(event?.venue?.name ?? "Venue not set");
   const venueAddress = event?.venue?.address ?? null;
-  const payloadVenueLatitude = Number.parseFloat(
-    event?.venue?.latitude ??
-      event?.venue?.lat ??
-      event?.venue_latitude ??
-      event?.latitude ??
-      event?.lat,
-  );
-  const payloadVenueLongitude = Number.parseFloat(
-    event?.venue?.longitude ??
-      event?.venue?.lng ??
-      event?.venue_longitude ??
-      event?.longitude ??
-      event?.lng,
-  );
-  const hasPayloadVenueCoordinates =
-    Number.isFinite(payloadVenueLatitude) &&
-    Number.isFinite(payloadVenueLongitude);
-  const venueSearchQuery = [venueName, venueAddress]
-    .filter(
-      (value) =>
-        value &&
-        !String(value).toLowerCase().includes("not available") &&
-        !String(value).toLowerCase().includes("not set"),
-    )
-    .join(" ")
-    .trim();
-  const venueLatitude = hasPayloadVenueCoordinates
-    ? payloadVenueLatitude
-    : Number.parseFloat(resolvedVenueCoordinates?.latitude);
-  const venueLongitude = hasPayloadVenueCoordinates
-    ? payloadVenueLongitude
-    : Number.parseFloat(resolvedVenueCoordinates?.longitude);
-  const hasVenueCoordinates =
-    Number.isFinite(venueLatitude) && Number.isFinite(venueLongitude);
-  const inferredEventType = rawEventType
-    ? rawEventType
-    : platformUrl || platform !== "Not set"
-      ? "online"
-      : hasVenueCoordinates || venueSearchQuery
-        ? "in person"
-        : "";
-  const normalizedEventType = String(inferredEventType)
-    .toLowerCase()
-    .replace(/[_-]/g, " ")
-    .trim();
-  const eventType = normalizedEventType
-    ? normalizedEventType.replace(/\b\w/g, (char) => char.toUpperCase())
-    : "Not set";
-  const isOnlineEvent = normalizedEventType === "online";
-  const isInPersonEvent = [
-    "in person",
-    "inperson",
-    "physical",
-    "onsite",
-    "on site",
-  ].includes(normalizedEventType);
-  const shouldShowVenueCard = Boolean(
-    isInPersonEvent || hasVenueCoordinates || venueSearchQuery,
-  );
+  
+  const displayLocation = venueName !== "Venue not set" ? venueName : (venueAddress || platform);
+
   const eventImageUris = Array.isArray(event?.images)
     ? event.images
         .map(
@@ -175,14 +102,7 @@ const ViewEventsScreen = () => {
   const eventImageUri = eventImageUris[0] ?? event?.cover_image_url ?? null;
   const galleryImageUris = eventImageUris.slice(1, 5);
   const galleryViewportWidth = Dimensions.get("window").width;
-  const venueMapEmbedUri = hasVenueCoordinates
-    ? `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%;overflow:hidden}</style></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([${venueLatitude},${venueLongitude}],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);L.marker([${venueLatitude},${venueLongitude}]).addTo(map);<\/script></body></html>`
-    : null;
-  const venueExternalMapUri = hasVenueCoordinates
-    ? `https://www.openstreetmap.org/?mlat=${venueLatitude}&mlon=${venueLongitude}&zoom=16`
-    : venueSearchQuery
-      ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(venueSearchQuery)}`
-      : null;
+  
   const isAlreadyRegistered = Boolean(
     event?.id && registeredEventIds.includes(Number(event.id)),
   );
@@ -194,84 +114,12 @@ const ViewEventsScreen = () => {
   }, [routeEvent]);
 
   React.useEffect(() => {
-    setMapLoadFailed(false);
-  }, [venueLatitude, venueLongitude]);
-
-  React.useEffect(() => {
-    let isMounted = true;
-
-    const resolveVenueCoordinates = async () => {
-      if (hasPayloadVenueCoordinates || !venueSearchQuery) {
-        if (isMounted) {
-          setResolvedVenueCoordinates(null);
-          setResolvingVenueCoordinates(false);
-        }
-        return;
-      }
-
-      try {
-        setResolvingVenueCoordinates(true);
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(venueSearchQuery)}`,
-          {
-            headers: {
-              Accept: "application/json",
-              "User-Agent": "LumiNUsMobile/1.0",
-            },
-          },
-        );
-        const responseText = await response.text();
-
-        if (!response.ok) {
-          console.warn("Venue geocoding request failed:", response.status);
-          return;
-        }
-
-        let results = [];
-        try {
-          const parsed = JSON.parse(responseText);
-          results = Array.isArray(parsed) ? parsed : [];
-        } catch (parseError) {
-          console.warn("Venue geocoding returned non-JSON payload.");
-          return;
-        }
-
-        const firstMatch = Array.isArray(results) ? results[0] : null;
-
-        if (!firstMatch || !isMounted) {
-          return;
-        }
-
-        const latitude = Number.parseFloat(firstMatch?.lat);
-        const longitude = Number.parseFloat(firstMatch?.lon);
-
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          setResolvedVenueCoordinates({ latitude, longitude });
-        }
-      } catch (error) {
-        console.error("Failed to resolve venue coordinates:", error);
-      } finally {
-        if (isMounted) {
-          setResolvingVenueCoordinates(false);
-        }
-      }
-    };
-
-    resolveVenueCoordinates();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [hasPayloadVenueCoordinates, venueSearchQuery]);
-
-  React.useEffect(() => {
     let isMounted = true;
 
     const hydrateEventDetails = async () => {
       if (!routeEvent?.id) {
         return;
       }
-
       try {
         const response = await api.get(`/events/${routeEvent.id}`);
         const hydratedEvent = response.data?.event ?? null;
@@ -316,7 +164,6 @@ const ViewEventsScreen = () => {
       if (!event?.id) {
         return;
       }
-
       try {
         setRegistrationsLoading(true);
         const response = await api.get("/event-registrations");
@@ -347,7 +194,6 @@ const ViewEventsScreen = () => {
     if (!event?.id) {
       return;
     }
-
     try {
       setRegistrationsLoading(true);
       const response = await api.get("/event-registrations");
@@ -363,43 +209,11 @@ const ViewEventsScreen = () => {
     }
   };
 
-  const handlePlatformPress = async () => {
-    if (!platformUrl) {
-      return;
-    }
-
-    try {
-      const canOpen = await Linking.canOpenURL(platformUrl);
-
-      if (canOpen) {
-        await Linking.openURL(platformUrl);
-      }
-    } catch (error) {
-      console.error("Failed to open platform URL:", error);
-    }
-  };
-
-  const handleVenueMapPress = async () => {
-    if (!venueExternalMapUri) {
-      return;
-    }
-
-    try {
-      const canOpen = await Linking.canOpenURL(venueExternalMapUri);
-      if (canOpen) {
-        await Linking.openURL(venueExternalMapUri);
-      }
-    } catch (error) {
-      console.error("Failed to open map URL:", error);
-    }
-  };
-
   const handleRegisterPress = () => {
     if (!canRegister) {
       return;
     }
-
-    navigation.navigate("EventRegistration", { event });
+    navigation.navigate("EventRegistrationScreen", { event });
   };
 
   const handleRemoveRegistrationPress = () => {
@@ -439,7 +253,6 @@ const ViewEventsScreen = () => {
     if (!galleryImageUris[imageIndex]) {
       return;
     }
-
     setGalleryScale(1);
     setGalleryTranslate({ x: 0, y: 0 });
     setSelectedGalleryIndex(imageIndex);
@@ -457,12 +270,10 @@ const ViewEventsScreen = () => {
     if (!touches || touches.length < 2) {
       return 0;
     }
-
     const firstTouch = touches[0];
     const secondTouch = touches[1];
     const deltaX = secondTouch.pageX - firstTouch.pageX;
     const deltaY = secondTouch.pageY - firstTouch.pageY;
-
     return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   };
 
@@ -472,7 +283,6 @@ const ViewEventsScreen = () => {
     if (!selectedGalleryImage) {
       return;
     }
-
     requestAnimationFrame(() => {
       galleryViewerScrollRef.current?.scrollTo({
         x: selectedGalleryIndex * galleryViewportWidth,
@@ -490,7 +300,6 @@ const ViewEventsScreen = () => {
           if (gestureState.numberActiveTouches >= 2) {
             return true;
           }
-
           return (
             galleryScale > 1 &&
             (Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2)
@@ -502,7 +311,6 @@ const ViewEventsScreen = () => {
             pinchStartDistanceRef.current = getTouchDistance(touches);
             pinchStartScaleRef.current = galleryScale;
           }
-
           dragStartRef.current = { ...galleryTranslate };
         },
         onPanResponderMove: (event, gestureState) => {
@@ -514,7 +322,6 @@ const ViewEventsScreen = () => {
               pinchStartScaleRef.current = galleryScale;
               return;
             }
-
             const currentDistance = getTouchDistance(touches);
             const nextScale = clampGalleryScale(
               pinchStartScaleRef.current *
@@ -555,234 +362,74 @@ const ViewEventsScreen = () => {
   return (
     <>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.container}>
-          <BrandHeader />
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <View style={styles.headerCard}>
-              <Pressable style={styles.backButton} onPress={handleBackPress}>
-                <Ionicons name="arrow-back" size={20} color="#31429B" />
-                <Text style={styles.backButtonText}>Back</Text>
+        <TopHeaderDark />
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          <View style={styles.blueHeroSection}>
+            <View style={styles.titleRow}>
+              <Pressable onPress={handleBackPress} hitSlop={10} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={26} color="#FFD404" />
               </Pressable>
-
-              {eventImageUri ? (
-                <ImageBackground
-                  source={{ uri: eventImageUri }}
-                  style={styles.heroImage}
-                  imageStyle={styles.heroImageInner}
-                >
-                  <View style={styles.heroOverlay} />
-                </ImageBackground>
-              ) : (
-                <View style={styles.heroPlaceholder}>
-                  <Ionicons name="calendar-outline" size={34} color="#31429B" />
-                </View>
-              )}
+              <Text style={styles.pageTitle} numberOfLines={3}>{eventTitle}</Text>
             </View>
 
-            <View style={styles.contentCard}>
-              <Text style={styles.title}>{eventTitle}</Text>
+            {eventImageUri ? (
+              <Image source={{ uri: eventImageUri }} style={styles.heroImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.heroPlaceholder}>
+                <Ionicons name="image-outline" size={40} color="#8A96D4" />
+              </View>
+            )}
+          </View>
 
-              {galleryImageUris.length > 0 ? (
-                <View style={styles.gallerySection}>
-                  <Text style={styles.galleryLabel}>Attachments</Text>
-                  {galleryImageUris.length === 4 ? (
-                    <View style={styles.galleryGrid}>
-                      {galleryImageUris.map((imageUri, index) => (
-                        <Pressable
-                          key={`${imageUri}-${index}`}
-                          style={styles.galleryGridItem}
-                          onPress={() => openGalleryImage(index)}
-                        >
-                          <Image
-                            source={{ uri: imageUri }}
-                            style={styles.galleryGridImage}
-                            resizeMode="cover"
-                          />
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.galleryScroll}
-                    >
-                      {galleryImageUris.map((imageUri, index) => (
-                        <Pressable
-                          key={`${imageUri}-${index}`}
-                          style={styles.galleryImageWrap}
-                          onPress={() => openGalleryImage(index)}
-                        >
-                          <Image
-                            source={{ uri: imageUri }}
-                            style={styles.galleryImage}
-                            resizeMode="cover"
-                          />
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : null}
+          {galleryImageUris.length > 0 && (
+            <View style={styles.attachmentsSection}>
+              <Text style={styles.attachmentsTitle}>Other Attachments</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
+                {galleryImageUris.map((uri, index) => (
+                  <Pressable key={index} onPress={() => openGalleryImage(index)}>
+                    <Image source={{ uri }} style={styles.galleryImage} resizeMode="cover" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-              <Text
-                style={[styles.galleryLabel, styles.descriptionLabelSpacing]}
-              >
-                Description
-              </Text>
-
-              {eventDescription ? (
-                <Text style={styles.description}>{eventDescription}</Text>
-              ) : null}
-
+          <View style={styles.detailsCard}>
+            <Text style={styles.detailsTitle}>Event Details</Text>
+            <Text style={styles.descriptionText}>{eventDescription}</Text>
+            
+            <View style={styles.dateLocationCard}>
+              <Text style={styles.dateLocationTitle}>Date & Location</Text>
               <View style={styles.infoRow}>
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Event Type</Text>
-                  <Text style={styles.infoValue}>{eventType}</Text>
-                </View>
-
-                {isOnlineEvent ? (
-                  <>
-                    <View style={styles.infoItem}>
-                      <Text style={styles.infoLabel}>Platform</Text>
-                      <Text style={styles.infoValue}>{platform}</Text>
-                    </View>
-
-                    <Pressable
-                      style={styles.infoItem}
-                      onPress={handlePlatformPress}
-                      accessibilityRole="link"
-                      accessibilityLabel={
-                        platformUrl
-                          ? `Open platform URL ${platformUrl}`
-                          : "Platform URL unavailable"
-                      }
-                      disabled={!platformUrl}
-                    >
-                      <Text style={styles.infoLabel}>Platform URL</Text>
-                      <Text
-                        style={[styles.infoValue, styles.platformLink]}
-                        numberOfLines={1}
-                      >
-                        {platformUrl || "Not set"}
-                      </Text>
-                    </Pressable>
-                  </>
-                ) : null}
-
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Start / End Date</Text>
-                  <Text style={styles.infoValue}>{dateRange}</Text>
-                </View>
+                <Ionicons name="calendar-outline" size={18} color="#FFD404" />
+                <Text style={styles.infoText}>{dateRange}</Text>
               </View>
-
-              {shouldShowVenueCard ? (
-                <View style={styles.venueCard}>
-                  <View style={styles.venueHeaderRow}>
-                    <View style={styles.venueTitleRow}>
-                      <Ionicons
-                        name="location-outline"
-                        size={18}
-                        color="#31429B"
-                      />
-                      <Text style={styles.venueLabel}>Venue</Text>
-                    </View>
-                    <Text style={styles.venueName}>{venueName}</Text>
-                  </View>
-
-                  {venueMapEmbedUri && !mapLoadFailed ? (
-                    <>
-                      <Pressable
-                        style={styles.mapContainer}
-                        onPress={handleVenueMapPress}
-                        accessibilityRole="button"
-                        accessibilityLabel="Open venue location in maps"
-                      >
-                        <WebView
-                          source={{ html: venueMapEmbedUri }}
-                          style={styles.mapWebView}
-                          scrollEnabled={false}
-                          javaScriptEnabled
-                          domStorageEnabled
-                          originWhitelist={["*"]}
-                          mixedContentMode="always"
-                          onError={() => setMapLoadFailed(true)}
-                        />
-                      </Pressable>
-                    </>
-                  ) : (
-                    <View style={styles.mapFallback}>
-                      <Ionicons name="map-outline" size={24} color="#64748B" />
-                      <Text style={styles.mapFallbackText}>
-                        {resolvingVenueCoordinates
-                          ? "Finding venue on map..."
-                          : "Map coordinates are not available for this venue."}
-                      </Text>
-                      {venueExternalMapUri ? (
-                        <Pressable
-                          onPress={handleVenueMapPress}
-                          accessibilityRole="button"
-                          accessibilityLabel="Search venue location in maps"
-                        >
-                          <Text style={[styles.infoValue, styles.platformLink]}>
-                            Open in Maps
-                          </Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  )}
-                  {venueAddress ? (
-                    <Text style={styles.venueAddress}>{venueAddress}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-
-              <View style={styles.registerButtonContainer}>
-                <Pressable
-                  style={[
-                    styles.registerButton,
-                    isAlreadyRegistered
-                      ? styles.registerButtonDestructive
-                      : null,
-                    !isAlreadyRegistered && !canRegister
-                      ? styles.registerButtonDisabled
-                      : null,
-                  ]}
-                  onPress={
-                    isAlreadyRegistered
-                      ? handleRemoveRegistrationPress
-                      : handleRegisterPress
-                  }
-                  accessibilityRole="button"
-                  disabled={
-                    registrationsLoading ||
-                    (!isAlreadyRegistered && !canRegister)
-                  }
-                  accessibilityState={{
-                    disabled:
-                      registrationsLoading ||
-                      (!isAlreadyRegistered && !canRegister),
-                  }}
-                >
-                  <Text style={styles.registerButtonText}>
-                    {isAlreadyRegistered
-                      ? "Remove Registration"
-                      : registrationsLoading
-                        ? "Checking..."
-                        : "Pre-Register"}
-                  </Text>
-                </Pressable>
+              <View style={styles.infoRow}>
+                <Ionicons name="location-outline" size={18} color="#FFD404" />
+                <Text style={styles.infoText}>{displayLocation}</Text>
               </View>
             </View>
-          </ScrollView>
-        </View>
+          </View>
+
+          <Pressable 
+            style={[styles.registerButtonOutline, isAlreadyRegistered && styles.registerButtonDestructive]} 
+            onPress={isAlreadyRegistered ? handleRemoveRegistrationPress : handleRegisterPress}
+            disabled={registrationsLoading || (!isAlreadyRegistered && !canRegister)}
+          >
+            {registrationsLoading ? (
+              <ActivityIndicator color="#31429B" />
+            ) : (
+              <Text style={[styles.registerButtonOutlineText, isAlreadyRegistered && styles.registerButtonDestructiveText]}>
+                {isAlreadyRegistered ? "Remove Registration" : "Pre-Register Now!"}
+              </Text>
+            )}
+          </Pressable>
+
+        </ScrollView>
       </SafeAreaView>
 
-      {/* bottom safe area to ensure proper padding on devices with home indicators */}
-      <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#ffffff" }} />
+      <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#FFD404" }} />
 
       <Modal
         visible={Boolean(selectedGalleryImage)}

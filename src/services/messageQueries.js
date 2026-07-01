@@ -10,9 +10,7 @@ const sendPushNotificationWithRetry = async (tokens, title, body, data) => {
   try {
     await sendPushNotification(tokens, title, body, data);
   } catch (error) {
-
     await new Promise((resolve) => setTimeout(resolve, 1000));
-
     try {
       await sendPushNotification(tokens, title, body, data);
     } catch (retryError) {
@@ -25,7 +23,6 @@ const toDecryptedMessage = (message) => {
   if (!message || typeof message !== 'object') {
     return message;
   }
-
   return {
     ...message,
     content: decryptMessage(message.content),
@@ -44,7 +41,7 @@ const extractMentionHandles = (text) => {
   return Array.from(found);
 };
 
-// Best-effort resolve handles to alumni IDs by splitting handle into first and last name
+// Best-effort resolve handles to alumni IDs
 const resolveHandlesToAlumni = async (handles) => {
   const results = {};
   for (const handle of handles) {
@@ -68,74 +65,224 @@ const resolveHandlesToAlumni = async (handles) => {
       // ignore a single handle resolution error
     }
   }
-
-  return results; // map handle => alumni row
+  return results;
 };
 
 const normalizeOutgoingContent = (content) => {
   const value = String(content ?? '');
-
-  if (!value) {
-    return '';
-  }
-
-  // Avoid double encryption if a caller already passed encrypted text.
+  if (!value) return '';
   if (value.startsWith('enc:') || value.startsWith('U2FsdGVkX1')) {
     return value;
   }
-
   return encryptMessage(value);
 };
 
 /**
- * Messages & Chat Queries
+ * Fetch a single user profile (alumni or admin) based on type
  */
+const getUserProfile = async (userId, userType) => {
+  try {
+    if (!userId || !userType) return null;
+    
+    if (userType === 'alumni') {
+      const { data } = await supabase
+        .from('alumnis')
+        .select('id, first_name, last_name, alumni_photo, email, program')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      return data ? { ...data, user_type: 'alumni' } : null;
+    } 
+    
+    if (userType === 'admin') {
+      const { data } = await supabase
+        .from('admins')
+        .select('id, admin_first_name, admin_last_name, photo, admin_email')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      return data ? {
+        id: data.id,
+        first_name: data.admin_first_name,
+        last_name: data.admin_last_name,
+        alumni_photo: data.photo,
+        email: data.admin_email,
+        program: 'Admin Staff',
+        user_type: 'admin'
+      } : null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[messages] Error fetching user profile:', error);
+    return null;
+  }
+};
 
 /**
- * Get direct messages between two users
+ * Fetch multiple user profiles (batch) - handles both alumni and admin
  */
-export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0) => {
-  // Defensive: if either ID is missing, return empty array to avoid malformed DB queries
-  if (!userId1 || !userId2) return [];
-
+const getUserProfiles = async (userInfos) => {
+  const profiles = new Map();
+  
+  if (!userInfos || userInfos.length === 0) return profiles;
+  
+  // Separate alumni and admin IDs
+  const alumniIds = [];
+  const adminIds = [];
+  
+  userInfos.forEach(({ id, type }) => {
+    if (type === 'alumni') {
+      alumniIds.push(id);
+    } else if (type === 'admin') {
+      adminIds.push(id);
+    }
+  });
+  
   try {
-    const { data, error } = await supabase
+    // Fetch alumni profiles
+    if (alumniIds.length > 0) {
+      const { data: alumni } = await supabase
+        .from('alumnis')
+        .select('id, first_name, last_name, alumni_photo, email, program')
+        .in('id', alumniIds);
+      
+      (alumni || []).forEach(user => {
+        profiles.set(`alumni_${user.id}`, { ...user, user_type: 'alumni' });
+      });
+    }
+    
+    // Fetch admin profiles
+    if (adminIds.length > 0) {
+      const { data: admins } = await supabase
+        .from('admins')
+        .select('id, admin_first_name, admin_last_name, photo, admin_email')
+        .in('id', adminIds);
+      
+      (admins || []).forEach(user => {
+        profiles.set(`admin_${user.id}`, {
+          id: user.id,
+          first_name: user.admin_first_name,
+          last_name: user.admin_last_name,
+          alumni_photo: user.photo,
+          email: user.admin_email,
+          program: 'Admin Staff',
+          user_type: 'admin'
+        });
+      });
+    }
+    
+    return profiles;
+  } catch (error) {
+    console.error('[messages] Error fetching user profiles:', error);
+    return profiles;
+  }
+};
+
+/**
+ * Get sender name from either alumni or admin table
+ */
+const getSenderName = async (senderId, senderType) => {
+  try {
+    if (senderType === 'alumni') {
+      const { data } = await supabase
+        .from('alumnis')
+        .select('first_name, last_name')
+        .eq('id', senderId)
+        .maybeSingle();
+      
+      return data ? `${data.first_name || ''} ${data.last_name || ''}`.trim() : 'Someone';
+    } else {
+      const { data } = await supabase
+        .from('admins')
+        .select('admin_first_name, admin_last_name')
+        .eq('id', senderId)
+        .maybeSingle();
+      
+      return data ? `${data.admin_first_name || ''} ${data.admin_last_name || ''}`.trim() : 'Admin Staff';
+    }
+  } catch {
+    return 'Someone';
+  }
+};
+
+/**
+ * Get direct messages between two users (supports alumni & admin)
+ */
+/**
+ * Get direct messages between two users (supports alumni & admin)
+ */
+export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0, receiverType = 'alumni') => {
+  if (!userId1 || !userId2) return [];
+  
+  try {
+    // Get messages without joins because of polymorphic relationship
+    // Include receiver_type in the query to avoid mixing admin/alumni messages
+    const { data: messagesData, error } = await supabase
       .from('messages')
-      .select(`
-        *,
-        sender:sender_id(id, first_name, last_name, alumni_photo),
-        receiver:receiver_id(id, first_name, last_name, alumni_photo)
-      `)
+      .select('*')
       .or(
-        `and(sender_id.eq.${userId1}, receiver_id.eq.${userId2}), and(sender_id.eq.${userId2}, receiver_id.eq.${userId1})`
+        `and(sender_id.eq.${userId1},receiver_id.eq.${userId2},receiver_type.eq.${receiverType}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1},sender_type.eq.${receiverType})`
       )
       .not('deleted_by', 'cs', `{${userId1}}`)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
+    
+    if (!messagesData || messagesData.length === 0) {
+      return [];
+    }
 
-    // Load attachments with signed URLs for each message
-    const messagesWithAttachments = await Promise.all((data || []).map(async (msg) => {
-      const decryptedMsg = toDecryptedMessage(msg);
-      const attachments = await getMessageAttachments(msg.id).catch(() => []);
-      return {
-        ...decryptedMsg,
-        attachments: attachments.length > 0 ? attachments : undefined,
-      };
-    }));
+    // Collect unique user IDs with their types
+    const uniqueUsers = new Map();
+    messagesData.forEach(msg => {
+      if (msg.sender_id && msg.sender_type) {
+        uniqueUsers.set(`${msg.sender_type}_${msg.sender_id}`, { 
+          id: msg.sender_id, 
+          type: msg.sender_type 
+        });
+      }
+      if (msg.receiver_id && msg.receiver_type) {
+        uniqueUsers.set(`${msg.receiver_type}_${msg.receiver_id}`, { 
+          id: msg.receiver_id, 
+          type: msg.receiver_type 
+        });
+      }
+    });
 
-    return messagesWithAttachments.reverse(); // Reverse to show oldest first
+    // Fetch all user profiles
+    const userProfiles = await getUserProfiles(Array.from(uniqueUsers.values()));
+
+    // Map users to messages and load attachments
+    const messagesWithAttachments = await Promise.all(
+      messagesData.map(async (msg) => {
+        const decryptedMsg = toDecryptedMessage(msg);
+        const attachments = await getMessageAttachments(msg.id).catch(() => []);
+        
+        const senderKey = `${msg.sender_type}_${msg.sender_id}`;
+        const receiverKey = `${msg.receiver_type}_${msg.receiver_id}`;
+        
+        return {
+          ...decryptedMsg,
+          sender: userProfiles.get(senderKey) || null,
+          receiver: userProfiles.get(receiverKey) || null,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        };
+      })
+    );
+
+    return messagesWithAttachments.reverse();
   } catch (error) {
     console.error('[messages] Get direct messages error:', error.message);
-    throw error;
+    return [];
   }
 };
 
 /**
- * Send direct message
+ * Send direct message (supports alumni & admin)
  */
-export const sendDirectMessage = async (senderId, receiverId, content, attachments = []) => {
+export const sendDirectMessage = async (senderId, receiverId, content, attachments = [], senderType = 'alumni', receiverType = 'alumni') => {
   try {
     const encryptedContent = normalizeOutgoingContent(content);
 
@@ -146,6 +293,9 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
         receiver_id: receiverId,
         content: encryptedContent,
         is_read: false,
+        sender_type: senderType,
+        receiver_type: receiverType,
+        
       }])
       .select()
       .single();
@@ -159,7 +309,7 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       );
     }
 
-    // Handle mentions: extract handles from plain content, resolve to alumni, insert mention rows and notify
+    // Handle mentions
     try {
       const handles = extractMentionHandles(content);
       if (handles.length > 0) {
@@ -172,7 +322,6 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
             mentionInserts.push({ message_id: data.id, alumni_id: alumni.id });
             if (alumni.id !== senderId) notifyIds.push(alumni.id);
           } else {
-            // fallback: insert handle string if resolution failed
             mentionInserts.push({ message_id: data.id, handle });
           }
         });
@@ -206,29 +355,29 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       console.error('[messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
     }
 
-    // Send a push notification to the receiver if they are logged in and have a token
-    try {
-      const { data: receiverRow, error: receiverError } = await supabase
-        .from('alumnis')
-        .select('push_token, first_name, last_name')
-        .eq('id', receiverId)
-        .eq('is_online', true)
-        .maybeSingle();
+    // Send push notification to receiver (only for alumni receivers)
+    if (receiverType === 'alumni') {
+      try {
+        const { data: receiverRow, error: receiverError } = await supabase
+          .from('alumnis')
+          .select('push_token, first_name, last_name')
+          .eq('id', receiverId)
+          .eq('is_online', true)
+          .maybeSingle();
 
-      if (!receiverError && receiverRow && receiverRow.push_token) {
-        const sender = await supabase.from('alumnis').select('first_name, last_name').eq('id', senderId).maybeSingle().then(r => r.data || null);
-        const senderName = sender ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() : 'Someone';
+        if (!receiverError && receiverRow && receiverRow.push_token) {
+          const senderName = await getSenderName(senderId, senderType);
 
-        // Use our new retry wrapper instead of direct call
-        await sendPushNotificationWithRetry(
-          [receiverRow.push_token],
-          'New Message',
-          `${senderName} sent you a message.`,
-          { type: 'message', messageId: data.id }
-        );
+          await sendPushNotificationWithRetry(
+            [receiverRow.push_token],
+            'New Message',
+            `${senderName} sent you a message.`,
+            { type: 'message', messageId: data.id }
+          );
+        }
+      } catch (notifErr) {
+        console.error('[messages] Failed to send push notification:', notifErr?.message || notifErr);
       }
-    } catch (notifErr) {
-      console.error('[messages] Failed to query receiver data for push notification:', notifErr?.message || notifErr);
     }
 
     return toDecryptedMessage(data);
@@ -289,7 +438,6 @@ export const markGroupChatAsRead = async (groupChatId, alumniId, lastReadMessage
       .maybeSingle();
 
     if (error) throw error;
-
     return data;
   } catch (error) {
     console.error('[group_chats] Mark as read error:', error.message);
@@ -298,17 +446,18 @@ export const markGroupChatAsRead = async (groupChatId, alumniId, lastReadMessage
 };
 
 /**
- * Delete message
- */
-/**
  * Soft Delete message
  */
 export const deleteMessage = async (messageId, userId) => {
   try {
-    // Fetch current array to avoid overwriting if the other user also deleted it
-    const { data: msg } = await supabase.from('messages').select('deleted_by').eq('id', messageId).single();
+    const { data: msg } = await supabase
+      .from('messages')
+      .select('deleted_by')
+      .eq('id', messageId)
+      .single();
+   
     const currentDeleted = msg?.deleted_by || [];
-    
+   
     if (!currentDeleted.includes(userId)) {
       const { error } = await supabase
         .from('messages')
@@ -323,29 +472,24 @@ export const deleteMessage = async (messageId, userId) => {
 };
 
 /**
- * Upload message attachment securely to luminus_assets
+ * Upload message attachment
  */
 export const uploadMessageAttachment = async (messageId, attachmentUri) => {
   try {
-    
-    // Helper to convert local file uri (file:// or content://) to a Blob using XHR
-    // Try multiple strategies to obtain file data suitable for Supabase upload.
     let lastError = null;
 
-    // Infer extension and content type from URI where possible
     const guessExt = String(attachmentUri).split('.').pop()?.toLowerCase();
     const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
     const inferredMime = mimeMap[guessExt] || null;
     const extension = guessExt || 'jpg';
     const filePath = `messages_attachments/${messageId}-${Date.now()}.${extension}`;
 
-    // Strategy 1: Direct FileSystem read for local files (file:// or content://)
+    // Strategy 1: Direct FileSystem read
     try {
       const isLocal = /^file:\/\//i.test(attachmentUri) || /^content:\/\//i.test(attachmentUri);
       if (isLocal) {
         const base64 = await FileSystem.readAsStringAsync(attachmentUri, { encoding: 'base64' });
         const mime = inferredMime || 'image/jpeg';
-
         const binaryStr = atob(base64);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++) {
@@ -364,7 +508,6 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
           attachment_path: filePath,
         }]);
 
-        
         return filePath;
       } else {
         throw new Error('Not a local URI');
@@ -373,7 +516,7 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
       lastError = err;
     }
 
-    // Strategy 2: fetch and use Blob (works for many URIs)
+    // Strategy 2: fetch and use Blob
     try {
       const res = await fetch(attachmentUri);
       const blob = await res.blob();
@@ -391,13 +534,12 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
         attachment_path: filePath,
       }]);
 
-      
       return filePath;
     } catch (err) {
       lastError = err;
     }
 
-    // Strategy 3: fetch arrayBuffer -> Uint8Array
+    // Strategy 3: fetch arrayBuffer
     try {
       const res2 = await fetch(attachmentUri);
       const arrayBuffer = await res2.arrayBuffer();
@@ -416,25 +558,12 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
         attachment_path: filePath,
       }]);
 
-      
       return filePath;
     } catch (err) {
       lastError = err;
     }
 
-    // If we reached here, all attempts failed
     throw lastError || new Error('Failed to upload attachment');
-
-    if (error) throw error;
-
-    // Save the exact location path to the database table
-    await supabase.from('messages_attachments').insert([{
-      message_id: messageId,
-      attachment_type: 'image',
-      attachment_path: filePath,
-    }]);
-
-    return filePath;
   } catch (error) {
     console.error('[messages] Upload attachment error:', (error && error.message) || error);
     throw error;
@@ -442,10 +571,7 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
 };
 
 /**
- * Get message attachments
- */
-/**
- * Get message attachments with Secure Signed URLs from luminus_assets
+ * Get message attachments with signed URLs
  */
 export const getMessageAttachments = async (messageId) => {
   try {
@@ -456,24 +582,20 @@ export const getMessageAttachments = async (messageId) => {
 
     if (error) throw error;
 
-    // Generate signed URLs valid for 1 hour (3600 seconds) for each attachment
     const secureAttachments = await Promise.all((data || []).map(async (att) => {
-      // Fallback: If it's already a full HTTP URL (legacy unsecured data), return it so old chats don't break
       if (att.attachment_path && att.attachment_path.startsWith('http')) {
         return att;
       }
 
-      // Generate the temporary secure URL from the luminus_assets bucket
       const { data: signedData, error: signError } = await supabase.storage
         .from('luminus_assets')
-        .createSignedUrl(att.attachment_path, 3600); 
+        .createSignedUrl(att.attachment_path, 3600);
 
       if (signError) {
         console.warn(`[messages] Failed to sign URL for ${att.attachment_path}:`, signError.message);
-        return att; // Return as-is, though it will likely fail to load in UI
+        return att;
       }
 
-      // Swap the raw path for the temporary signed URL before sending it to the UI components
       return {
         ...att,
         attachment_path: signedData.signedUrl
@@ -488,76 +610,116 @@ export const getMessageAttachments = async (messageId) => {
 };
 
 /**
- * Get conversations list for user
+ * Get conversations list for user (supports both alumni and admin)
  */
-export const getConversations = async (userId, offset = 0, limit = 50) => {
+export const getConversations = async (userId, userType = 'alumni', offset = 0, limit = 50) => {
   try {
-    const { data, error } = await supabase
+    // Get all messages involving this user
+    const { data: messagesData, error } = await supabase
       .from('messages')
       .select(`
         id,
         sender_id,
         receiver_id,
-        sender:sender_id(id, first_name, last_name, email, alumni_photo),
-        receiver:receiver_id(id, first_name, last_name, email, alumni_photo),
         content,
         is_read,
-        created_at
+        created_at,
+        sender_type,
+        receiver_type
       `)
-      .or(`sender_id.eq.${userId}, receiver_id.eq.${userId}`)
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .not('deleted_by', 'cs', `{${userId}}`)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // Group by conversation partner and get latest message
-    const conversations = new Map();
-    (data || []).forEach(msg => {
-      const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
-      const partner = msg.sender_id === userId ? msg.receiver : msg.sender;
-      const existingConversation = conversations.get(partnerId);
-      const unreadDelta = msg.sender_id !== userId && !msg.is_read ? 1 : 0;
+    if (!messagesData || messagesData.length === 0) {
+      return [];
+    }
 
-      const decryptedContent = decryptMessage(msg.content);
+    // Group by conversation partner (including their type)
+    const conversationMap = new Map();
 
-      if (!existingConversation) {
-        conversations.set(partnerId, {
-          id: partnerId, // Add partner ID as the conversation ID
-          connection_id: partnerId, // Also add as connection_id for ChatScreen compatibility
-          // Spread partner fields at top level for ChatScreen compatibility
-          first_name: partner?.first_name,
-          last_name: partner?.last_name,
-          alumni_photo: partner?.alumni_photo,
-          email: partner?.email,
-          // Original conversation fields
-          partner,
-          lastMessage: decryptedContent,
-          lastMessageTime: msg.created_at,
-          isRead: msg.is_read,
-          unread_count: unreadDelta,
+    messagesData.forEach(msg => {
+      const isSender = msg.sender_id === userId;
+      const partnerId = isSender ? msg.receiver_id : msg.sender_id;
+      const partnerType = isSender ? msg.receiver_type : msg.sender_type;
+      const partnerKey = `${partnerType}_${partnerId}`;
+      
+      if (!conversationMap.has(partnerKey)) {
+        conversationMap.set(partnerKey, {
+          partnerId,
+          partnerType,
+          messages: [],
+          unreadCount: 0,
+          latestTimestamp: null,
         });
-        return;
       }
 
-      existingConversation.unread_count = Number(existingConversation.unread_count ?? 0) + unreadDelta;
+      const conversation = conversationMap.get(partnerKey);
+      conversation.messages.push(msg);
+      
+      if (!isSender && !msg.is_read) {
+        conversation.unreadCount++;
+      }
 
-      if (new Date(msg.created_at).getTime() >= new Date(existingConversation.lastMessageTime ?? 0).getTime()) {
-        existingConversation.lastMessage = decryptedContent;
-        existingConversation.lastMessageTime = msg.created_at;
-        existingConversation.isRead = msg.is_read;
-        existingConversation.partner = partner;
-        existingConversation.first_name = partner?.first_name;
-        existingConversation.last_name = partner?.last_name;
-        existingConversation.alumni_photo = partner?.alumni_photo;
-        existingConversation.email = partner?.email;
+      const msgTime = new Date(msg.created_at).getTime();
+      if (!conversation.latestTimestamp || msgTime > conversation.latestTimestamp) {
+        conversation.latestTimestamp = msgTime;
       }
     });
 
-    return Array.from(conversations.values());
+    // Fetch partner profiles based on their types
+    const userInfos = Array.from(conversationMap.values()).map(conv => ({
+      id: conv.partnerId,
+      type: conv.partnerType || 'alumni'
+    }));
+    
+    const userProfiles = await getUserProfiles(userInfos);
+
+    // Format conversations for ChatScreen
+// Format conversations for ChatScreen
+const formattedConversations = Array.from(conversationMap.entries())
+  .map(([key, conversation]) => {
+    const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
+    const partner = userProfiles.get(partnerKey) || {};
+    const latestMsg = conversation.messages[0]; // Most recent message
+    
+    return {
+      // Use composite ID to differentiate between alumni and admin with same numeric ID
+      id: `${conversation.partnerType}_${conversation.partnerId}`,
+      connection_id: conversation.partnerId,
+      user_type: conversation.partnerType || 'alumni',
+      first_name: partner.first_name || 'Unknown',
+      last_name: partner.last_name || '',
+      email: partner.email || '',
+      alumni_photo: partner.alumni_photo || null,
+      program: partner.program || (conversation.partnerType === 'admin' ? 'Admin Staff' : ''),
+      unread_count: conversation.unreadCount,
+      latest_message: {
+        id: latestMsg?.id,
+        content: decryptMessage(latestMsg?.content || ''),
+        created_at: latestMsg?.created_at,
+        message: decryptMessage(latestMsg?.content || ''),
+        text: decryptMessage(latestMsg?.content || ''),
+      },
+      last_message: decryptMessage(latestMsg?.content || ''),
+      last_message_at: latestMsg?.created_at,
+      updated_at: latestMsg?.created_at,
+      created_at: latestMsg?.created_at,
+    };
+  })
+  .sort((a, b) => {
+    const aTime = new Date(a.latest_message?.created_at || 0).getTime();
+    const bTime = new Date(b.latest_message?.created_at || 0).getTime();
+    return bTime - aTime;
+  })
+  .slice(offset, offset + limit);
+
+    return formattedConversations;
   } catch (error) {
     console.error('[messages] Get conversations error:', error.message);
-    throw error;
+    return [];
   }
 };
 
@@ -570,7 +732,8 @@ export const getUnreadMessageCount = async (userId) => {
       .from('messages')
       .select('id', { count: 'exact' })
       .eq('receiver_id', userId)
-      .eq('is_read', false);
+      .eq('is_read', false)
+      .not('deleted_by', 'cs', `{${userId}}`);
 
     if (error) throw error;
     return count || 0;
@@ -596,7 +759,7 @@ export const createGroupChat = async (createdBy, chatName, memberIds = []) => {
 
     if (error) throw error;
 
-    // Add members
+    // Add members with proper roles
     const members = [{ group_chat_id: data.id, alumni_id: createdBy, role: 'admin' }];
     memberIds.forEach(id => {
       if (id !== createdBy) {
@@ -644,12 +807,10 @@ export const getGroupChat = async (groupChatId) => {
  */
 export const getGroupMessages = async (groupChatId, userId, limit = 50, offset = 0) => {
   try {
-    const { data, error } = await supabase
+    // Get messages without joins
+    const { data: messagesData, error } = await supabase
       .from('group_messages')
-      .select(`
-        *,
-        sender:sender_id(id, first_name, last_name, alumni_photo)
-      `)
+      .select('*')
       .eq('group_chat_id', groupChatId)
       .not('deleted_by', 'cs', `{${userId}}`)
       .order('created_at', { ascending: false })
@@ -657,20 +818,42 @@ export const getGroupMessages = async (groupChatId, userId, limit = 50, offset =
 
     if (error) throw error;
 
-    // Load attachments with signed URLs for each message
-    const messagesWithAttachments = await Promise.all((data || []).map(async (msg) => {
-      const decryptedMsg = toDecryptedMessage(msg);
-      const attachments = await getMessageAttachments(msg.id).catch(() => []);
-      return {
-        ...decryptedMsg,
-        attachments: attachments.length > 0 ? attachments : undefined,
-      };
-    }));
+    if (!messagesData || messagesData.length === 0) {
+      return [];
+    }
+
+    // Get unique sender IDs
+    const senderIds = new Set();
+    messagesData.forEach(msg => {
+      if (msg.sender_id) senderIds.add(msg.sender_id);
+    });
+
+    // Fetch sender profiles (assuming all group chat senders are alumni)
+    const { data: senders } = await supabase
+      .from('alumnis')
+      .select('id, first_name, last_name, alumni_photo')
+      .in('id', Array.from(senderIds));
+
+    const senderMap = new Map();
+    (senders || []).forEach(sender => senderMap.set(sender.id, sender));
+
+    // Enrich messages with sender data and load attachments
+    const messagesWithAttachments = await Promise.all(
+      messagesData.map(async (msg) => {
+        const decryptedMsg = toDecryptedMessage(msg);
+        const attachments = await getMessageAttachments(msg.id).catch(() => []);
+        return {
+          ...decryptedMsg,
+          sender: senderMap.get(msg.sender_id) || null,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        };
+      })
+    );
 
     return messagesWithAttachments.reverse();
   } catch (error) {
     console.error('[group_messages] Get messages error:', error.message);
-    throw error;
+    return [];
   }
 };
 
@@ -687,11 +870,9 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
         group_chat_id: groupChatId,
         sender_id: senderId,
         content: encryptedContent,
+        reactions: {},
       }])
-      .select(`
-        *,
-        sender:sender_id(id, first_name, last_name, alumni_photo)
-      `)
+      .select()
       .single();
 
     if (error) throw error;
@@ -703,7 +884,7 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
       );
     }
 
-    // Handle mentions in group messages: extract handles, resolve, insert mention rows, notify mentioned members
+    // Handle mentions
     try {
       const handles = extractMentionHandles(content);
       if (handles.length > 0) {
@@ -749,7 +930,8 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
     } catch (mentionErr) {
       console.error('[group_messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
     }
-    // Notify group members (except sender)
+
+    // Notify group members
     try {
       const { data: membersData, error: membersError } = await supabase
         .from('group_chat_members')
@@ -757,7 +939,9 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
         .eq('group_chat_id', groupChatId);
 
       if (!membersError && Array.isArray(membersData) && membersData.length > 0) {
-        const memberIds = membersData.map((member) => member.alumni_id).filter((id) => id && id !== senderId);
+        const memberIds = membersData
+          .map((member) => member.alumni_id)
+          .filter((id) => id && id !== senderId);
 
         if (memberIds.length > 0) {
           const { data: alumniRows, error: alumniError } = await supabase
@@ -772,7 +956,6 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
             const tokens = alumniRows.map((row) => row.push_token).filter(Boolean);
 
             if (tokens.length > 0) {
-              // Use our new retry wrapper instead of direct call
               await sendPushNotificationWithRetry(
                 tokens,
                 'New Group Message',
@@ -784,10 +967,22 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
         }
       }
     } catch (notifErr) {
-      console.error('[group_messages] Failed to query group member data for push notification:', notifErr?.message || notifErr);
+      console.error('[group_messages] Failed to send group notification:', notifErr?.message || notifErr);
     }
 
-    return toDecryptedMessage(data);
+    // Fetch sender info for the returned message
+    const { data: senderData } = await supabase
+      .from('alumnis')
+      .select('id, first_name, last_name, alumni_photo')
+      .eq('id', senderId)
+      .maybeSingle();
+
+    const enrichedData = {
+      ...data,
+      sender: senderData || null,
+    };
+
+    return toDecryptedMessage(enrichedData);
   } catch (error) {
     console.error('[group_messages] Send message error:', error.message);
     throw error;
@@ -819,9 +1014,14 @@ export const updateGroupMessageReactions = async (groupMessageId, reactions) => 
  */
 export const deleteGroupMessage = async (groupMessageId, userId) => {
   try {
-    const { data: msg } = await supabase.from('group_messages').select('deleted_by').eq('id', groupMessageId).single();
+    const { data: msg } = await supabase
+      .from('group_messages')
+      .select('deleted_by')
+      .eq('id', groupMessageId)
+      .single();
+   
     const currentDeleted = msg?.deleted_by || [];
-    
+   
     if (!currentDeleted.includes(userId)) {
       const { error } = await supabase
         .from('group_messages')
@@ -885,8 +1085,8 @@ export const getUserGroupChats = async (alumniId) => {
       .from('group_chats')
       .select(`
         *,
-        members:group_chat_members!inner(alumni_id, last_read_message_id),
-        lastMessage:group_messages(id, content, created_at, sender:sender_id(first_name, last_name))
+        members:group_chat_members!inner(alumni_id, last_read_message_id, role),
+        lastMessage:group_messages(id, content, created_at, sender_id)
       `)
       .eq('members.alumni_id', alumniId)
       .order('created_at', { ascending: false });
@@ -896,6 +1096,7 @@ export const getUserGroupChats = async (alumniId) => {
     const groupChats = data || [];
     const groupIds = groupChats.map((groupChat) => groupChat?.id).filter(Boolean);
 
+    // Get messages for unread count calculation
     const { data: messagesData, error: messagesError } = groupIds.length > 0
       ? await supabase
           .from('group_messages')
@@ -904,13 +1105,14 @@ export const getUserGroupChats = async (alumniId) => {
           .order('created_at', { ascending: true })
       : { data: [], error: null };
 
-    if (messagesError) throw messagesError;
+    if (messagesError) {
+      console.warn('[group_chats] Could not fetch messages for unread counts:', messagesError.message);
+    }
 
     const messagesByGroupId = new Map();
     (messagesData || []).forEach((message) => {
       const groupId = message?.group_chat_id;
       if (!groupId) return;
-
       const groupMessages = messagesByGroupId.get(groupId) ?? [];
       groupMessages.push(message);
       messagesByGroupId.set(groupId, groupMessages);
@@ -918,21 +1120,29 @@ export const getUserGroupChats = async (alumniId) => {
 
     return groupChats.map((groupChat) => {
       const members = Array.isArray(groupChat?.members) ? groupChat.members : [];
-      const currentMember = members.find((member) => String(member?.alumni_id) === String(alumniId)) ?? null;
+      const currentMember = members.find(
+        (member) => String(member?.alumni_id) === String(alumniId)
+      ) ?? null;
       const lastReadMessageId = Number(currentMember?.last_read_message_id ?? 0);
       const groupMessages = messagesByGroupId.get(groupChat?.id) ?? [];
 
       const unreadCount = groupMessages.filter((message) => {
-        return Number(message?.sender_id) !== Number(alumniId)
-          && Number(message?.id) > lastReadMessageId;
+        return Number(message?.sender_id) !== Number(alumniId) &&
+          Number(message?.id) > lastReadMessageId;
       }).length;
 
+      // Format last message for ChatScreen compatibility
       const lastMessageArray = Array.isArray(groupChat?.lastMessage) ? groupChat.lastMessage : [];
-      const decryptedLastMessage = lastMessageArray.map((message) => toDecryptedMessage(message));
-
+      const latestGroupMessage = lastMessageArray[lastMessageArray.length - 1] || null;
+     
       return {
         ...groupChat,
-        lastMessage: decryptedLastMessage,
+        latest_message: latestGroupMessage ? {
+          id: latestGroupMessage.id,
+          content: decryptMessage(latestGroupMessage.content || ''),
+          created_at: latestGroupMessage.created_at,
+          sender_id: latestGroupMessage.sender_id,
+        } : null,
         unread_count: unreadCount,
       };
     });

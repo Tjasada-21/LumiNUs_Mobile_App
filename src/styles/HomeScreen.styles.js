@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   // --- MAGIC CURVE ---
   curveContainer: {
     height: 50, 
-    backgroundColor: "#31429B", 
+    backgroundColor: "#32418C", 
     overflow: "hidden", 
     alignItems: "center",
     marginTop: 20, 

@@ -418,7 +418,7 @@ export default function ConvoScreen() {
     }
   }, []);
 
-  const loadMoreMessages = useCallback(async () => {
+const loadMoreMessages = useCallback(async () => {
     if (isFetchingMore || !hasMoreMessages || isLoading || !hasConversation) {
       return;
     }
@@ -428,6 +428,9 @@ export default function ConvoScreen() {
 
       const nextOffset = pageOffset + MESSAGE_LIMIT;
       let newBatch = [];
+      
+      // Get receiver type from params
+      const receiverType = params.receiverType || 'alumni';
 
       if (isGroup) {
         newBatch = await getGroupMessages(
@@ -440,11 +443,13 @@ export default function ConvoScreen() {
         if (!currentUserId) {
           return;
         }
+        // Pass receiverType to getDirectMessages
         newBatch = await getDirectMessages(
           currentUserId,
           contactId,
           MESSAGE_LIMIT,
           nextOffset,
+          receiverType, // <-- ADD THIS
         ).catch(() => []);
       }
 
@@ -452,12 +457,12 @@ export default function ConvoScreen() {
         setHasMoreMessages(false);
       }
 
-      if (newBatch.length > 0) {
+        if (newBatch.length > 0) {
         setMessages((currentMessages) => {
-          const messageMap = new Map(
-            currentMessages.map((msg) => [msg.id, msg]),
-          );
-          newBatch.forEach((msg) => messageMap.set(msg.id, msg));
+          const messageMap = new Map();
+          // ✅ FIX: Convert IDs to Strings to prevent "212" and 212 from being treated as different
+          currentMessages.forEach((msg) => messageMap.set(String(msg.id), msg));
+          newBatch.forEach((msg) => messageMap.set(String(msg.id), msg));
 
           return sortMessagesDescending(Array.from(messageMap.values()));
         });
@@ -478,6 +483,7 @@ export default function ConvoScreen() {
     isGroup,
     isLoading,
     pageOffset,
+    params.receiverType, // <-- ADD THIS DEPENDENCY
   ]);
 
   const updateTypingStatus = useCallback(
@@ -644,51 +650,62 @@ export default function ConvoScreen() {
     [allowMentions, mentionableUsers, navigation],
   );
 
-  const loadMessages = useCallback(async () => {
-    if (!hasConversation) {
-      setMessages([]);
-      setPageOffset(0);
-      setHasMoreMessages(true);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
+const loadMessages = useCallback(async () => {
+  if (!hasConversation) {
+    setMessages([]);
     setPageOffset(0);
     setHasMoreMessages(true);
+    setIsLoading(false);
+    return;
+  }
 
-    try {
-      let messageList = [];
+  setIsLoading(true);
+  setPageOffset(0);
+  setHasMoreMessages(true);
 
-      if (isGroup) {
-        messageList = await getGroupMessages(
-          groupId,
-          currentUserId,
-          MESSAGE_LIMIT,
-          0,
-        ).catch(() => []);
-      } else {
-        if (!currentUserId) {
-          setMessages([]);
-          setIsLoading(false);
-          return;
-        }
-        messageList = await getDirectMessages(
-          currentUserId,
-          contactId,
-          MESSAGE_LIMIT,
-          0,
-        ).catch(() => []);
+  try {
+    let messageList = [];
+    const receiverType = params.receiverType || 'alumni';
+
+    if (isGroup) {
+      messageList = await getGroupMessages(
+        groupId,
+        currentUserId,
+        MESSAGE_LIMIT,
+        0,
+      ).catch(() => []);
+    } else {
+      if (!currentUserId) {
+        setMessages([]);
+        setIsLoading(false);
+        return;
       }
+      messageList = await getDirectMessages(
+        currentUserId,
+        contactId,
+        MESSAGE_LIMIT,
+        0,
+        receiverType,
+      ).catch(() => []);
+    }
 
-      if (messageList.length < MESSAGE_LIMIT) {
-        setHasMoreMessages(false);
-      } else {
-        setHasMoreMessages(true);
-      }
+    if (messageList.length < MESSAGE_LIMIT) {
+      setHasMoreMessages(false);
+    } else {
+      setHasMoreMessages(true);
+    }
 
-      setPageOffset(0); 
-      setMessages(sortMessagesDescending(messageList));
+    setPageOffset(0); 
+    
+    // ✅ FIX: Deduplicate messages before setting state
+    const uniqueMessages = Array.from(
+      messageList.reduce((map, msg) => {
+        map.set(String(msg.id), msg);
+        return map;
+      }, new Map()).values()
+    );
+    
+    setMessages(sortMessagesDescending(uniqueMessages));
 
       if (isGroup && currentUserId) {
         try {
@@ -721,6 +738,7 @@ export default function ConvoScreen() {
                 m &&
                 m.sender_id === contactId &&
                 m.receiver_id === currentUserId &&
+                m.receiver_type === receiverType && // <-- ADD THIS CHECK
                 !m.is_read,
             )
             .map((m) => m.id)
@@ -745,6 +763,7 @@ export default function ConvoScreen() {
     groupId,
     hasConversation,
     isGroup,
+    params.receiverType, // <-- ADD THIS DEPENDENCY
     refreshUnreadMessages,
   ]);
 
@@ -810,73 +829,91 @@ export default function ConvoScreen() {
     let unsubscribe = () => {};
 
     const handleMessageEvent = (event, newMessage) => {
-      if (!newMessage) {
-        return;
+  if (!newMessage) {
+    return;
+  }
+
+  const receiverType = params.receiverType || 'alumni';
+  
+  const isRelevantMessage = 
+    (newMessage.sender_type === receiverType && newMessage.receiver_type === 'alumni') ||
+    (newMessage.sender_type === 'alumni' && newMessage.receiver_type === receiverType);
+
+  if (!isRelevantMessage && !isGroup) {
+    return;
+  }
+
+  if (event === "insert") {
+  setMessages((currentMessages) => {
+    const newId = String(newMessage.id);
+    
+    // Check if this exact message ID already exists
+    const messageExistsById = currentMessages.some(
+      (msg) => String(msg.id) === newId,
+    );
+    if (messageExistsById) {
+      return currentMessages;
+    }
+
+    // ✅ FIX: Check for optimistic temp message from the same sender
+    // REMOVED timestamp check - it was causing timezone issues!
+    const hasTempMessageFromSameSender = currentMessages.some(
+      (msg) => {
+        const isTempMessage = String(msg.id).startsWith('temp-');
+        const isSameSender = String(msg.sender_id) === String(newMessage.sender_id);
+        const isSameContent = msg.content === newMessage.content;
+        
+        // ✅ Only check sender and content, NOT timestamp
+        return isTempMessage && isSameSender && isSameContent;
       }
+    );
 
-      if (event === "insert") {
-        setMessages((currentMessages) => {
-          const messageExistsById = currentMessages.some(
-            (msg) => msg.id === newMessage.id,
-          );
-          if (messageExistsById) {
-            return currentMessages;
-          }
+    if (hasTempMessageFromSameSender) {
+      // Replace the temp message with the real one
+      return currentMessages.map((msg) => {
+        const isTempMessage = String(msg.id).startsWith('temp-');
+        const isSameSender = String(msg.sender_id) === String(newMessage.sender_id);
+        const isSameContent = msg.content === newMessage.content;
+        
+        if (isTempMessage && isSameSender && isSameContent) {
+          return newMessage; // Replace with real message
+        }
+        return msg;
+      });
+    }
 
-          const optimisticDuplicate = currentMessages.some(
-            (msg) =>
-              msg.sender_id === newMessage.sender_id &&
-              msg.content === newMessage.content &&
-              Math.abs(
-                new Date(msg.created_at).getTime() -
-                  new Date(newMessage.created_at).getTime(),
-              ) < 1000,
-          );
-          if (optimisticDuplicate) {
-            return currentMessages.map((msg) =>
-              msg.sender_id === newMessage.sender_id &&
-              msg.content === newMessage.content &&
-              Math.abs(
-                new Date(msg.created_at).getTime() -
-                  new Date(newMessage.created_at).getTime(),
-              ) < 1000
-                ? newMessage
-                : msg,
-            );
-          }
+    // No temp message found, add as new
+    return [newMessage, ...currentMessages];
+  });
 
-          return [newMessage, ...currentMessages];
-        });
-
-        const loadAttachments = async () => {
-          const attachments = await getMessageAttachments(newMessage.id).catch(
-            () => [],
-          );
-          if (attachments.length > 0) {
-            setMessages((currentMessages) =>
-              currentMessages.map((msg) =>
-                msg.id === newMessage.id ? { ...msg, attachments } : msg,
-              ),
-            );
-          }
-        };
-        setTimeout(loadAttachments, 500); 
-      } else if (event === "update") {
-        setMessages((currentMessages) =>
-          sortMessagesDescending(
-            currentMessages.map((message) =>
-              message.id === newMessage.id
-                ? { ...message, ...newMessage }
-                : message,
-            ),
-          ),
-        );
-      } else if (event === "delete") {
-        setMessages((currentMessages) =>
-          currentMessages.filter((message) => message.id !== newMessage.id),
-        );
-      }
-    };
+  const loadAttachments = async () => {
+    const attachments = await getMessageAttachments(newMessage.id).catch(() => []);
+    if (attachments.length > 0) {
+      setMessages((currentMessages) =>
+        currentMessages.map((msg) =>
+          String(msg.id) === String(newMessage.id) ? { ...msg, attachments } : msg,
+        ),
+      );
+    }
+  };
+  setTimeout(loadAttachments, 500);
+  
+} else if (event === "update") {
+    setMessages((currentMessages) =>
+      sortMessagesDescending(
+        currentMessages.map((message) =>
+          String(message.id) === String(newMessage.id)
+            ? { ...message, ...newMessage }
+            : message,
+        ),
+      ),
+    );
+  } else if (event === "delete") {
+    setMessages((currentMessages) =>
+      currentMessages.filter((message) => String(message.id) !== String(newMessage.id)),
+    );
+  }
+};
 
     if (isGroup) {
       unsubscribe = subscribeToGroupMessages(groupId, handleMessageEvent);
@@ -893,7 +930,7 @@ export default function ConvoScreen() {
         unsubscribe();
       }
     };
-  }, [hasConversation, isGroup, contactId, groupId, currentUserId]);
+  }, [hasConversation, isGroup, contactId, groupId, currentUserId, params.receiverType]); // <-- ADD params.receiverType
 
   useEffect(() => {
     if (!typingChannelKey || !currentUserId) {
@@ -1125,99 +1162,102 @@ export default function ConvoScreen() {
     }
   }, []);
 
-  const handleSend = useCallback(async () => {
-    const trimmedDraft = draft.trim();
+const handleSend = useCallback(async () => {
+  const trimmedDraft = draft.trim();
 
-    if (
-      (!trimmedDraft && !selectedAttachmentUri) ||
-      isSending ||
-      !hasConversation
-    ) {
-      return;
+  if (
+    (!trimmedDraft && !selectedAttachmentUri) ||
+    isSending ||
+    !hasConversation
+  ) {
+    return;
+  }
+
+  const attachments = selectedAttachmentUri ? [selectedAttachmentUri] : [];
+  const receiverType = params.receiverType || 'alumni';
+  const senderType = 'alumni';
+
+  // Create optimistic message
+  const temporaryMessageId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const optimisticMessage = {
+    id: temporaryMessageId,
+    content: trimmedDraft,
+    reply_to: replyTo?.id ?? null,
+    sender_id: currentUserId ?? "local-user",
+    created_at: new Date().toISOString(),
+    localStatus: "sending",
+    sender_type: senderType,
+    receiver_type: receiverType,
+    attachments: attachments.map((uri) => ({
+      attachment_path: uri,
+      isLocal: true,
+    })),
+  };
+
+  // Add optimistic message to state
+  setMessages((currentMessages) => [optimisticMessage, ...currentMessages]);
+  setDraft("");
+  setSelectedAttachmentUri(null);
+  setReplyTo(null);
+  setIsSending(true);
+  updateTypingStatus(false);
+
+  try {
+    if (isGroup) {
+      await sendGroupMessage(
+        groupId,
+        currentUserId,
+        trimmedDraft,
+        attachments,
+      );
+    } else {
+      await sendDirectMessage(
+        currentUserId,
+        contactId,
+        trimmedDraft,
+        attachments,
+        senderType,
+        receiverType,
+      );
     }
 
-    const attachments = selectedAttachmentUri ? [selectedAttachmentUri] : [];
+    // ✅ FIX: Don't update the optimistic message here!
+    // Let Realtime handle it to avoid duplicates
+    // Just mark it as "sent" so the UI knows it succeeded
+    setMessages((currentMessages) =>
+      currentMessages.map((message) =>
+        message.id === temporaryMessageId
+          ? { ...message, localStatus: "sent" }
+          : message,
+      ),
+    );
 
-    const temporaryMessageId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const optimisticMessage = {
-      id: temporaryMessageId,
-      content: trimmedDraft,
-      reply_to: replyTo?.id ?? null,
-      sender_id: currentUserId ?? "local-user",
-      created_at: new Date().toISOString(),
-      localStatus: "sending",
-      attachments: attachments.map((uri) => ({
-        attachment_path: uri,
-        isLocal: true,
-      })),
-    };
-
-    setMessages((currentMessages) => [optimisticMessage, ...currentMessages]);
-    setDraft("");
-    setSelectedAttachmentUri(null);
-    setReplyTo(null);
-    setIsSending(true);
-    updateTypingStatus(false);
-
-    try {
-      let sentMessage = null;
-
-      if (isGroup) {
-        sentMessage = await sendGroupMessage(
-          groupId,
-          currentUserId,
-          trimmedDraft,
-          attachments,
-        );
-      } else {
-        sentMessage = await sendDirectMessage(
-          currentUserId,
-          contactId,
-          trimmedDraft,
-          attachments,
-        );
-      }
-
-      const confirmedMessage =
-        sentMessage && typeof sentMessage === "object"
-          ? {
-              ...optimisticMessage,
-              ...sentMessage,
-              content: trimmedDraft,
-              localStatus: "sent",
-            }
-          : { ...optimisticMessage, localStatus: "sent" };
-
-      setMessages((currentMessages) =>
-        currentMessages.map((message) =>
-          message.id === temporaryMessageId ? confirmedMessage : message,
-        ),
-      );
-    } catch (error) {
-      console.error("Send failed:", error);
-      setMessages((currentMessages) =>
-        currentMessages.map((message) =>
-          message.id === temporaryMessageId
-            ? { ...message, localStatus: "failed" }
-            : message,
-        ),
-      );
-      ThemedAlert.alert("Failed", "Message could not be sent.");
-    } finally {
-      setIsSending(false);
-    }
-  }, [
-    contactId,
-    currentUserId,
-    draft,
-    groupId,
-    hasConversation,
-    isGroup,
-    isSending,
-    replyTo,
-    selectedAttachmentUri,
-    updateTypingStatus,
-  ]);
+  } catch (error) {
+    console.error("Send failed:", error);
+    setMessages((currentMessages) =>
+      currentMessages.map((message) =>
+        message.id === temporaryMessageId
+          ? { ...message, localStatus: "failed" }
+          : message,
+      ),
+    );
+    ThemedAlert.alert("Failed", "Message could not be sent.");
+  } finally {
+    setIsSending(false);
+  }
+}, [
+  contactId,
+  currentUserId,
+  draft,
+  groupId,
+  hasConversation,
+  isGroup,
+  isSending,
+  replyTo,
+  selectedAttachmentUri,
+  updateTypingStatus,
+  params.receiverType,
+]);
 
   const initiateCall = async (callType = "video") => {
     if (isGroup) {
@@ -1581,15 +1621,12 @@ export default function ConvoScreen() {
               inverted={true}
               data={messages}
               renderItem={renderMessageItem}
-              keyExtractor={(item, index) =>
-                String(
-                  item?.id ??
-                    item?.tempId ??
-                    item?.localId ??
-                    item?.created_at ??
-                    index,
-                )
-              }
+            // ✅ UPDATED - Ensure unique keys
+              keyExtractor={(item, index) => {
+                // Use a combination of ID and index to guarantee uniqueness
+                const uniqueId = item?.id ?? item?.tempId ?? item?.localId ?? `msg-${index}`;
+                return `${uniqueId}-${index}`;
+              }}
               initialNumToRender={14}
               maxToRenderPerBatch={10}
               updateCellsBatchingPeriod={50}

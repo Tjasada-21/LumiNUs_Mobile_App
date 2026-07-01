@@ -51,8 +51,8 @@ const MainTabNavigator = () => {
       shadowRadius: 4,
     };
 
-    // Apply the deep blue background for Feed and Profile screens
-    if (route.name === "Feed" || route.name === "Profile") {
+    // Apply the deep blue background for Feed, Profile, and GlobalSearch screens
+    if (route.name === "Feed" || route.name === "Profile" || route.name === "GlobalSearch") {
       return {
         ...baseStyle,
         backgroundColor: "#1F2B67",
@@ -203,6 +203,7 @@ const MainTabNavigator = () => {
         options={{
           tabBarButton: () => null,
           tabBarItemStyle: { display: "none" },
+          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Added this so background icons stay visible!
         }}
       />
     </Tab.Navigator>

@@ -4,6 +4,7 @@ import { NativeModules, Pressable, Text, View } from "react-native";
 import LoginScreen from "../screens/LoginScreen";
 import MainTabNavigator from "./MainTabNavigator";
 import AccountSettingsScreen from "../screens/AccountSettingsScreen";
+import SettingsScreen from "../screens/SettingsScreen"; // <-- Added your new SettingsScreen
 import ViewYearbookScreen from "../screens/ViewYearbookScreen";
 import AlumniTracerScreen from "../screens/AlumniTracerScreen";
 import TracerFormScreen from "../screens/TracerFormScreen";
@@ -41,7 +42,13 @@ const AppNavigator = () => {
     >
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Home" component={MainTabNavigator} />
+      
+      {/* Account / Edit Profile Route */}
       <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} />
+      
+      {/* New Settings Route */}
+      <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+      
       <Stack.Screen name="ViewYearbook" component={ViewYearbookScreen} />
       <Stack.Screen name="AlumniTracer" component={AlumniTracerScreen} />
       <Stack.Screen name="TracerFormScreen" component={TracerFormScreen} />
@@ -62,6 +69,7 @@ const AppNavigator = () => {
       <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="CallScreen" component={CallScreenEntry} options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="NotificationsScreen" component={require('../screens/NotificationsScreen').default} />
+      
       <Stack.Screen name="AddSkillsScreen" component={AddSkillsScreen} />
       <Stack.Screen name="WorkExperienceScreen" component={WorkExperienceScreen} />
       <Stack.Screen name="WorkExperienceFormScreen" component={WorkExperienceFormScreen} />

@@ -1,281 +1,207 @@
-import { Dimensions, StyleSheet } from "react-native";
-import {
-  responsiveFontSize,
-  responsiveHeight,
-  responsiveSpacing,
-  responsiveWidth,
-} from "../utils/responsive";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { StyleSheet } from "react-native";
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#31429B",
+    backgroundColor: "#1F2B67", // Blends with top BrandHeader
   },
   container: {
+    paddingTop: 40, // Remove padding to align with BrandHeader
     flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  pageHeaderCard: {
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 22, 16, 28),
-    paddingTop: responsiveSpacing(SCREEN_HEIGHT, 18, 14, 24),
-    paddingBottom: responsiveSpacing(SCREEN_HEIGHT, 18, 14, 24),
-    borderBottomWidth: 1,
-    borderBottomColor: "#E7E9F2",
-    shadowColor: "#101828",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    backgroundColor: "#FFFFFF",
   },
   pageHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: responsiveSpacing(SCREEN_WIDTH, 12, 10, 16),
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: "#FFFFFF",
   },
   pageHeaderTitle: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 20, 18, 26),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 26, 22, 32),
+    fontSize: 20,
     fontFamily: "Poppins_700Bold",
-    color: "#31429B",
-    letterSpacing: -0.3,
+    fontWeight: "bold",
+    color: "#4A4A4A", // Dark grey as shown in mockup
+    marginLeft: 16,
   },
   scrollContent: {
-    paddingTop: responsiveSpacing(SCREEN_HEIGHT, 12, 10, 18),
-    paddingBottom: responsiveSpacing(SCREEN_HEIGHT, 28, 22, 34),
-    paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 12, 10, 16),
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    paddingTop: 10,
   },
-  formSurface: {
-    backgroundColor: "#F9FAFB",
+  mainCard: {
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E4E4E4",
-    borderRadius: 18,
-    padding: responsiveSpacing(SCREEN_WIDTH, 10, 8, 14),
-    shadowColor: "#101828",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    borderColor: "#E5E7EB",
+    borderRadius: 24,
+    padding: 16,
   },
-  eventCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    paddingHorizontal: 4,
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
+  
+  // --- EVENT IMAGE & TEXT ---
   eventBanner: {
-    height: responsiveHeight(SCREEN_HEIGHT, 0.16, 112, 160),
-    borderRadius: 14,
+    height: 280, // Taller image to match design
+    borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 10,
+    marginBottom: 20,
   },
   eventBannerImage: {
-    borderRadius: 14,
+    borderRadius: 16,
   },
   eventBannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(49, 66, 155, 0.08)",
+    backgroundColor: "rgba(49, 66, 155, 0.05)",
   },
   eventBannerFallback: {
-    height: responsiveHeight(SCREEN_HEIGHT, 0.16, 112, 160),
-    borderRadius: 14,
+    height: 280,
+    borderRadius: 16,
     backgroundColor: "#31429B",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
-    paddingHorizontal: 18,
+    marginBottom: 20,
   },
   eventBannerIconWrap: {
-    width: responsiveWidth(SCREEN_WIDTH, 0.22, 72, 96),
-    height: responsiveWidth(SCREEN_WIDTH, 0.22, 72, 96),
-    borderRadius: responsiveWidth(SCREEN_WIDTH, 0.05, 18, 24),
+    width: 80,
+    height: 80,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.14)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
   },
   eventBannerIcon: {
-    width: responsiveWidth(SCREEN_WIDTH, 0.16, 52, 72),
-    height: responsiveWidth(SCREEN_WIDTH, 0.16, 52, 72),
+    width: 48,
+    height: 48,
   },
   eventBannerFallbackText: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 10, 9, 12),
+    fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     color: "#F9FAFB",
-    letterSpacing: 0.3,
   },
   eventTitle: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 22, 18, 28),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 28, 24, 34),
+    fontSize: 22,
+    lineHeight: 28,
     fontFamily: "Poppins_700Bold",
-    color: "#3C3C3C",
-    letterSpacing: -0.4,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    marginBottom: 10,
   },
   eventDescription: {
-    marginTop: 10,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 23, 18, 28),
+    fontSize: 14,
+    lineHeight: 22,
     fontFamily: "Poppins_400Regular",
-    color: "#5E5E5E",
+    color: "#4A4A4A",
+    marginBottom: 20,
   },
-  metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 12,
+
+  // --- DATE & LOCATION BLUE CARD ---
+  dateLocationCard: {
+    backgroundColor: "#384A9C",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
   },
-  metaItem: {
+  dateLocationTitle: {
+    fontSize: 15,
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 12,
+  },
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: responsiveSpacing(SCREEN_WIDTH, 8, 6, 12),
-    flexShrink: 1,
-    flexBasis: "48%",
-    paddingVertical: 4,
+    marginBottom: 8,
   },
-  metaText: {
-    flexShrink: 1,
-    flex: 1,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 10, 14),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 17, 14, 20),
-    fontFamily: "Poppins_600SemiBold",
-    color: "#4F5563",
-    minWidth: 0,
-  },
-  addressRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: responsiveSpacing(SCREEN_WIDTH, 6, 4, 10),
-  },
-  addressText: {
-    flex: 1,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 10, 14),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 18, 14, 22),
-    fontFamily: "Poppins_600SemiBold",
-    color: "#4F5563",
-    minWidth: 0,
-  },
-  sectionLabel: {
-    marginTop: 12,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 12, 10, 14),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 17, 14, 20),
-    fontFamily: "Poppins_600SemiBold",
-    color: "#5E5E5E",
-  },
-  privacyCard: {
-    marginTop: 10,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#C7C7C7",
-    borderRadius: 12,
-    paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 14, 12, 18),
-    paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 14, 12, 18),
-  },
-  privacyTitle: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 15, 13, 18),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 20, 16, 24),
-    fontFamily: "Poppins_700Bold",
-    color: "#404040",
-  },
-  privacyText: {
-    marginTop: 8,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 22, 18, 26),
+  infoText: {
+    fontSize: 14,
     fontFamily: "Poppins_400Regular",
-    color: "#4E4E4E",
+    color: "#FFFFFF",
+    marginLeft: 10,
   },
+
+  // --- OUTLINED CARDS (SECTIONS) ---
+  sectionLabel: {
+    fontSize: 12,
+    fontFamily: "Poppins_500Medium",
+    color: "#4A4A4A",
+    marginBottom: 6,
+  },
+  outlinedCard: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#A0A0A0", // Medium grey border as seen in the mockup
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    marginBottom: 8,
+  },
+  cardText: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: "Poppins_400Regular",
+    color: "#4A4A4A",
+  },
+  
+  // --- CHOICES (RADIOS) ---
   choiceGroup: {
-    marginTop: 14,
-    gap: responsiveSpacing(SCREEN_HEIGHT, 14, 10, 18),
+    marginTop: 16,
+    gap: 16,
   },
   choiceRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  choiceIcon: {
-    width: responsiveWidth(SCREEN_WIDTH, 0.045, 16, 20),
-    height: responsiveWidth(SCREEN_WIDTH, 0.045, 16, 20),
-    justifyContent: "center",
-    alignItems: "center",
   },
   choiceText: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 18, 14, 22),
+    fontSize: 14,
     fontFamily: "Poppins_400Regular",
-    color: "#4B4B4B",
+    color: "#1C1C1E",
+    marginLeft: 8,
   },
-  inputCard: {
-    marginTop: 10,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#C7C7C7",
-    borderRadius: 12,
-    paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 14, 12, 18),
-    paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 12, 10, 16),
+
+  // --- REMINDERS BLUE CARD ---
+  remindersCard: {
+    backgroundColor: "#31429B", // Darker blue to match mockup
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
   },
-  inputLabel: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 15, 13, 18),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 20, 16, 24),
+  remindersTitle: {
+    fontSize: 15,
     fontFamily: "Poppins_700Bold",
-    color: "#404040",
+    fontWeight: "bold",
+    color: "#FFD404", // Yellow text
+    marginBottom: 10,
   },
-  inputDescription: {
-    marginTop: 8,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 20, 16, 24),
+  remindersText: {
+    fontSize: 12,
+    lineHeight: 18,
     fontFamily: "Poppins_400Regular",
-    color: "#5A5A5A",
+    color: "#FFFFFF",
   },
-  inputField: {
-    marginTop: 12,
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 8,
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    fontFamily: "Poppins_400Regular",
-    color: "#404040",
-    borderBottomWidth: 1,
-    borderBottomColor: "#CFCFCF",
-  },
-  confirmationCard: {
-    marginTop: 10,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#C7C7C7",
-    borderRadius: 12,
-    paddingHorizontal: responsiveSpacing(SCREEN_WIDTH, 14, 12, 18),
-    paddingVertical: responsiveSpacing(SCREEN_HEIGHT, 12, 10, 16),
-  },
-  confirmationText: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 13, 12, 15),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 21, 17, 25),
-    fontFamily: "Poppins_400Regular",
-    color: "#4E4E4E",
-  },
-  buttonWrap: {
-    marginTop: 16,
-    paddingTop: 10,
-  },
+
+  // --- SUBMIT BUTTON ---
   primaryButton: {
-    backgroundColor: "#F7CE18",
+    backgroundColor: "#FFD404",
     borderRadius: 999,
-    minHeight: responsiveHeight(SCREEN_HEIGHT, 0.055, 42, 52),
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryButtonDisabled: {
-    opacity: 0.45,
+    opacity: 0.5,
   },
   primaryButtonText: {
-    fontSize: responsiveFontSize(SCREEN_WIDTH, 17, 15, 20),
-    lineHeight: responsiveFontSize(SCREEN_WIDTH, 22, 18, 26),
+    fontSize: 16,
     fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
     color: "#31429B",
-    letterSpacing: 0.2,
   },
 });
 

@@ -100,10 +100,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-  emptyConversationFlipped: {
-    transform: [{ scaleY: -1 }],
+emptyConversationFlipped: {
+    transform: [{ scale: -1 }],
     alignItems: "center",
-  },
+    justifyContent: "center",
+    // Add these:
+    width: "100%",
+    paddingVertical: 20,
+},
   emptyConversationLoadingButton: {
     flexDirection: "row",
     alignItems: "center",

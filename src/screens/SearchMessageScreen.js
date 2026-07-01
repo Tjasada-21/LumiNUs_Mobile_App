@@ -33,48 +33,116 @@ export default function SearchMessageScreen({ navigation }) {
       // Get the currently logged-in user so we don't show them in the search list
       const currentUser = await getCurrentUser().catch(() => null);
       const currentUserId = currentUser?.id;
+      const currentUserType = currentUser?.user_type || 'alumni';
 
       // Fetch all alumni from Supabase
-      const { data, error } = await supabase
+      const { data: alumniData, error: alumniError } = await supabase
         .from("alumnis")
         .select("id, first_name, last_name, alumni_photo")
         .order("first_name", { ascending: true });
 
-      if (error) throw error;
+      if (alumniError) {
+        console.error("Error fetching alumni:", alumniError);
+      }
 
-      // Filter out the active user and set the state
-      const filteredUsers = (data || []).filter(user => user.id !== currentUserId);
-      setUsers(filteredUsers);
+      // Fetch all admins from Supabase
+      const { data: adminData, error: adminError } = await supabase
+        .from("admins")
+        .select("id, admin_first_name, admin_last_name, photo, admin_role")
+        .order("admin_first_name", { ascending: true });
+
+      if (adminError) {
+        console.error("Error fetching admins:", adminError);
+      }
+
+      // Combine and normalize the data with unique composite IDs
+      const allUsers = [];
+      
+      // Add alumni with composite ID
+      (alumniData || []).forEach(alumni => {
+        if (!(currentUserType === 'alumni' && alumni.id === currentUserId)) {
+          allUsers.push({
+            compositeId: `alumni_${alumni.id}`,
+            id: alumni.id,
+            user_type: 'alumni',
+            first_name: alumni.first_name,
+            last_name: alumni.last_name,
+            alumni_photo: alumni.alumni_photo,
+            displayName: `${alumni.first_name || ""} ${alumni.last_name || ""}`.trim() || "Alumni"
+          });
+        }
+      });
+
+      // Add admins with composite ID
+      (adminData || []).forEach(admin => {
+        if (!(currentUserType === 'admin' && admin.id === currentUserId)) {
+          allUsers.push({
+            compositeId: `admin_${admin.id}`,
+            id: admin.id,
+            user_type: 'admin',
+            first_name: admin.admin_first_name,
+            last_name: admin.admin_last_name,
+            alumni_photo: admin.photo,
+            displayName: `${admin.admin_first_name || ""} ${admin.admin_last_name || ""}`.trim() || "Admin",
+            admin_role: admin.admin_role
+          });
+        }
+      });
+
+      setUsers(allUsers);
     } catch (error) {
-      console.error("Error fetching alumni users:", error);
+      console.error("Error fetching users:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Real-time local search filtering based on the search bar input
   const displayedUsers = users.filter(user => {
-    const fullName = `${user.first_name || ""} ${user.last_name || ""}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
+    const fullName = user.displayName.toLowerCase();
+    const userType = user.user_type.toLowerCase();
+    const searchTerm = searchQuery.toLowerCase();
+    
+    return fullName.includes(searchTerm) || userType.includes(searchTerm);
   });
 
   const openChat = (selectedUser) => {
-    const fullName = `${selectedUser.first_name || ""} ${selectedUser.last_name || ""}`.trim();
-    navigation.navigate("ConvoScreen", {
+    const parentNavigator = navigation.getParent?.();
+    const params = {
       contactId: selectedUser.id,
-      contactName: fullName,
-      contactAvatar: selectedUser.alumni_photo
-    });
+      contactName: selectedUser.displayName,
+      contactAvatar: getAvatarUri(selectedUser.displayName, selectedUser.alumni_photo),
+      receiverType: selectedUser.user_type,
+    };
+
+    if (parentNavigator?.navigate) {
+      parentNavigator.navigate("ConvoScreen", params);
+    } else {
+      navigation.navigate("ConvoScreen", params);
+    }
   };
 
-  const renderItem = ({ item }) => {
-    const fullName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
-    const avatarUrl = getAvatarUri(fullName, item.alumni_photo);
+const renderItem = ({ item }) => {
+    const avatarUrl = getAvatarUri(item.displayName, item.alumni_photo);
+    const isAdmin = item.user_type === 'admin';
 
     return (
-      <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={() => openChat(item)}>
+      <TouchableOpacity 
+        style={styles.listItem} 
+        activeOpacity={0.7} 
+        onPress={() => openChat(item)}
+      >
         <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-        <Text style={styles.nameText}>{fullName}</Text>
+        <View style={styles.userInfo}>
+          <View style={styles.nameRow}>
+            <Text style={styles.nameText} numberOfLines={1}>{item.displayName}</Text>
+            {isAdmin && item.admin_role && (
+              <View style={styles.adminBadge}>
+                <Text style={styles.adminBadgeText}>{item.admin_role}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        <Ionicons name="chatbubble-ellipses-outline" size={20} color="#31429B" />
       </TouchableOpacity>
     );
   };
@@ -99,7 +167,7 @@ export default function SearchMessageScreen({ navigation }) {
             <Ionicons name="search-outline" size={20} color="#888888" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search a name or group"
+              placeholder="Search alumni or admin"
               placeholderTextColor="#888888"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -116,7 +184,7 @@ export default function SearchMessageScreen({ navigation }) {
         ) : (
           <FlatList
             data={displayedUsers}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.compositeId}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -125,7 +193,7 @@ export default function SearchMessageScreen({ navigation }) {
                 <Text style={styles.emptyText}>
                   {searchQuery.length > 0 
                     ? "No results found." 
-                    : "Type to start searching..."}
+                    : "Type to start searching for alumni or admin..."}
                 </Text>
               </View>
             }

@@ -1,181 +1,218 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Dimensions, Platform } from "react-native";
+
+const { width } = Dimensions.get("window");
+const cardWidth = (width - 48) / 2; // 2 columns with 16 padding on edges and 16 gap
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#31429B",
+    backgroundColor: "#1F2B67",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FB",
+    backgroundColor: "#F3F4F6", 
   },
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  headerCard: {
-    marginTop: 14,
-    marginBottom: 14,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 22,
-    padding: 16,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  backButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-    backgroundColor: "#EEF2FF",
-  },
-  titleWrap: {
+  loadingWrap: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
   },
-  title: {
-    color: "#31429B",
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: "900",
+  
+  // --- HERO SECTION ---
+  heroWrapper: {
+    position: "relative",
+    zIndex: 10,
+    backgroundColor: "#F3F4F6", // Base behind the curved cut
   },
-  subtitle: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontSize: 13,
-    lineHeight: 18,
+  heroBackground: {
+    backgroundColor: "#31429B",
+    paddingTop: Platform.OS === 'ios' ? 120 : 100, // Account for absolute TopHeaderDark
+    paddingHorizontal: 20,
+    alignItems: "center",
+    paddingBottom: 60, 
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  searchWrap: {
-    marginTop: 12,
+  
+  heroImage: {
+    width: 300,
+    height: 200,
+    marginTop: 10,
+  },
+
+  // --- FLOATING SEARCH BAR ---
+  searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 42,
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 20,
+    paddingHorizontal: 16,
+    height: 50,
+    borderRadius: 999,
+    marginTop: -25, // Forces it to float half over the blue hero and half over the white content
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    color: "#1F2937",
-    fontSize: 14,
+    marginLeft: 10,
+    fontSize: 15,
+    fontFamily: "Poppins_400Regular",
+    color: "#1C1C1E",
   },
-  helperRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
+
+  // --- WHITE CONTENT AREA ---
+  whiteContentArea: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 40,
   },
-  helperText: {
-    flex: 1,
-    color: "#6B7280",
-    fontSize: 12,
-    lineHeight: 17,
+  sectionContainer: {
+    marginBottom: 32,
   },
-  helperCount: {
-    color: "#31429B",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  loadingWrap: {
-    paddingVertical: 24,
-    alignItems: "center",
-  },
-  emptyCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 18,
-    padding: 18,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    color: "#31429B",
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: "800",
-    textAlign: "center",
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 16,
+    marginLeft: 4,
   },
-  emptyText: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: "center",
-  },
-  resultCard: {
+  gridContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  // --- ALUMNI CARD ---
+  cardWrapper: {
+    width: cardWidth,
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 16,
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 12,
-    elevation: 2,
     shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  resultCardPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
+  cardHeader: {
+    alignItems: "center",
+    width: "100%",
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    marginRight: 12,
-    backgroundColor: "#E5E7EB",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#E2E8F0",
+    marginBottom: 12,
   },
-  resultBody: {
-    flex: 1,
-    marginRight: 10,
-  },
-  resultName: {
-    color: "#31429B",
+  cardName: {
     fontSize: 15,
-    fontWeight: "800",
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    color: "#1F2937",
+    lineHeight: 20,
+    marginBottom: 10,
+    textAlign: "center",
+    height: 40, 
   },
-  resultMeta: {
-    marginTop: 2,
-    color: "#374151",
-    fontSize: 12,
-    fontWeight: "700",
+  tagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFD404",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 14,
   },
-  resultSubmeta: {
-    marginTop: 2,
-    color: "#6B7280",
-    fontSize: 12,
+  tagText: {
+    color: "#31429B",
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+    marginLeft: 4,
   },
-  actionButton: {
-    paddingHorizontal: 14,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#31429B",
+
+  // Simulated Mutual Connections
+  mutualRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 16,
   },
-  actionButtonPressed: {
-    opacity: 0.84,
+  mutualAvatar: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFF",
   },
-  actionButtonDisabled: {
-    backgroundColor: "#E2E8F0",
+  mutualText: {
+    fontSize: 9,
+    fontFamily: "Poppins_400Regular",
+    color: "#4B5563",
+    marginLeft: 6,
+    lineHeight: 12,
   },
-  actionButtonText: {
+
+  connectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#31429B",
+    width: "100%",
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  connectButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+  },
+  connectButtonText: {
     color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+    marginLeft: 6,
   },
-  actionButtonTextDisabled: {
-    color: "#64748B",
+
+  // --- SHOW ALL BUTTON ---
+  showAllButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#6B7280",
+    borderRadius: 999,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showAllText: {
+    color: "#4B5563",
+    fontSize: 15,
+    fontFamily: "Poppins_600SemiBold",
+    fontWeight: "600",
+  },
+
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    textAlign: "center",
   },
 });
 

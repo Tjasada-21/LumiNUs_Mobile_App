@@ -282,7 +282,7 @@ const UserProfileScreen = ({ navigation }) => {
           ) : errorMessage ? (
             <View style={styles.stateWrap}>
               <Text style={styles.errorText}>{errorMessage}</Text>
-              <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("AccountSettings")}>
+              <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("SettingsScreen")}>
                 <Text style={styles.actionButtonText}>Open Account Settings</Text>
               </TouchableOpacity>
             </View>
@@ -303,11 +303,11 @@ const UserProfileScreen = ({ navigation }) => {
                       <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.postsCount}</Text> Posts</Text>
                     </View>
                     <View style={styles.actionRow}>
-                      <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("AccountSettings")}>
+                      <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("SettingsScreen")}>
                         <Ionicons name="create-outline" size={16} color="#1C1C1E" />
                         <Text style={styles.editProfileText}>Edit Profile</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate("AccountSettings")}>
+                      <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate("SettingsScreen")}>
                         <Ionicons name="settings-sharp" size={18} color="#FFFFFF" />
                       </TouchableOpacity>
                     </View>

@@ -56,7 +56,7 @@ const formatChatTimestamp = (value) => {
 
   if (diffMins < 60) return `${Math.max(1, diffMins)}m`;
   if (diffHrs < 24) return `${diffHrs}h`;
-  
+
   const sameDay =
     now.getFullYear() === date.getFullYear() &&
     now.getMonth() === date.getMonth() &&
@@ -99,7 +99,7 @@ const ChatScreen = ({ navigation }) => {
   const [pageOffset, setPageOffset] = useState(0);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [hasMoreChats, setHasMoreChats] = useState(true);
-  
+
   const CHAT_LIMIT = 50;
   const tabContentAnimation = useRef(new Animated.Value(1)).current;
   const shimmerProgress = useRef(new Animated.Value(-1)).current;
@@ -148,23 +148,38 @@ const ChatScreen = ({ navigation }) => {
     navigation.navigate("NewMessage");
   };
 
-  const openConversation = (contact) => {
-    const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Alumni";
-    const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
-    const conversationId = contact?.id;
+// In ChatScreen.js, update the openConversation function
+const openConversation = (contact) => {
+  const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Alumni";
+  const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
+  // Use the composite ID or the connection_id
+  const conversationId = contact?.id;
+  
+  // Get receiver type from contact data
+  const receiverType = contact?.user_type || 'alumni';
 
-    setConversationViewTimestamps((prev) => ({
-      ...prev,
-      [conversationId]: Date.now(),
-    }));
+  setConversationViewTimestamps((prev) => ({
+    ...prev,
+    [conversationId]: Date.now(),
+  }));
 
-    const parentNavigator = navigation.getParent?.();
-    if (parentNavigator?.navigate) {
-      parentNavigator.navigate("ConvoScreen", { contactId: contact?.id, contactName, contactAvatar });
-      return;
-    }
-    navigation.navigate("ConvoScreen", { contactId: contact?.id, contactName, contactAvatar });
-  };
+  const parentNavigator = navigation.getParent?.();
+  if (parentNavigator?.navigate) {
+    parentNavigator.navigate("ConvoScreen", { 
+      contactId: contact?.connection_id, // Use the actual numeric ID for sending messages
+      contactName, 
+      contactAvatar,
+      receiverType, // Pass the receiver type (alumni or admin)
+    });
+    return;
+  }
+  navigation.navigate("ConvoScreen", { 
+    contactId: contact?.connection_id, // Use the actual numeric ID for sending messages
+    contactName, 
+    contactAvatar,
+    receiverType, // Pass the receiver type
+  });
+};
 
   const openGroupConversation = (groupChat) => {
     const groupName = groupChat?.name ?? "Group Chat";
@@ -187,116 +202,154 @@ const ChatScreen = ({ navigation }) => {
     navigation.navigate("ConvoScreen", conversationParams);
   };
 
-  const loadChatData = useCallback(async () => {
-    try {
-      setIsLoadingChatData(true);
-      setIsLoadingAdmins(true);
-      const supaUser = await getCurrentUser();
+const loadChatData = useCallback(async () => {
+  try {
+    setIsLoadingChatData(true);
+    setIsLoadingAdmins(true);
+    const supaUser = await getCurrentUser();
 
-      if (!supaUser) {
-        setUserData(null);
-        setContacts([]);
-        setGroupChats([]);
-        return;
-      }
-
-      const conversationsPromise = getConversations(supaUser.id, 0, CHAT_LIMIT);
-      setPageOffset(0);
-      setHasMoreChats(true);
-
-      const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
-      const followingPromise = getFollowing(supaUser.id).catch(() => []);
-      const followersPromise = getFollowers(supaUser.id).catch(() => []);
-      const favoritesPromise = supabase.from("favorite_chats").select("contact_id").eq("user_id", supaUser.id);
-
-      const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
-        conversationsPromise,
-        groupChatsPromise,
-        followingPromise,
-        followersPromise,
-        favoritesPromise,
-      ]);
-
-      setUserData(supaUser);
-      const connectionsMap = new Map();
-
-      (followingRows || []).forEach((row) => {
-        const contact = row?.followed;
-        if (!contact?.id) return;
-        connectionsMap.set(contact.id, {
-          id: contact.id, connection_id: contact.id, first_name: contact.first_name, last_name: contact.last_name, email: contact.email, alumni_photo: contact.alumni_photo, program: contact.program, created_at: row?.created_at ?? null, unread_count: 0,
-        });
-      });
-
-      (followerRows || []).forEach((row) => {
-        const contact = row?.follower;
-        if (!contact?.id) return;
-        if (connectionsMap.has(contact.id)) return;
-        connectionsMap.set(contact.id, {
-          id: contact.id, connection_id: contact.id, first_name: contact.first_name, last_name: contact.last_name, email: contact.email, alumni_photo: contact.alumni_photo, program: contact.program, created_at: row?.created_at ?? null, unread_count: 0,
-        });
-      });
-
-      const conversationsList = Array.isArray(conversations) ? conversations : [];
-      conversationsList.forEach((conversation) => {
-        if (!conversation?.id) return;
-        const baseContact = connectionsMap.get(conversation.id) || {};
-        connectionsMap.set(conversation.id, {
-          ...baseContact, ...conversation, id: conversation.id, connection_id: conversation.connection_id ?? conversation.id, first_name: conversation.first_name ?? baseContact.first_name, last_name: conversation.last_name ?? baseContact.last_name, email: conversation.email ?? baseContact.email, alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
-        });
-      });
-
-      const nextContacts = Array.from(connectionsMap.values());
-      setContacts(nextContacts);
-
-      try {
-        const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
-        setFavoriteContactIds(new Set(favoriteIds));
-      } catch (e) {}
-
-      const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
-      setGroupChats(nextGroupChats);
-      setAdmins([]);
-      cachedContacts = nextContacts;
-      cachedContactsLoadedAt = Date.now();
-      void refreshUnreadMessages();
-    } catch (error) {
+    if (!supaUser) {
       setUserData(null);
       setContacts([]);
       setGroupChats([]);
-    } finally {
-      setIsLoadingChatData(false);
-      setIsLoadingAdmins(false);
+      return;
     }
-  }, []);
 
-  const handleLoadMore = async () => {
-    if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
+    const conversationsPromise = getConversations(supaUser.id, 'alumni', 0, CHAT_LIMIT);
+    setPageOffset(0);
+    setHasMoreChats(true);
+
+    const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
+    const followingPromise = getFollowing(supaUser.id).catch(() => []);
+    const followersPromise = getFollowers(supaUser.id).catch(() => []);
+    const favoritesPromise = supabase.from("favorite_chats").select("contact_id").eq("user_id", supaUser.id);
+
+    const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
+      conversationsPromise,
+      groupChatsPromise,
+      followingPromise,
+      followersPromise,
+      favoritesPromise,
+    ]);
+
+    setUserData(supaUser);
+    const connectionsMap = new Map();
+
+    (followingRows || []).forEach((row) => {
+      const contact = row?.followed;
+      if (!contact?.id) return;
+      connectionsMap.set(`alumni_${contact.id}`, {
+        id: `alumni_${contact.id}`, // Composite ID
+        connection_id: contact.id, // Actual numeric ID
+        user_type: 'alumni',
+        first_name: contact.first_name, 
+        last_name: contact.last_name, 
+        email: contact.email, 
+        alumni_photo: contact.alumni_photo, 
+        program: contact.program, 
+        created_at: row?.created_at ?? null, 
+        unread_count: 0,
+      });
+    });
+
+    (followerRows || []).forEach((row) => {
+      const contact = row?.follower;
+      if (!contact?.id) return;
+      const key = `alumni_${contact.id}`;
+      if (connectionsMap.has(key)) return;
+      connectionsMap.set(key, {
+        id: key, // Composite ID
+        connection_id: contact.id, // Actual numeric ID
+        user_type: 'alumni',
+        first_name: contact.first_name, 
+        last_name: contact.last_name, 
+        email: contact.email, 
+        alumni_photo: contact.alumni_photo, 
+        program: contact.program, 
+        created_at: row?.created_at ?? null, 
+        unread_count: 0,
+      });
+    });
+
+    const conversationsList = Array.isArray(conversations) ? conversations : [];
+    conversationsList.forEach((conversation) => {
+      if (!conversation?.id) return;
+      const key = conversation.id; // Already composite from getConversations
+      const baseContact = connectionsMap.get(key) || {};
+      connectionsMap.set(key, {
+        ...baseContact, 
+        ...conversation, 
+        id: conversation.id, // Keep composite ID
+        connection_id: conversation.connection_id ?? baseContact.connection_id,
+        user_type: conversation.user_type || 'alumni',
+        first_name: conversation.first_name ?? baseContact.first_name, 
+        last_name: conversation.last_name ?? baseContact.last_name, 
+        email: conversation.email ?? baseContact.email, 
+        alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+      });
+    });
+
+    const nextContacts = Array.from(connectionsMap.values());
+    setContacts(nextContacts);
+
     try {
-      setIsFetchingMore(true);
-      const nextOffset = pageOffset + CHAT_LIMIT;
-      const newConversations = await getConversations(userData.id, nextOffset, CHAT_LIMIT);
-      if (!newConversations || newConversations.length < CHAT_LIMIT) {
-        setHasMoreChats(false);
-      }
-      if (newConversations && newConversations.length > 0) {
-        setContacts((prevContacts) => {
-          const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
-          newConversations.forEach((conversation) => {
-            if (!conversation?.id) return;
-            const baseContact = connectionsMap.get(conversation.id) || {};
-            connectionsMap.set(conversation.id, {
-              ...baseContact, ...conversation, id: conversation.id, connection_id: conversation.connection_id ?? conversation.id, first_name: conversation.first_name ?? baseContact.first_name, last_name: conversation.last_name ?? baseContact.last_name, email: conversation.email ?? baseContact.email, alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
-            });
-          });
-          return Array.from(connectionsMap.values());
-        });
-        setPageOffset(nextOffset);
-      }
-    } catch (error) {} finally {
-      setIsFetchingMore(false);
+      // For favorites, we need to handle both alumni and admin contacts
+      const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
+      setFavoriteContactIds(new Set(favoriteIds));
+    } catch (e) {}
+
+    const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
+    setGroupChats(nextGroupChats);
+    setAdmins([]);
+    cachedContacts = nextContacts;
+    cachedContactsLoadedAt = Date.now();
+    void refreshUnreadMessages();
+  } catch (error) {
+    setUserData(null);
+    setContacts([]);
+    setGroupChats([]);
+  } finally {
+    setIsLoadingChatData(false);
+    setIsLoadingAdmins(false);
+  }
+}, []);
+
+const handleLoadMore = async () => {
+  if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
+  try {
+    setIsFetchingMore(true);
+    const nextOffset = pageOffset + CHAT_LIMIT;
+    const newConversations = await getConversations(userData.id, 'alumni', nextOffset, CHAT_LIMIT);
+    if (!newConversations || newConversations.length < CHAT_LIMIT) {
+      setHasMoreChats(false);
     }
-  };
+    if (newConversations && newConversations.length > 0) {
+      setContacts((prevContacts) => {
+        const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
+        newConversations.forEach((conversation) => {
+          if (!conversation?.id) return;
+          const key = conversation.id; // Already composite
+          const baseContact = connectionsMap.get(key) || {};
+          connectionsMap.set(key, {
+            ...baseContact, 
+            ...conversation, 
+            id: conversation.id,
+            connection_id: conversation.connection_id ?? baseContact.connection_id,
+            user_type: conversation.user_type || 'alumni',
+            first_name: conversation.first_name ?? baseContact.first_name, 
+            last_name: conversation.last_name ?? baseContact.last_name, 
+            email: conversation.email ?? baseContact.email, 
+            alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+          });
+        });
+        return Array.from(connectionsMap.values());
+      });
+      setPageOffset(nextOffset);
+    }
+  } catch (error) {} finally {
+    setIsFetchingMore(false);
+  }
+};
 
   useFocusEffect(
     useCallback(() => {
@@ -385,18 +438,19 @@ const ChatScreen = ({ navigation }) => {
     const contactAvatar = getAvatarUri(contactName, item?.alumni_photo);
     const unreadCount = Number(item?.unread_count ?? (item?.is_read === false ? 1 : 0));
     
-    // Aggressively check all possible fields for the latest message content
-    const latestMessage = 
-      item?.latest_message?.content || 
-      item?.latest_message?.message ||
-      item?.latest_message?.text ||
-      item?.last_message || 
-      item?.latest_message_text || 
-      item?.content ||
-      item?.message ||
+    // Handle different message structures
+    const latestMessage =
+      item?.latest_message?.content ||
+      item?.last_message ||
+      (typeof item?.latest_message === 'string' ? item.latest_message : null) ||
       "No messages yet";
 
-    const latestMessageTime = item?.latest_message?.created_at || item?.last_message_at || item?.updated_at || item?.created_at;
+    const latestMessageTime =
+      item?.latest_message?.created_at ||
+      item?.last_message_at ||
+      item?.updated_at ||
+      item?.created_at;
+    
     const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
     const isFavorited = favoriteContactIds.has(item?.id);
 
@@ -565,26 +619,26 @@ const ChatScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
-        
+       
         {/* BLUE HEADER SECTION WITH SPACE BACKGROUND */}
         <View style={styles.blueHeaderSection}>
-          <Image 
-            source={require("../../assets/images/Space_HeaderBG_White 2.png")} 
-            style={styles.headerBgImage} 
+          <Image
+            source={require("../../assets/images/Space_HeaderBG_White 2.png")}
+            style={styles.headerBgImage}
             resizeMode="cover"
           />
-          
+         
           <View style={styles.headerTopRow}>
             <Text style={styles.headerTitleWhite}>Chats</Text>
             <View style={styles.headerActions}>
               <TouchableOpacity style={styles.iconButtonWhite} onPress={openSearchMessage}>
                 <Ionicons name="search" size={20} color="#31429B" />
               </TouchableOpacity>
-              
+             
               <TouchableOpacity style={styles.iconButtonYellow} onPress={openNewMessage}>
                 <Ionicons name="create-outline" size={20} color="#31429B" />
               </TouchableOpacity>
-              
+             
               <TouchableOpacity style={styles.avatarButton}>
                 <Image source={{ uri: avatarUri }} style={styles.headerAvatar} />
               </TouchableOpacity>
@@ -617,7 +671,7 @@ const ChatScreen = ({ navigation }) => {
             <FlatList
               data={activeChats}
               renderItem={renderItem}
-              keyExtractor={(item) => `${item?.__chatType ?? "chat"}-${String(item?.group_chat_id ?? item?.connection_id ?? item?.id)}`}
+              keyExtractor={(item) => item?.id || `${item?.__chatType}-${item?.connection_id}-${Math.random()}`}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               refreshing={isLoadingChatData}

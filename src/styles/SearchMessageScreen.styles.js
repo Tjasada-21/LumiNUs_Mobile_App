@@ -32,8 +32,8 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F6FA", // Soft gray background for the search pill
-    borderRadius: 25, // Creates the fully rounded edges
+    backgroundColor: "#F5F6FA",
+    borderRadius: 25,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
@@ -54,6 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    paddingVertical: 4,
   },
   avatar: {
     width: 50,
@@ -61,12 +62,45 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     backgroundColor: "#E0E0E0", 
   },
-  nameText: {
+  userInfo: {
+    flex: 1,
     marginLeft: 16,
+    justifyContent: "center",
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  nameText: {
     fontSize: 16,
     color: "#4A4A4A",
     fontWeight: "700",
     fontFamily: "Poppins_600SemiBold",
+    flexShrink: 1,
+  },
+adminBadge: {
+    backgroundColor: "#FBD117",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginLeft: 8,
+    alignSelf: "center",
+    maxWidth: 150, // Prevent badge from getting too wide
+  },
+  adminBadgeText: {
+    fontSize: 11,
+    color: "#32418C",
+    fontWeight: "700",
+    fontFamily: "Poppins_600SemiBold",
+    letterSpacing: 0.3,
+    numberOfLines: 1, // Keep text on one line
+  },
+  roleText: {
+    fontSize: 12,
+    color: "#666666",
+    marginTop: 2,
+    fontFamily: "Poppins_400Regular",
   },
   footer: {
     backgroundColor: "#31429B", 
@@ -90,7 +124,7 @@ const styles = StyleSheet.create({
     color: "#888888",
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
-  }
+  },
 });
 
 export default styles;

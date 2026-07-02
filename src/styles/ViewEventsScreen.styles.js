@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    marginTop: 2, // Aligns arrow neatly with text
+    marginTop: 2, 
   },
   pageTitle: {
     color: "#FFFFFF",
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   galleryScroll: {
-    gap: 12, // Space between images
+    gap: 12, 
   },
   galleryImage: {
     width: 120,
@@ -112,6 +112,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
+  inPersonBadge: {
+    backgroundColor: "#10B981", 
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+  inPersonBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+  },
   dateLocationTitle: {
     color: "#FFFFFF",
     fontSize: 15,
@@ -124,12 +138,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
+  infoRowTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  iconTop: {
+    marginTop: 2,
+  },
+  infoTextCol: {
+    flex: 1,
+    marginLeft: 10,
+  },
   infoText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontFamily: "Poppins_400Regular",
     marginLeft: 10,
     flexShrink: 1,
+  },
+  infoSubText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    marginTop: 2,
+    flexShrink: 1,
+  },
+
+  // --- MAP SECTION ---
+  mapSection: {
+    marginTop: 20,
+  },
+  mapTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins_700Bold",
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    marginBottom: 10,
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#E5E7EB",
+  },
+  mapWebView: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "transparent",
+  },
+  mapFallback: {
+    minHeight: 200,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  mapFallbackText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: "#31429B",
+    textAlign: "center",
   },
 
   // --- ACTION BUTTON ---
@@ -140,6 +213,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: "#31429B",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

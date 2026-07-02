@@ -10,15 +10,14 @@ import {
   Platform,
   Pressable,
 } from "react-native";
+import { decode } from "base64-arraybuffer";
 import SmartTextInput from "../components/SmartTextInput";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getAlumniByEmail,
-  uploadAlumniPhoto,
   updateAlumniProfile,
-  removeAlumniPhoto,
   getAlumniPhotoFromStorage,
 } from "../services/alumniQueries";
 import supabase from "../services/supabase";
@@ -29,6 +28,7 @@ import styles from "../styles/AccountSettingsScreen.styles";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { ThemedAlert } from "../components/ThemedAlert";
 
+// ---------- UTILITY FUNCTIONS (unchanged) ----------
 const formatDate = (value) => {
   if (!value) return "YYYY-MM-DD";
   const parsedDate = new Date(value);
@@ -53,17 +53,44 @@ const normalizeDateOnly = (value) => {
 const getImageMimeType = (uri) => {
   const extension = uri.split(".").pop()?.toLowerCase();
   switch (extension) {
-    case "png": return "image/png";
-    case "heic": return "image/heic";
-    case "webp": return "image/webp";
-    default: return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "heic":
+      return "image/heic";
+    case "webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
   }
 };
 
+const PROFILE_PHOTO_FILE_NAME = "profile.jpg";
+
+const stripCacheBuster = (url) => {
+  if (!url) return "";
+  return String(url).split("?")[0].split("#")[0];
+};
+
+const toDisplayPhotoUrl = (url, version) => {
+  if (!url) return "";
+  const cleanVersion = version ? String(version) : String(Date.now());
+  return `${url}${url.includes("?") ? "&" : "?"}v=${cleanVersion}`;
+};
+
+const extractStoragePath = (url) => {
+  const cleanUrl = stripCacheBuster(url);
+  const marker = "/luminus_assets/";
+  const markerIndex = cleanUrl.indexOf(marker);
+  if (markerIndex === -1) return "";
+  return cleanUrl.slice(markerIndex + marker.length);
+};
+
+// ---------- MAIN COMPONENT ----------
 const AccountSettingsScreen = ({ navigation }) => {
   const { setCurrentUserProfile } = useCurrentUserProfile();
-  
+
   const [userData, setUserData] = useState(null);
+  const [originalUserData, setOriginalUserData] = useState(null);
   const [formData, setFormData] = useState({
     first_name: "",
     middle_name: "",
@@ -77,7 +104,7 @@ const AccountSettingsScreen = ({ navigation }) => {
     country: "",
     city: "",
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,10 +112,11 @@ const AccountSettingsScreen = ({ navigation }) => {
   const [pickingImage, setPickingImage] = useState(false);
   const [dobPickerVisible, setDobPickerVisible] = useState(false);
   const [dobDate, setDobDate] = useState(() => new Date(1990, 0, 1));
-  
+
   const [photoCooldownUntil, setPhotoCooldownUntil] = useState(0);
   const [photoCooldownSeconds, setPhotoCooldownSeconds] = useState(0);
 
+  // ---------- FETCH ACCOUNT DATA (unchanged) ----------
   const fetchAccountData = async ({ showRefreshingState = false } = {}) => {
     try {
       if (showRefreshingState) setRefreshing(true);
@@ -105,9 +133,12 @@ const AccountSettingsScreen = ({ navigation }) => {
 
       const data = await getAlumniByEmail(userEmail).catch(() => null);
       const livePhotoUrl = data?.id ? await getAlumniPhotoFromStorage(data.id).catch(() => null) : null;
-      const resolvedPhoto = livePhotoUrl ?? data?.alumni_photo ?? "";
+      const basePhotoUrl = stripCacheBuster(livePhotoUrl ?? data?.alumni_photo ?? "");
+      const photoVersion = data?.updated_at ? new Date(data.updated_at).getTime() : Date.now();
+      const resolvedPhoto = basePhotoUrl ? toDisplayPhotoUrl(basePhotoUrl, photoVersion) : "";
 
-      setUserData(data);
+      setOriginalUserData(data ? { ...data, alumni_photo: basePhotoUrl } : data);
+      setUserData(data ? { ...data, alumni_photo: basePhotoUrl } : data);
       setFormData({
         first_name: data?.first_name || "",
         middle_name: data?.middle_name || "",
@@ -133,7 +164,9 @@ const AccountSettingsScreen = ({ navigation }) => {
     }
   };
 
-  useEffect(() => { fetchAccountData(); }, []);
+  useEffect(() => {
+    fetchAccountData();
+  }, []);
 
   useEffect(() => {
     if (!photoCooldownUntil) {
@@ -156,42 +189,120 @@ const AccountSettingsScreen = ({ navigation }) => {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
+  // ---------- REPLACE PROFILE PHOTO (CUSTOM FUNCTION) ----------
+  const replaceProfilePhoto = async (imageSource, alumniId) => {
+    const objectPath = `alumni_photos/${alumniId}/${PROFILE_PHOTO_FILE_NAME}`;
+
+    const oldUrl = formData.alumni_photo || userData?.alumni_photo || "";
+    const oldPath = extractStoragePath(oldUrl);
+    if (oldPath && oldPath !== objectPath) {
+      const { error: delError } = await supabase.storage
+        .from("luminus_assets")
+        .remove([oldPath]);
+      if (delError) console.warn("Old photo deletion error:", delError.message);
+    }
+
+    const imageBytes = decode(imageSource.base64);
+    const contentType = imageSource.type || "image/jpeg";
+
+    const { error: uploadError } = await supabase.storage
+      .from("luminus_assets")
+      .upload(objectPath, imageBytes, {
+        contentType,
+        upsert: true,
+        cacheControl: "0",
+      });
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from("luminus_assets")
+      .getPublicUrl(objectPath);
+    const storageUrl = publicUrlData?.publicUrl || objectPath;
+
+    return {
+      storageUrl,
+      displayUrl: toDisplayPhotoUrl(storageUrl),
+    };
+  };
+
+  // ---------- UPLOAD IMAGE (REPLACES OLD) ----------
   const uploadImage = async (imageSource) => {
     try {
       const alumniId = userData?.id;
-      const uploadedUrl = alumniId ? await uploadAlumniPhoto(alumniId, imageSource) : null;
-      if (!uploadedUrl) throw new Error("No url returned from upload");
-      
-      updateField("alumni_photo", uploadedUrl);
-      setUserData((current) => current ? { ...current, alumni_photo: uploadedUrl } : current);
-      setCurrentUserProfile((current) => current ? { ...current, alumni_photo: uploadedUrl } : current);
+      if (!alumniId) throw new Error("Missing alumni ID");
+
+      const { storageUrl, displayUrl } = await replaceProfilePhoto(imageSource, alumniId);
+
+      await updateAlumniProfile(alumniId, { alumni_photo: storageUrl });
+
+      updateField("alumni_photo", displayUrl);
+      setUserData((current) => ({ ...(current || userData || {}), alumni_photo: storageUrl }));
+      setOriginalUserData((current) => ({ ...(current || userData || {}), alumni_photo: storageUrl }));
+      setCurrentUserProfile((current) => ({ ...(current || userData || {}), alumni_photo: displayUrl }));
       setPhotoCooldownUntil(Date.now() + 60000);
-      return uploadedUrl;
+      return displayUrl;
     } catch (err) {
       throw err;
     }
   };
 
+  // ---------- REMOVE PHOTO ----------
+  const handleRemovePhoto = async () => {
+    try {
+      setPickingImage(true);
+      const alumniId = userData?.id;
+      if (alumniId) {
+        const oldUrl = formData.alumni_photo || userData?.alumni_photo || "";
+        if (oldUrl) {
+          const marker = "/luminus_assets/";
+          const idx = oldUrl.indexOf(marker);
+          if (idx !== -1) {
+            const relativePath = oldUrl.slice(idx + marker.length);
+            if (relativePath) {
+              await supabase.storage.from("luminus_assets").remove([relativePath]);
+            }
+          }
+        }
+        await updateAlumniProfile(alumniId, { alumni_photo: "" });
+      }
+      updateField("alumni_photo", "");
+      setUserData((c) => c ? { ...c, alumni_photo: "" } : c);
+      setOriginalUserData((c) => c ? { ...c, alumni_photo: "" } : c);
+      setCurrentUserProfile((c) => c ? { ...c, alumni_photo: "" } : c);
+    } catch (err) {
+      ThemedAlert.alert("Error", "Unable to remove photo.");
+    } finally {
+      setPickingImage(false);
+    }
+  };
+
+  // ---------- SAVE OTHER FIELDS (unchanged logic, but with originalUserData comparison) ----------
   const handleSave = async () => {
     if (!userData?.id) {
       setErrorMessage("Missing the current account email.");
       return;
     }
 
+    const compareBase = originalUserData || userData;
     const fields = [
-      "first_name", "middle_name", "last_name", "phone_number", 
-      "email", "date_of_birth", "sex", "alumni_photo", 
+      "first_name", "middle_name", "last_name", "phone_number",
+      "email", "date_of_birth", "sex", "alumni_photo",
       "biography", "country", "city"
     ];
 
     const getChangedPayload = () => {
       const changes = {};
       fields.forEach((f) => {
-        const newVal = (formData[f] ?? "").trim();
-        const oldValRaw = userData?.[f];
+        const newVal = f === "alumni_photo"
+          ? stripCacheBuster(formData[f] ?? "")
+          : (formData[f] ?? "").trim();
+        const oldValRaw = compareBase?.[f];
         if (f === "date_of_birth") {
-          const oldDate = normalizeDateOnly(userData?.date_of_birth);
+          const oldDate = normalizeDateOnly(compareBase?.date_of_birth);
           if (newVal !== oldDate) changes[f] = newVal;
+        } else if (f === "alumni_photo") {
+          const oldPhoto = stripCacheBuster(oldValRaw ?? "");
+          if (newVal !== oldPhoto) changes[f] = newVal;
         } else {
           if (newVal !== (oldValRaw ?? "")) changes[f] = newVal;
         }
@@ -200,7 +311,6 @@ const AccountSettingsScreen = ({ navigation }) => {
     };
 
     const changes = getChangedPayload();
-
     if (Object.keys(changes).length === 0) {
       ThemedAlert.alert("No changes", "You have not modified any fields.");
       return;
@@ -213,8 +323,13 @@ const AccountSettingsScreen = ({ navigation }) => {
       const data = updated || null;
 
       if (data) {
-        setUserData(data);
-        setCurrentUserProfile(data);
+        const basePhotoUrl = stripCacheBuster(data.alumni_photo ?? "");
+        const photoVersion = data.updated_at ? new Date(data.updated_at).getTime() : Date.now();
+        const displayPhotoUrl = basePhotoUrl ? toDisplayPhotoUrl(basePhotoUrl, photoVersion) : "";
+
+        setUserData({ ...data, alumni_photo: basePhotoUrl });
+        setOriginalUserData({ ...data, alumni_photo: basePhotoUrl });
+        setCurrentUserProfile((current) => ({ ...(current || data || {}), ...data, alumni_photo: displayPhotoUrl }));
         setFormData({
           first_name: data.first_name || "",
           middle_name: data.middle_name || "",
@@ -223,7 +338,7 @@ const AccountSettingsScreen = ({ navigation }) => {
           email: data.email || "",
           date_of_birth: normalizeDateOnly(data.date_of_birth),
           sex: data.sex || "",
-          alumni_photo: data.alumni_photo || "",
+          alumni_photo: displayPhotoUrl,
           biography: data.biography || "",
           country: data.country || "",
           city: data.city || "",
@@ -246,279 +361,289 @@ const AccountSettingsScreen = ({ navigation }) => {
     }
   };
 
+  // ---------- DERIVED VALUES ----------
   const profileName = userData
     ? [formData.first_name, formData.middle_name, formData.last_name].filter(Boolean).join(" ")
     : "Alumni";
   const profileImageUri = getAvatarUri(profileName, formData.alumni_photo);
   const formDisabled = loading || saving;
 
+  // ---------- RENDER ----------
   return (
-    
-      <View style={styles.container}>
-        
-        {/* CUSTOM WHITE HEADER */}
-        <View style={styles.whiteHeaderCard}>
-          <View style={styles.headerRow}>
-            <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color="#31429B" />
-            </Pressable>
-            <Text style={styles.headerTitle}>Edit Profile</Text>
-          </View>
+    <View style={styles.container}>
+      {/* CUSTOM WHITE HEADER */}
+      <View style={styles.whiteHeaderCard}>
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#31429B" />
+          </Pressable>
+          <Text style={styles.headerTitle}>Edit Profile</Text>
         </View>
+      </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#31429B" />}
-        >
-          {loading && !refreshing ? (
-            <ActivityIndicator size="large" color="#31429B" style={{ marginTop: 40 }} />
-          ) : (
-            <>
-              {/* AVATAR SECTION */}
-              <View style={styles.avatarContainer}>
-                <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
-                <TouchableOpacity
-                  style={styles.cameraBadge}
-                  activeOpacity={0.8}
-                  disabled={formDisabled || pickingImage || photoCooldownSeconds > 0}
-                  onPress={() => {
-                    if (photoCooldownSeconds > 0) return ThemedAlert.alert("Cooldown", `Please wait ${photoCooldownSeconds}s.`);
-                    ThemedAlert.alert("Profile Photo", "Choose an option", [
-                      {
-                        text: "Upload New Photo",
-                        onPress: async () => {
-                          try {
-                            setPickingImage(true);
-                            const result = await ImagePicker.launchImageLibraryAsync({
-                              mediaTypes: ["images"],
-                              allowsEditing: false,
-                              base64: true,
-                              quality: 0.75,
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#31429B" />}
+      >
+        {loading && !refreshing ? (
+          <ActivityIndicator size="large" color="#31429B" style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {/* AVATAR SECTION */}
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+              <TouchableOpacity
+                style={styles.cameraBadge}
+                activeOpacity={0.8}
+                disabled={formDisabled || pickingImage || photoCooldownSeconds > 0}
+                onPress={() => {
+                  if (photoCooldownSeconds > 0)
+                    return ThemedAlert.alert("Cooldown", `Please wait ${photoCooldownSeconds}s.`);
+                  ThemedAlert.alert("Profile Photo", "Choose an option", [
+                    {
+                      text: "Upload New Photo",
+                      onPress: async () => {
+                        try {
+                          setPickingImage(true);
+                          const result = await ImagePicker.launchImageLibraryAsync({
+                            mediaTypes: ["images"],
+                            allowsEditing: false,
+                            base64: true,
+                            quality: 0.75,
+                          });
+                          const rawAsset =
+                            result.assets?.[0] ??
+                            (result.uri ? { uri: result.uri, base64: result.base64 } : null);
+                          if (rawAsset?.uri && rawAsset?.base64) {
+                            await uploadImage({
+                              uri: rawAsset.uri,
+                              base64: rawAsset.base64,
+                              name: `profile-${Date.now()}.${rawAsset.uri.split(".").pop() || "jpg"}`,
+                              type: getImageMimeType(rawAsset.uri),
                             });
-                            const rawAsset = result.assets?.[0] ?? (result.uri ? { uri: result.uri, base64: result.base64 } : null);
-                            if (rawAsset?.uri && rawAsset?.base64) {
-                              await uploadImage({
-                                uri: rawAsset.uri,
-                                base64: rawAsset.base64,
-                                name: `profile-${Date.now()}.${rawAsset.uri.split(".").pop() || "jpg"}`,
-                                type: getImageMimeType(rawAsset.uri),
-                              });
-                            }
-                          } catch (err) {
-                            ThemedAlert.alert("Error", "Unable to process image.");
-                          } finally {
-                            setPickingImage(false);
                           }
-                        },
-                      },
-                      {
-                        text: "Remove Photo",
-                        style: "destructive",
-                        onPress: async () => {
-                          try {
-                            setPickingImage(true);
-                            await removeAlumniPhoto(userData.id);
-                            updateField("alumni_photo", "");
-                            setUserData((c) => c ? { ...c, alumni_photo: "" } : c);
-                            setCurrentUserProfile((c) => c ? { ...c, alumni_photo: "" } : c);
-                          } catch (err) {} finally { setPickingImage(false); }
+                        } catch (err) {
+                          ThemedAlert.alert("Error", "Unable to process image.");
+                        } finally {
+                          setPickingImage(false);
                         }
                       },
-                      { text: "Cancel", style: "cancel" }
-                    ], { cancelable: true });
-                  }}
-                >
-                  {pickingImage ? (
-                    <ActivityIndicator size="small" color="#31429B" />
-                  ) : (
-                    <Ionicons name="camera" size={16} color="#31429B" />
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* USER INFORMATION */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>User Information</Text>
-                
-                <Text style={styles.inputLabel}>Last Name</Text>
-                <SmartTextInput
-                  value={formData.last_name}
-                  onChangeText={(val) => updateField("last_name", val)}
-                  style={styles.inputBox}
-                  editable={!formDisabled}
-                />
-
-                <Text style={styles.inputLabel}>First Name</Text>
-                <SmartTextInput
-                  value={formData.first_name}
-                  onChangeText={(val) => updateField("first_name", val)}
-                  style={styles.inputBox}
-                  editable={!formDisabled}
-                />
-
-                <Text style={styles.inputLabel}>Middle Name</Text>
-                <SmartTextInput
-                  value={formData.middle_name}
-                  onChangeText={(val) => updateField("middle_name", val)}
-                  style={styles.inputBox}
-                  editable={!formDisabled}
-                />
-              </View>
-
-              {/* PERSONAL DETAILS */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Personal Details</Text>
-                
-                <Text style={styles.inputLabel}>Date of Birth</Text>
-                <Pressable
-                  style={styles.dateInputBox}
-                  disabled={formDisabled}
-                  onPress={() => {
-                    const current = formData.date_of_birth ? new Date(String(formData.date_of_birth)) : new Date(1990, 0, 1);
-                    if (!Number.isNaN(current.getTime())) setDobDate(current);
-                    setDobPickerVisible(true);
-                  }}
-                >
-                  <Ionicons name="calendar-outline" size={18} color="#1C1C1E" style={styles.inputIcon} />
-                  <Text style={styles.dateText}>{formatDate(formData.date_of_birth)}</Text>
-                </Pressable>
-
-                {dobPickerVisible && (
-                  <DateTimePicker
-                    value={dobDate}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    maximumDate={new Date()}
-                    onChange={(event, selected) => {
-                      if (Platform.OS !== "ios") {
-                        setDobPickerVisible(false);
-                        if (event?.type === "dismissed") return;
-                        if (selected) updateField("date_of_birth", selected.toISOString().slice(0, 10));
-                      } else {
-                        if (selected) setDobDate(selected);
-                      }
-                    }}
-                  />
+                    },
+                    {
+                      text: "Remove Photo",
+                      style: "destructive",
+                      onPress: handleRemovePhoto,
+                    },
+                    { text: "Cancel", style: "cancel" },
+                  ], { cancelable: true });
+                }}
+              >
+                {pickingImage ? (
+                  <ActivityIndicator size="small" color="#31429B" />
+                ) : (
+                  <Ionicons name="camera" size={16} color="#31429B" />
                 )}
-                
-                {dobPickerVisible && Platform.OS === "ios" && (
-                  <TouchableOpacity 
-                    style={styles.iosDateDoneBtn} 
-                    onPress={() => {
-                      updateField("date_of_birth", dobDate.toISOString().slice(0, 10));
+              </TouchableOpacity>
+            </View>
+
+            {/* USER INFORMATION */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>User Information</Text>
+
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <SmartTextInput
+                value={formData.last_name}
+                onChangeText={(val) => updateField("last_name", val)}
+                style={styles.inputBox}
+                editable={!formDisabled}
+              />
+
+              <Text style={styles.inputLabel}>First Name</Text>
+              <SmartTextInput
+                value={formData.first_name}
+                onChangeText={(val) => updateField("first_name", val)}
+                style={styles.inputBox}
+                editable={!formDisabled}
+              />
+
+              <Text style={styles.inputLabel}>Middle Name</Text>
+              <SmartTextInput
+                value={formData.middle_name}
+                onChangeText={(val) => updateField("middle_name", val)}
+                style={styles.inputBox}
+                editable={!formDisabled}
+              />
+            </View>
+
+            {/* PERSONAL DETAILS */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Personal Details</Text>
+
+              <Text style={styles.inputLabel}>Date of Birth</Text>
+              <Pressable
+                style={styles.dateInputBox}
+                disabled={formDisabled}
+                onPress={() => {
+                  const current = formData.date_of_birth
+                    ? new Date(String(formData.date_of_birth))
+                    : new Date(1990, 0, 1);
+                  if (!Number.isNaN(current.getTime())) setDobDate(current);
+                  setDobPickerVisible(true);
+                }}
+              >
+                <Ionicons name="calendar-outline" size={18} color="#1C1C1E" style={styles.inputIcon} />
+                <Text style={styles.dateText}>{formatDate(formData.date_of_birth)}</Text>
+              </Pressable>
+
+              {dobPickerVisible && (
+                <DateTimePicker
+                  value={dobDate}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  maximumDate={new Date()}
+                  onChange={(event, selected) => {
+                    if (Platform.OS !== "ios") {
                       setDobPickerVisible(false);
-                    }}
-                  >
-                    <Text style={styles.iosDateDoneText}>Done</Text>
-                  </TouchableOpacity>
-                )}
-
-                <Text style={styles.inputLabel}>Mobile Number (Optional)</Text>
-                <SmartTextInput
-                  value={formData.phone_number}
-                  onChangeText={(val) => updateField("phone_number", val)}
-                  style={styles.inputBox}
-                  keyboardType="phone-pad"
-                  editable={!formDisabled}
+                      if (event?.type === "dismissed") return;
+                      if (selected) updateField("date_of_birth", selected.toISOString().slice(0, 10));
+                    } else {
+                      if (selected) setDobDate(selected);
+                    }
+                  }}
                 />
+              )}
 
-                <Text style={styles.inputLabel}>Personal Email Address</Text>
-                <SmartTextInput
-                  value={formData.email}
-                  onChangeText={(val) => updateField("email", val)}
-                  style={styles.inputBox}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!formDisabled}
-                />
-                <Text style={styles.helperTextItalic}>Your Personal Email Address will be used for One-Time Passwords</Text>
-
-                <Text style={[styles.inputLabel, { marginTop: 10 }]}>Gender</Text>
-                <Pressable
-                  style={styles.inputBox}
-                  disabled={formDisabled}
+              {dobPickerVisible && Platform.OS === "ios" && (
+                <TouchableOpacity
+                  style={styles.iosDateDoneBtn}
                   onPress={() => {
-                    ThemedAlert.alert("Select Gender", "", [
-                      { text: "Male", onPress: () => updateField("sex", "male") },
-                      { text: "Female", onPress: () => updateField("sex", "female") },
-                      { text: "Prefer not to say", onPress: () => updateField("sex", "") },
-                      { text: "Cancel", style: "cancel" }
-                    ], { cancelable: true });
+                    updateField("date_of_birth", dobDate.toISOString().slice(0, 10));
+                    setDobPickerVisible(false);
                   }}
                 >
-                  <Text style={styles.dateText}>{formData.sex ? String(formData.sex).charAt(0).toUpperCase() + String(formData.sex).slice(1) : ""}</Text>
-                </Pressable>
-              </View>
-
-              {/* PROFILE INFORMATION */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Profile Information</Text>
-                
-                <Text style={styles.inputLabel}>Biography</Text>
-                <SmartTextInput
-                  value={formData.biography}
-                  onChangeText={(val) => {
-                    if (val.length <= 500) updateField("biography", val);
-                  }}
-                  style={styles.textArea}
-                  multiline
-                  numberOfLines={6}
-                  textAlignVertical="top"
-                  editable={!formDisabled}
-                />
-                <Text style={styles.helperTextItalicRight}>Maximum of 500 characters only.</Text>
-
-                <Text style={styles.inputLabel}>Country/Region</Text>
-                <SmartTextInput
-                  value={formData.country}
-                  onChangeText={(val) => updateField("country", val)}
-                  style={styles.inputBox}
-                  editable={!formDisabled}
-                />
-
-                <Text style={styles.inputLabel}>City/Province</Text>
-                <SmartTextInput
-                  value={formData.city}
-                  onChangeText={(val) => updateField("city", val)}
-                  style={styles.inputBox}
-                  editable={!formDisabled}
-                />
-              </View>
-
-              {/* USER REMINDERS */}
-              <View style={styles.remindersCard}>
-                <Text style={styles.remindersTitle}>User Reminders:</Text>
-                <Text style={styles.remindersText}>
-                  Other Alumni Information such as Program, Year of Graduation will be displayed in your Alumni Profile, and will be visible to other users.
-                </Text>
-                <Text style={[styles.remindersText, { marginTop: 10 }]}>
-                  Your Job/Occupation information will also be displayed once you've completed the initial account activation process. Failure to complete the process will limit you in accessing other LumiNUs modules.
-                </Text>
-              </View>
-
-              {/* ACTION BUTTONS */}
-              <View style={styles.buttonRow}>
-                <TouchableOpacity 
-                  style={styles.discardButton} 
-                  onPress={() => navigation.goBack()}
-                  disabled={formDisabled}
-                >
-                  <Text style={styles.discardButtonText}>Discard</Text>
+                  <Text style={styles.iosDateDoneText}>Done</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.saveButton} 
-                  onPress={handleSave}
-                  disabled={formDisabled}
-                >
-                  {saving ? <ActivityIndicator color="#31429B" /> : <Text style={styles.saveButtonText}>Save</Text>}
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </ScrollView>
-      </View>
+              )}
+
+              <Text style={styles.inputLabel}>Mobile Number (Optional)</Text>
+              <SmartTextInput
+                value={formData.phone_number}
+                onChangeText={(val) => updateField("phone_number", val)}
+                style={styles.inputBox}
+                keyboardType="phone-pad"
+                editable={!formDisabled}
+              />
+
+              <Text style={styles.inputLabel}>Personal Email Address</Text>
+              <SmartTextInput
+                value={formData.email}
+                onChangeText={(val) => updateField("email", val)}
+                style={styles.inputBox}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!formDisabled}
+              />
+              <Text style={styles.helperTextItalic}>
+                Your Personal Email Address will be used for One-Time Passwords
+              </Text>
+
+              <Text style={[styles.inputLabel, { marginTop: 10 }]}>Gender</Text>
+              <Pressable
+                style={styles.inputBox}
+                disabled={formDisabled}
+                onPress={() => {
+                  ThemedAlert.alert("Select Gender", "", [
+                    { text: "Male", onPress: () => updateField("sex", "male") },
+                    { text: "Female", onPress: () => updateField("sex", "female") },
+                    { text: "Prefer not to say", onPress: () => updateField("sex", "") },
+                    { text: "Cancel", style: "cancel" },
+                  ], { cancelable: true });
+                }}
+              >
+                <Text style={styles.dateText}>
+                  {formData.sex
+                    ? String(formData.sex).charAt(0).toUpperCase() + String(formData.sex).slice(1)
+                    : ""}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* PROFILE INFORMATION */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Profile Information</Text>
+
+              <Text style={styles.inputLabel}>Biography</Text>
+              <SmartTextInput
+                value={formData.biography}
+                onChangeText={(val) => {
+                  if (val.length <= 500) updateField("biography", val);
+                }}
+                style={styles.textArea}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+                editable={!formDisabled}
+              />
+              <Text style={styles.helperTextItalicRight}>Maximum of 500 characters only.</Text>
+
+              <Text style={styles.inputLabel}>Country/Region</Text>
+              <SmartTextInput
+                value={formData.country}
+                onChangeText={(val) => updateField("country", val)}
+                style={styles.inputBox}
+                editable={!formDisabled}
+              />
+
+              <Text style={styles.inputLabel}>City/Province</Text>
+              <SmartTextInput
+                value={formData.city}
+                onChangeText={(val) => updateField("city", val)}
+                style={styles.inputBox}
+                editable={!formDisabled}
+              />
+            </View>
+
+            {/* USER REMINDERS */}
+            <View style={styles.remindersCard}>
+              <Text style={styles.remindersTitle}>User Reminders:</Text>
+              <Text style={styles.remindersText}>
+                Other Alumni Information such as Program, Year of Graduation will be displayed in
+                your Alumni Profile, and will be visible to other users.
+              </Text>
+              <Text style={[styles.remindersText, { marginTop: 10 }]}>
+                Your Job/Occupation information will also be displayed once you've completed the
+                initial account activation process. Failure to complete the process will limit you in
+                accessing other LumiNUs modules.
+              </Text>
+            </View>
+
+            {/* ACTION BUTTONS */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.discardButton}
+                onPress={() => navigation.goBack()}
+                disabled={formDisabled}
+              >
+                <Text style={styles.discardButtonText}>Discard</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSave}
+                disabled={formDisabled}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#31429B" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 

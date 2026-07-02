@@ -16,25 +16,24 @@ export default StyleSheet.create({
   // --- TOP ARTWORK WRAPPER ---
   headerArtworkWrap: {
     position: "relative",
-    height: 320, // Explicit height to ensure the image container renders
+    width: "100%",
     paddingBottom: 24,
-    justifyContent: "center", // Vertically centers profile content
   },
   doodleBg: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     width: "100%",
-    height: "100%", 
-    opacity: 0.35, 
+    height: 220, 
+    opacity: 1, 
     zIndex: -1,
   },
   headerRow: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 16,
+    height: 60, // Fixed height area to guarantee layout alignment
+    justifyContent: "center",
     zIndex: 10,
   },
   backBtn: {
@@ -48,20 +47,20 @@ export default StyleSheet.create({
   profileSection: {
     alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 10,
     zIndex: 5,
+    marginTop: 18, // Pushes avatar down so it sits perfectly in the background center
   },
   avatarCircular: {
-    width: 100, // Reduced from 140
-    height: 100, // Reduced from 140
-    borderRadius: 50,
+    width: 84, // Reduced to match sleek standard sizes
+    height: 84,
+    borderRadius: 42,
     backgroundColor: "#E2E8F0",
     marginBottom: 16,
   },
   avatarSquareWrap: {
-    width: 100, // Reduced from 140
-    height: 100, // Reduced from 140
-    borderRadius: 25, // Reduced to keep proportion
+    width: 84, // Reduced to match sleek standard sizes
+    height: 84,
+    borderRadius: 24,
     backgroundColor: "#31429B", 
     alignItems: "center",
     justifyContent: "center",

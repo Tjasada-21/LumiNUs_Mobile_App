@@ -396,12 +396,24 @@ export const getAlumniPhotoFromStorage = async (
     if (error) throw error;
     if (!files || files.length === 0) return null;
 
-    const latestFile = files[0];
+    const sortedFiles = [...files].sort((left, right) => {
+      const leftTime = new Date(left.updated_at || left.created_at || 0).getTime();
+      const rightTime = new Date(right.updated_at || right.created_at || 0).getTime();
+      return rightTime - leftTime;
+    });
+
+    const latestFile =
+      sortedFiles.find((file) => file.name === "profile.jpg") || sortedFiles[0];
     const { data: publicUrlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(`${folderPath}/${latestFile.name}`);
 
-    return publicUrlData?.publicUrl ?? null;
+    const publicUrl = publicUrlData?.publicUrl ?? null;
+    if (!publicUrl) return null;
+
+    const versionSource = latestFile.updated_at || latestFile.created_at || Date.now();
+    const version = new Date(versionSource).getTime() || Date.now();
+    return `${publicUrl}?v=${version}`;
   } catch (error) {
     console.error(
       "[alumni] Get photo from storage error:",

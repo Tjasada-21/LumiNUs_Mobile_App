@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  ImageBackground,
   Pressable
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -29,6 +30,13 @@ import supabase from "../services/supabase";
 import styles from "../styles/ChatDetailsScreen.styles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Helper to construct full media URL if it's a relative Supabase storage path
+const getMediaUri = (raw) => {
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_assets/${String(raw).replace(/^\/+/, "")}`;
+};
 
 const ChatDetailsScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -54,6 +62,11 @@ const ChatDetailsScreen = ({ route, navigation }) => {
   const [groupAvatarDraft, setGroupAvatarDraft] = useState(routeGroup?.avatar_url ?? routeGroup?.avatar ?? "");
   const [isSavingGroupDetails, setIsSavingGroupDetails] = useState(false);
 
+  // --- MEDIA STATES ---
+  const [chatMedia, setChatMedia] = useState([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(true);
+
+  // Get current user ID
   useEffect(() => {
     let active = true;
     const loadCurrentUser = async () => {
@@ -63,6 +76,66 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     loadCurrentUser();
     return () => { active = false; };
   }, []);
+
+  // --- FIXED: FETCH MEDIA FILES FROM ATTACHMENTS TABLE ---
+  useEffect(() => {
+    let active = true;
+    const fetchChatMedia = async () => {
+      if (!currentUserId) return;
+      
+      setIsLoadingMedia(true);
+      try {
+        let mediaUris = [];
+
+        if (isDM && dmProfileUserId) {
+          // 1. Get all messages between these two users
+          const { data: dmMessages } = await supabase
+            .from("messages")
+            .select("id")
+            .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${dmProfileUserId}),and(sender_id.eq.${dmProfileUserId},receiver_id.eq.${currentUserId})`);
+
+          if (dmMessages?.length > 0) {
+            const messageIds = dmMessages.map(m => m.id);
+            // 2. Fetch attachments for those messages (images only)
+            const { data: attachments } = await supabase
+              .from("messages_attachments")
+              .select("attachment_path")
+              .in("message_id", messageIds)
+              .eq("attachment_type", "image");
+
+            mediaUris = attachments?.map(a => a.attachment_path) || [];
+          }
+        } else if (!isDM && routeGroupId) {
+          // 1. Get all messages for this group
+          const { data: groupMessages } = await supabase
+            .from("group_messages")
+            .select("id")
+            .eq("group_chat_id", routeGroupId);
+
+          if (groupMessages?.length > 0) {
+            const messageIds = groupMessages.map(m => m.id);
+            // 2. Fetch attachments for those group messages
+            const { data: attachments } = await supabase
+              .from("messages_attachments")
+              .select("attachment_path")
+              .in("message_id", messageIds)
+              .eq("attachment_type", "image");
+
+            mediaUris = attachments?.map(a => a.attachment_path) || [];
+          }
+        }
+
+        if (active) setChatMedia(mediaUris);
+      } catch (err) {
+        console.error("[ChatDetailsScreen] Failed to fetch media:", err);
+      } finally {
+        if (active) setIsLoadingMedia(false);
+      }
+    };
+
+    fetchChatMedia();
+    return () => { active = false; };
+  }, [currentUserId, isDM, routeGroupId, dmProfileUserId]);
 
   const filteredCandidates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -304,9 +377,9 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           <View style={styles.headerArtworkWrap}>
             {/* Background Space Doodle Image */}
             <Image 
-              source={require("../../assets/images/Space_HeaderBG_White 2.png")} 
+              source={require("../../assets/images/Space_HeaderBG_Blue 1.png")} 
               style={styles.doodleBg} 
-              resizeMode="cover" 
+              resizeMode="contain" 
             />
 
             {/* Top Header */}
@@ -352,20 +425,19 @@ const ChatDetailsScreen = ({ route, navigation }) => {
 
           {/* MEDIA SECTION */}
           <Text style={styles.sectionHeading}>Media</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaScroll}>
-            {/* Real media mapping or placeholders if empty */}
-            {groupData?.media && groupData.media.length > 0 ? (
-              groupData.media.map((item, index) => (
-                <Image key={index} source={{ uri: item?.uri }} style={styles.mediaBox} />
-              ))
-            ) : (
-              <>
-                <View style={styles.mediaBox} />
-                <View style={styles.mediaBox} />
-                <View style={styles.mediaBox} />
-              </>
-            )}
-          </ScrollView>
+          {isLoadingMedia ? (
+            <ActivityIndicator size="small" color="#31429B" style={{ alignSelf: "flex-start", marginLeft: 24, marginTop: 10 }} />
+          ) : chatMedia.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaScroll}>
+              {chatMedia.map((itemUri, index) => (
+                <Image key={index} source={{ uri: getMediaUri(itemUri) }} style={styles.mediaBox} resizeMode="cover" />
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={{ marginLeft: 24, color: "#9CA3AF", fontSize: 14, fontFamily: "Poppins_400Regular" }}>
+              No media shared yet.
+            </Text>
+          )}
 
           {/* ACTIONS SECTION */}
           <Text style={styles.sectionHeading}>Actions</Text>

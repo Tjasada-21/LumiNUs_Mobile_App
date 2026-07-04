@@ -10,7 +10,6 @@ import {
   Platform,
   Pressable,
 } from "react-native";
-import { decode } from "base64-arraybuffer";
 import SmartTextInput from "../components/SmartTextInput";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,7 +27,7 @@ import styles from "../styles/AccountSettingsScreen.styles";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { ThemedAlert } from "../components/ThemedAlert";
 
-// ---------- UTILITY FUNCTIONS (unchanged) ----------
+// ---------- UTILITY FUNCTIONS ----------
 const formatDate = (value) => {
   if (!value) return "YYYY-MM-DD";
   const parsedDate = new Date(value);
@@ -64,8 +63,6 @@ const getImageMimeType = (uri) => {
   }
 };
 
-const PROFILE_PHOTO_FILE_NAME = "profile.jpg";
-
 const stripCacheBuster = (url) => {
   if (!url) return "";
   return String(url).split("?")[0].split("#")[0];
@@ -77,12 +74,45 @@ const toDisplayPhotoUrl = (url, version) => {
   return `${url}${url.includes("?") ? "&" : "?"}v=${cleanVersion}`;
 };
 
+// IMPROVED: Flawlessly extracts the path whether it's a full public URL or a relative database string
 const extractStoragePath = (url) => {
+  if (!url) return "";
   const cleanUrl = stripCacheBuster(url);
   const marker = "/luminus_assets/";
   const markerIndex = cleanUrl.indexOf(marker);
-  if (markerIndex === -1) return "";
-  return cleanUrl.slice(markerIndex + marker.length);
+  
+  // If it's a full URL
+  if (markerIndex !== -1) {
+    return decodeURIComponent(cleanUrl.slice(markerIndex + marker.length));
+  }
+  
+  // If it's already a relative path stored in the DB (doesn't contain http)
+  if (!cleanUrl.startsWith("http")) {
+    return decodeURIComponent(cleanUrl);
+  }
+  
+  return "";
+};
+
+const toUint8Array = (arrayBuffer) => new Uint8Array(arrayBuffer);
+
+const imageSourceToBytes = async (imageSource) => {
+  if (imageSource?.base64) {
+    const binaryString = global.atob(imageSource.base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let index = 0; index < binaryString.length; index += 1) {
+      bytes[index] = binaryString.charCodeAt(index);
+    }
+    return bytes;
+  }
+
+  if (imageSource?.uri) {
+    const response = await fetch(imageSource.uri);
+    const arrayBuffer = await response.arrayBuffer();
+    return toUint8Array(arrayBuffer);
+  }
+
+  throw new Error("No image data received.");
 };
 
 // ---------- MAIN COMPONENT ----------
@@ -116,7 +146,7 @@ const AccountSettingsScreen = ({ navigation }) => {
   const [photoCooldownUntil, setPhotoCooldownUntil] = useState(0);
   const [photoCooldownSeconds, setPhotoCooldownSeconds] = useState(0);
 
-  // ---------- FETCH ACCOUNT DATA (unchanged) ----------
+  // ---------- FETCH ACCOUNT DATA ----------
   const fetchAccountData = async ({ showRefreshingState = false } = {}) => {
     try {
       if (showRefreshingState) setRefreshing(true);
@@ -189,34 +219,43 @@ const AccountSettingsScreen = ({ navigation }) => {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
-  // ---------- REPLACE PROFILE PHOTO (CUSTOM FUNCTION) ----------
+  // ---------- REPLACE PROFILE PHOTO ----------
   const replaceProfilePhoto = async (imageSource, alumniId) => {
-    const objectPath = `alumni_photos/${alumniId}/${PROFILE_PHOTO_FILE_NAME}`;
-
+    // 1. Find the exact path of the old photo currently assigned to the user
     const oldUrl = formData.alumni_photo || userData?.alumni_photo || "";
     const oldPath = extractStoragePath(oldUrl);
-    if (oldPath && oldPath !== objectPath) {
-      const { error: delError } = await supabase.storage
-        .from("luminus_assets")
-        .remove([oldPath]);
-      if (delError) console.warn("Old photo deletion error:", delError.message);
+
+    // 2. Delete the specific old photo (and a legacy 'profile.jpg' fallback just in case)
+    const pathsToDelete = [];
+    if (oldPath) pathsToDelete.push(oldPath);
+    
+    const legacyPath = `alumni_photos/${alumniId}/profile.jpg`;
+    if (oldPath !== legacyPath) pathsToDelete.push(legacyPath);
+
+    if (pathsToDelete.length > 0) {
+      await supabase.storage.from("luminus_assets").remove(pathsToDelete);
     }
 
-    const imageBytes = decode(imageSource.base64);
+    // 3. Upload the new profile picture as a fresh INSERT
+    const fileName = `profile-${Date.now()}.jpg`;
+    const objectPath = `alumni_photos/${alumniId}/${fileName}`;
+    const imageBytes = await imageSourceToBytes(imageSource);
     const contentType = imageSource.type || "image/jpeg";
 
     const { error: uploadError } = await supabase.storage
       .from("luminus_assets")
       .upload(objectPath, imageBytes, {
         contentType,
-        upsert: true,
+        upsert: false, 
         cacheControl: "0",
       });
+
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = supabase.storage
       .from("luminus_assets")
       .getPublicUrl(objectPath);
+      
     const storageUrl = publicUrlData?.publicUrl || objectPath;
 
     return {
@@ -225,7 +264,7 @@ const AccountSettingsScreen = ({ navigation }) => {
     };
   };
 
-  // ---------- UPLOAD IMAGE (REPLACES OLD) ----------
+  // ---------- UPLOAD IMAGE ----------
   const uploadImage = async (imageSource) => {
     try {
       const alumniId = userData?.id;
@@ -253,18 +292,19 @@ const AccountSettingsScreen = ({ navigation }) => {
       const alumniId = userData?.id;
       if (alumniId) {
         const oldUrl = formData.alumni_photo || userData?.alumni_photo || "";
-        if (oldUrl) {
-          const marker = "/luminus_assets/";
-          const idx = oldUrl.indexOf(marker);
-          if (idx !== -1) {
-            const relativePath = oldUrl.slice(idx + marker.length);
-            if (relativePath) {
-              await supabase.storage.from("luminus_assets").remove([relativePath]);
-            }
-          }
+        const oldPath = extractStoragePath(oldUrl);
+        const legacyPath = `alumni_photos/${alumniId}/profile.jpg`;
+
+        const pathsToDelete = [];
+        if (oldPath) pathsToDelete.push(oldPath);
+        if (oldPath !== legacyPath) pathsToDelete.push(legacyPath);
+
+        if (pathsToDelete.length > 0) {
+          await supabase.storage.from("luminus_assets").remove(pathsToDelete);
         }
         await updateAlumniProfile(alumniId, { alumni_photo: "" });
       }
+      
       updateField("alumni_photo", "");
       setUserData((c) => c ? { ...c, alumni_photo: "" } : c);
       setOriginalUserData((c) => c ? { ...c, alumni_photo: "" } : c);
@@ -276,7 +316,7 @@ const AccountSettingsScreen = ({ navigation }) => {
     }
   };
 
-  // ---------- SAVE OTHER FIELDS (unchanged logic, but with originalUserData comparison) ----------
+  // ---------- SAVE OTHER FIELDS ----------
   const handleSave = async () => {
     if (!userData?.id) {
       setErrorMessage("Missing the current account email.");
@@ -415,16 +455,21 @@ const AccountSettingsScreen = ({ navigation }) => {
                           const rawAsset =
                             result.assets?.[0] ??
                             (result.uri ? { uri: result.uri, base64: result.base64 } : null);
-                          if (rawAsset?.uri && rawAsset?.base64) {
+                          if (rawAsset?.uri) {
                             await uploadImage({
                               uri: rawAsset.uri,
                               base64: rawAsset.base64,
                               name: `profile-${Date.now()}.${rawAsset.uri.split(".").pop() || "jpg"}`,
                               type: getImageMimeType(rawAsset.uri),
                             });
+                          } else {
+                            throw new Error("No image was selected.");
                           }
                         } catch (err) {
-                          ThemedAlert.alert("Error", "Unable to process image.");
+                          ThemedAlert.alert(
+                            "Error",
+                            err?.message ? `Unable to process image: ${err.message}` : "Unable to process image.",
+                          );
                         } finally {
                           setPickingImage(false);
                         }

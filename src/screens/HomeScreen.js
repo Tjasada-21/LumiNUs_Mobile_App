@@ -14,6 +14,7 @@ import {
   Pressable,
   RefreshControl,
   useWindowDimensions,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
@@ -28,6 +29,7 @@ import { responsiveHeight, responsiveWidth } from "../utils/responsive";
 import styles from "../styles/HomeScreen.styles";
 import { dismissNotification, getDismissedNotifications } from "../services/utilityQueries";
 import { registerForPushNotificationsAsync, saveTokenToSupabase } from "../services/notificationService";
+import TracerMenuScreen from "../screens/TracerMenuScreen";
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) return "Date to be announced";
@@ -254,7 +256,11 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate("Explore", { screen: "Perks" });
   };
 
-  const openTracerScreen = () => navigation.navigate("AlumniTracer");
+  const openTracerScreen = () => {
+    navigation.navigate("Explore", {
+      screen: "TracerMenu",
+    });
+  };
 
   const openMastersWebsite = async () => {
     const url = "https://onlineapp.nu-lipa.edu.ph/portal/services.php";
@@ -309,7 +315,7 @@ const HomeScreen = ({ navigation }) => {
     { key: "perks", label: "Perks", icon: require("../../assets/images/view-perks-icon-in-blue-1.png"), onPress: openPerksScreen },
     { key: "yearbook", label: "Yearbook", icon: require("../../assets/images/view-yearbook-icon.png"), onPress: openViewYearbook },
     { key: "website", label: "NU Website", icon: require("../../assets/images/nulogo.png"), onPress: openNUWebsite },
-    { key: "nuquest", label: "NUQuest", icon: require("../../assets/images/trace-icon-in-blue.png"), onPress: openTracerScreen },
+    { key: "nuquest", label: "NUQuest", icon: require("../../assets/images/NUQuest_Logo.png"), onPress: openTracerScreen },
   ];
 
   const toggleIdCard = () => {
@@ -349,6 +355,7 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.safeAreaTop}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F7F8FC" />
       <View style={styles.container}>
         <HomeHeader />
         <ScrollView

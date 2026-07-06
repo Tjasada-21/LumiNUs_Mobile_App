@@ -7,6 +7,7 @@ import AccountSettingsScreen from "../screens/AccountSettingsScreen";
 import SettingsScreen from "../screens/SettingsScreen"; // <-- Added your new SettingsScreen
 import ViewYearbookScreen from "../screens/ViewYearbookScreen";
 import AlumniTracerScreen from "../screens/AlumniTracerScreen";
+import TracerMenuScreen from "../screens/TracerMenuScreen";
 import TracerFormScreen from "../screens/TracerFormScreen";
 import EventRegistrationScreen from "../screens/EventRegistrationScreen";
 import ForgetPasswordScreen from "../screens/ForgetPasswordScreen";
@@ -51,6 +52,7 @@ const AppNavigator = () => {
       
       <Stack.Screen name="ViewYearbook" component={ViewYearbookScreen} />
       <Stack.Screen name="AlumniTracer" component={AlumniTracerScreen} />
+      <Stack.Screen name="TracerMenu" component={TracerMenuScreen} />
       <Stack.Screen name="TracerFormScreen" component={TracerFormScreen} />
       <Stack.Screen name="EventRegistrationScreen" component={EventRegistrationScreen} />
       <Stack.Screen name="ForgetPassword" component={ForgetPasswordScreen} />

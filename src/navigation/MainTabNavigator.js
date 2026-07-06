@@ -29,8 +29,6 @@ const MainTabNavigator = () => {
   const isCompactWidth = width < 375;
   const isTablet = width >= 768;
 
-  // We use a smaller portion of the inset (e.g., half) or a fixed small value
-  // This prevents the "huge gap" while still lifting icons above the Android buttons
   const adjustedBottomInset =
     insets.bottom > 0 ? Math.min(insets.bottom, 25) : 0;
 
@@ -43,31 +41,34 @@ const MainTabNavigator = () => {
       backgroundColor: "#FFFFFF",
       borderTopWidth: 1,
       borderTopColor: "#E2E8F0",
-      // Reduced padding here to keep it tight
       paddingBottom: adjustedBottomInset,
+      paddingTop: 6, // ← ADD SPACE ABOVE ICONS
       elevation: 10,
       shadowColor: "#000",
       shadowOpacity: 0.1,
       shadowRadius: 4,
     };
 
-    // Apply the deep blue background for Feed, Profile, and GlobalSearch screens
+    // Dark blue background for Feed, Profile, and GlobalSearch
     if (route.name === "Feed" || route.name === "Profile" || route.name === "GlobalSearch") {
       return {
         ...baseStyle,
         backgroundColor: "#1F2B67",
-        borderTopWidth: 0, // Removes the white border line for a seamless dark look
+        borderTopWidth: 0,
+        paddingTop: 6, // ← KEEP SPACE ON DARK TABS TOO
       };
     }
 
+    // Gold/yellow background for Explore (including TracerMenu)
     if (route.name === "Explore") {
       const nestedRouteName = getFocusedRouteNameFromRoute(route);
 
-      if (!nestedRouteName || nestedRouteName === "ExploreHome") {
+      if (!nestedRouteName || nestedRouteName === "ExploreHome" || nestedRouteName === "TracerMenu") {
         return {
           ...baseStyle,
           backgroundColor: "#F2C919",
           borderTopWidth: 0,
+          paddingTop: 6, // ← KEEP SPACE ON YELLOW TAB TOO
         };
       }
     }
@@ -104,10 +105,15 @@ const MainTabNavigator = () => {
               ? 22
               : 24;
 
+          const isExploreTab = route.name === "Explore";
+          const indicatorColor = isExploreTab ? "#1F2B67" : "#F2C919";
+
           return (
             <View style={styles.iconContainer}>
               <Ionicons name={iconName} size={iconSize} color={color} />
-              {focused ? <View style={styles.activeIndicator} /> : null}
+              {focused ? (
+                <View style={[styles.activeIndicator, { backgroundColor: indicatorColor }]} />
+              ) : null}
               {showUnreadBadge ? <View style={styles.unreadBadge} /> : null}
             </View>
           );
@@ -117,9 +123,8 @@ const MainTabNavigator = () => {
         tabBarShowLabel: false,
         headerShown: false,
         tabBarStyle: getTabBarStyle(route),
-        // Ensures icons aren't squished against the top of the bar
         tabBarIconStyle: {
-          marginTop: insets.bottom > 0 ? 0 : 5,
+          marginTop: 0, // Removed the old conditional margin since we're using paddingTop now
         },
       })}
     >
@@ -137,14 +142,14 @@ const MainTabNavigator = () => {
         name="Feed" 
         component={FeedScreen} 
         options={{
-          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Makes inactive icons visible on dark blue
+          tabBarInactiveTintColor: "rgb(255, 255, 255)",
         }}
       />
       <Tab.Screen 
         name="Profile" 
         component={UserProfileScreen} 
         options={{
-          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Makes inactive icons visible on dark blue
+          tabBarInactiveTintColor: "rgb(255, 255, 255)",
         }}
       />
 
@@ -203,7 +208,7 @@ const MainTabNavigator = () => {
         options={{
           tabBarButton: () => null,
           tabBarItemStyle: { display: "none" },
-          tabBarInactiveTintColor: "rgb(255, 255, 255)", // Added this so background icons stay visible!
+          tabBarInactiveTintColor: "rgb(255, 255, 255)",
         }}
       />
     </Tab.Navigator>
@@ -220,7 +225,6 @@ const styles = StyleSheet.create({
     width: 16,
     height: 3,
     borderRadius: 999,
-    backgroundColor: "#F2C919",
     marginTop: 4,
   },
   unreadBadge: {

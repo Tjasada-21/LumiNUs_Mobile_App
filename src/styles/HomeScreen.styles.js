@@ -2,11 +2,18 @@ import { StyleSheet, Dimensions } from "react-native";
 
 const { width } = Dimensions.get("window");
 
+const FONTS = {
+  regular: "Poppins_400Regular",
+  medium: "Poppins_500Medium",
+  semiBold: "Poppins_600SemiBold",
+  bold: "Poppins_700Bold",
+};
+
 const styles = StyleSheet.create({
   safeAreaTop: { flex: 1, backgroundColor: "#F7F8FC" },
   container: { flex: 1, backgroundColor: "#F7F8FC" },
   mainScrollContent: {
-    paddingTop: 90, 
+    paddingTop: 90,
     paddingBottom: 0,
     backgroundColor: "#F7F8FC",
   },
@@ -28,24 +35,23 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 8,
-    borderWidth: 2.5,
+    borderWidth: 1.5,
+    borderColor: "#32418C",
   },
   profileTextWrap: { flexShrink: 1, justifyContent: "center" },
   greetingIntro: {
     color: "#7C879D",
     fontSize: 12,
-    fontWeight: "500",
     lineHeight: 16,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: FONTS.regular, // ← FIXED
   },
   greetingName: {
     color: "#262C3F",
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: "1000",
     marginTop: 2,
     maxWidth: 240,
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   bellIcon: {
     width: 48,
@@ -84,8 +90,7 @@ const styles = StyleSheet.create({
   notificationBadgeText: {
     color: "#FFFFFF",
     fontSize: 9,
-    fontWeight: "900",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   idSection: {
     backgroundColor: "#4251A0",
@@ -107,8 +112,8 @@ const styles = StyleSheet.create({
     position: "relative",
     alignSelf: "center",
     borderRadius: 20,
-    width: 330,  
-    height: 217, 
+    width: 330,
+    height: 217,
     perspective: 1000,
   },
   idCardFace: {
@@ -143,24 +148,21 @@ const styles = StyleSheet.create({
   idName: {
     color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "900",
     lineHeight: 20,
     marginTop: "20%",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   idCourse: {
     color: "#E2E8F0",
     fontSize: 12,
     marginTop: 4,
-    fontWeight: "500",
-    fontFamily: "Poppins_400Regular",
+    fontFamily: FONTS.regular, // ← FIXED
   },
   idClass: {
     color: "#E2E8F0",
     fontSize: 12,
     marginTop: 2,
-    fontWeight: "700",
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: FONTS.semiBold, // ← FIXED
   },
   idBackImage: { width: "100%", height: "100%", borderRadius: 24 },
   accountIdRow: {
@@ -172,12 +174,12 @@ const styles = StyleSheet.create({
   accountIdLabel: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontFamily: "Poppins_700Bold", 
+    fontFamily: FONTS.bold, // ← FIXED
   },
   accountIdValue: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontFamily: "Poppins_400Regular", 
+    fontFamily: FONTS.regular, // ← FIXED
   },
   servicesSection: {
     marginTop: 20,
@@ -191,8 +193,7 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     color: "#31429B",
     fontSize: 20,
-    fontWeight: "1000",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   sectionHeaderAction: {
     flexDirection: "row",
@@ -202,8 +203,7 @@ const styles = StyleSheet.create({
   sectionHeaderActionText: {
     color: "#31429B",
     fontSize: 14,
-    fontWeight: "700",
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: FONTS.semiBold, // ← FIXED
   },
   servicesGrid: {
     flexDirection: "row",
@@ -233,43 +233,40 @@ const styles = StyleSheet.create({
     color: "#64748B",
     fontSize: 12,
     textAlign: "center",
-    fontWeight: "600",
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: FONTS.semiBold, // ← FIXED
   },
 
   // --- MAGIC CURVE ---
   curveContainer: {
-    height: 50, 
-    backgroundColor: "#32418C", 
-    overflow: "hidden", 
+    height: 50,
+    backgroundColor: "#32418C",
+    overflow: "hidden",
     alignItems: "center",
-    marginTop: 20, 
+    marginTop: 20,
   },
   curveShape: {
-    backgroundColor: "#F7F8FC", 
+    backgroundColor: "#F7F8FC",
     position: "absolute",
-    bottom: 0, 
-    borderWidth: 14, 
+    bottom: 0,
+    borderWidth: 14,
     borderColor: "#F2C919",
   },
 
   newsSection: {
     backgroundColor: "#32418C",
     paddingTop: 12,
-    paddingBottom: 0, 
+    paddingBottom: 0,
     overflow: "hidden",
   },
   newsTitle: {
     color: "#FFFFFF",
     fontSize: 28,
-    fontWeight: "400",
     textAlign: "center",
-    fontFamily: "Poppins",
+    fontFamily: FONTS.regular, // ← FIXED
   },
   newsTitleEmphasis: {
     fontStyle: "italic",
-    fontWeight: "900",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   featuredScrollContent: {
     paddingHorizontal: 20,
@@ -311,8 +308,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "700",
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: FONTS.semiBold, // ← FIXED
   },
   promoEmptyCard: {
     width: 240,
@@ -327,18 +323,16 @@ const styles = StyleSheet.create({
   promoEyebrow: {
     color: "#F2C919",
     fontSize: 12,
-    fontWeight: "800",
     letterSpacing: 1,
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
   },
   promoTitleMain: {
     marginTop: 8,
     color: "#FFFFFF",
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: "600",
     textAlign: "center",
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: FONTS.semiBold, // ← FIXED
   },
 
   explorerSection: {
@@ -346,18 +340,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     marginTop: -20,
-    zIndex: 1, 
+    zIndex: 1,
   },
   tracerPosterImage: {
-    width: width, 
-    height: undefined, 
-    aspectRatio: 9 / 17, 
+    width: width,
+    height: undefined,
+    aspectRatio: 9 / 17,
   },
-  
-  // --- NEW FEEDBACK SECTION ---
+
+  // --- FEEDBACK SECTION ---
   feedbackSection: {
     paddingHorizontal: 20,
-    marginTop: -10, // Adjust this to sit right underneath the poster image graphics
+    marginTop: -10,
     marginBottom: 20,
     alignItems: "flex-start",
     width: "100%",
@@ -365,8 +359,7 @@ const styles = StyleSheet.create({
   feedbackTitle: {
     color: "#FFFFFF",
     fontSize: 20,
-    fontWeight: "900",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
     marginBottom: 16,
     textAlign: "left",
     width: "100%",
@@ -379,29 +372,28 @@ const styles = StyleSheet.create({
   feedbackEmoji: {
     fontSize: 18,
     marginRight: 10,
-    marginTop: 2, 
+    marginTop: 2,
   },
   feedbackText: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: FONTS.regular, // ← FIXED
     lineHeight: 24,
     flex: 1,
   },
   feedbackTextBold: {
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "800",
+    fontFamily: FONTS.bold, // ← FIXED
   },
 
   exploreButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFD21F", 
+    backgroundColor: "#FFD21F",
     width: "70%",
     paddingVertical: 16,
     borderRadius: 999,
-    marginTop: 10, 
+    marginTop: 10,
     marginBottom: 40,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
@@ -410,10 +402,9 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   exploreButtonText: {
-    color: "#1A237E", 
+    color: "#1A237E",
     fontSize: 20,
-    fontWeight: "900",
-    fontFamily: "Poppins_700Bold",
+    fontFamily: FONTS.bold, // ← FIXED
     marginRight: 8,
   },
 
@@ -421,31 +412,72 @@ const styles = StyleSheet.create({
   sideMenuRoot: { flex: 1, flexDirection: "row" },
   sideMenuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sideMenuContainer: {
-    position: "absolute", left: 0, top: 0, bottom: 0,
-    backgroundColor: "#F9FAFB", borderTopRightRadius: 32, borderBottomRightRadius: 32,
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "#F9FAFB",
+    borderTopRightRadius: 32,
+    borderBottomRightRadius: 32,
   },
   sideMenuHeader: {
-    backgroundColor: "#31429B", paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "#31429B",
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  sideMenuTitle: { color: "#FFF", fontSize: 28, fontWeight: "800", fontFamily: "Poppins_700Bold" },
+  sideMenuTitle: {
+    color: "#FFF",
+    fontSize: 28,
+    fontFamily: FONTS.bold, // ← FIXED
+  },
   sideMenuAccent: { height: 6, backgroundColor: "#F2C919" },
   sideMenuBody: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
-  menuItem: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+  },
   menuIconCircle: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: "#F2C919",
-    alignItems: "center", justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F2C919",
+    alignItems: "center",
+    justifyContent: "center",
   },
   menuTextWrap: { marginLeft: 16, flex: 1 },
-  menuItemTitle: { color: "#31429B", fontWeight: "800", fontSize: 16, fontFamily: "Poppins_700Bold" },
-  menuItemSub: { color: "#64748B", fontSize: 11, marginTop: 2, fontWeight: "500", fontFamily: "Poppins_400Regular" },
+  menuItemTitle: {
+    color: "#31429B",
+    fontSize: 16,
+    fontFamily: FONTS.bold, // ← FIXED
+  },
+  menuItemSub: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: FONTS.regular, // ← FIXED
+  },
   sideMenuFooter: { padding: 24, alignItems: "center" },
   signOutButton: {
-    width: "80%", backgroundColor: "#EF4444", borderRadius: 16,
-    paddingVertical: 14, alignItems: "center",
-    shadowColor: "#EF4444", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }
+    width: "80%",
+    backgroundColor: "#EF4444",
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    shadowColor: "#EF4444",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  signOutButtonText: { color: "#FFF", fontSize: 16, fontWeight: "800", fontFamily: "Poppins_700Bold" },
+  signOutButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontFamily: FONTS.bold, // ← FIXED
+  },
 });
 
 export default styles;

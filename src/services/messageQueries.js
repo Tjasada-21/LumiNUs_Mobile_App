@@ -209,9 +209,6 @@ const getSenderName = async (senderId, senderType) => {
 /**
  * Get direct messages between two users (supports alumni & admin)
  */
-/**
- * Get direct messages between two users (supports alumni & admin)
- */
 export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0, receiverType = 'alumni') => {
   if (!userId1 || !userId2) return [];
   
@@ -472,106 +469,68 @@ export const deleteMessage = async (messageId, userId) => {
 };
 
 /**
- * Upload message attachment
+ * Upload message attachment (robust – works with any URI scheme)
  */
 export const uploadMessageAttachment = async (messageId, attachmentUri) => {
   try {
-    let lastError = null;
+    let fileUri = attachmentUri;
 
-    const guessExt = String(attachmentUri).split('.').pop()?.toLowerCase();
+    // 1. If not a local file:// URI, copy the asset to a temporary file
+    if (!/^file:\/\//i.test(fileUri)) {
+      const extension = (fileUri.split('.').pop() || 'jpg').toLowerCase();
+      const localPath = `${FileSystem.cacheDirectory}att_${messageId}_${Date.now()}.${extension}`;
+      await FileSystem.copyAsync({ from: fileUri, to: localPath });
+      fileUri = localPath;
+    }
+
+    // 2. Read file as base64
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    // 3. Convert to Uint8Array
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // 4. Determine content type
+    const ext = fileUri.split('.').pop()?.toLowerCase();
     const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
-    const inferredMime = mimeMap[guessExt] || null;
-    const extension = guessExt || 'jpg';
-    const filePath = `messages_attachments/${messageId}-${Date.now()}.${extension}`;
+    const contentType = mimeMap[ext] || 'image/jpeg';
 
-    // Strategy 1: Direct FileSystem read
-    try {
-      const isLocal = /^file:\/\//i.test(attachmentUri) || /^content:\/\//i.test(attachmentUri);
-      if (isLocal) {
-        const base64 = await FileSystem.readAsStringAsync(attachmentUri, { encoding: 'base64' });
-        const mime = inferredMime || 'image/jpeg';
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
+    // 5. Build unique path
+    const bucketPath = `messages_attachments/${messageId}-${Date.now()}.${ext || 'jpg'}`;
 
-        const { data, error } = await supabase.storage
-          .from('luminus_assets')
-          .upload(filePath, bytes, { contentType: mime });
+    // 6. Upload
+    const { data, error } = await supabase.storage
+      .from('luminus_assets')
+      .upload(bucketPath, bytes, { contentType });
 
-        if (error) throw error;
+    if (error) throw error;
 
-        await supabase.from('messages_attachments').insert([{
-          message_id: messageId,
-          attachment_type: 'image',
-          attachment_path: filePath,
-        }]);
-
-        return filePath;
-      } else {
-        throw new Error('Not a local URI');
-      }
-    } catch (err) {
-      lastError = err;
-    }
-
-    // Strategy 2: fetch and use Blob
-    try {
-      const res = await fetch(attachmentUri);
-      const blob = await res.blob();
-      const contentType = blob?.type || inferredMime || 'image/jpeg';
-
-      const { data, error } = await supabase.storage
-        .from('luminus_assets')
-        .upload(filePath, blob, { contentType });
-
-      if (error) throw error;
-
-      await supabase.from('messages_attachments').insert([{
+    // 7. Insert record
+    await supabase.from('messages_attachments').insert([
+      {
         message_id: messageId,
         attachment_type: 'image',
-        attachment_path: filePath,
-      }]);
+        attachment_path: bucketPath,
+      },
+    ]);
 
-      return filePath;
-    } catch (err) {
-      lastError = err;
-    }
+    // 8. Clean up temp file
+    await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
 
-    // Strategy 3: fetch arrayBuffer
-    try {
-      const res2 = await fetch(attachmentUri);
-      const arrayBuffer = await res2.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-      const contentType = res2.headers.get('content-type') || inferredMime || 'image/jpeg';
-
-      const { data, error } = await supabase.storage
-        .from('luminus_assets')
-        .upload(filePath, uint8, { contentType });
-
-      if (error) throw error;
-
-      await supabase.from('messages_attachments').insert([{
-        message_id: messageId,
-        attachment_type: 'image',
-        attachment_path: filePath,
-      }]);
-
-      return filePath;
-    } catch (err) {
-      lastError = err;
-    }
-
-    throw lastError || new Error('Failed to upload attachment');
+    return bucketPath;
   } catch (error) {
-    console.error('[messages] Upload attachment error:', (error && error.message) || error);
+    console.error('[messages] Upload attachment error:', error?.message || error);
     throw error;
   }
 };
 
 /**
- * Get message attachments with signed URLs
+ * Get message attachments with full public URLs
  */
 export const getMessageAttachments = async (messageId) => {
   try {
@@ -582,27 +541,14 @@ export const getMessageAttachments = async (messageId) => {
 
     if (error) throw error;
 
-    const secureAttachments = await Promise.all((data || []).map(async (att) => {
-      if (att.attachment_path && att.attachment_path.startsWith('http')) {
-        return att;
-      }
+    const publicBase = 'https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_assets/';
 
-      const { data: signedData, error: signError } = await supabase.storage
-        .from('luminus_assets')
-        .createSignedUrl(att.attachment_path, 3600);
-
-      if (signError) {
-        console.warn(`[messages] Failed to sign URL for ${att.attachment_path}:`, signError.message);
-        return att;
-      }
-
-      return {
-        ...att,
-        attachment_path: signedData.signedUrl
-      };
+    return (data || []).map((att) => ({
+      ...att,
+      attachment_path: att.attachment_path?.startsWith('http')
+        ? att.attachment_path
+        : `${publicBase}${att.attachment_path}`,
     }));
-
-    return secureAttachments;
   } catch (error) {
     console.error('[messages] Get attachments error:', error.message);
     throw error;
@@ -678,43 +624,42 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
     const userProfiles = await getUserProfiles(userInfos);
 
     // Format conversations for ChatScreen
-// Format conversations for ChatScreen
-const formattedConversations = Array.from(conversationMap.entries())
-  .map(([key, conversation]) => {
-    const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
-    const partner = userProfiles.get(partnerKey) || {};
-    const latestMsg = conversation.messages[0]; // Most recent message
-    
-    return {
-      // Use composite ID to differentiate between alumni and admin with same numeric ID
-      id: `${conversation.partnerType}_${conversation.partnerId}`,
-      connection_id: conversation.partnerId,
-      user_type: conversation.partnerType || 'alumni',
-      first_name: partner.first_name || 'Unknown',
-      last_name: partner.last_name || '',
-      email: partner.email || '',
-      alumni_photo: partner.alumni_photo || null,
-      program: partner.program || (conversation.partnerType === 'admin' ? 'Admin Staff' : ''),
-      unread_count: conversation.unreadCount,
-      latest_message: {
-        id: latestMsg?.id,
-        content: decryptMessage(latestMsg?.content || ''),
-        created_at: latestMsg?.created_at,
-        message: decryptMessage(latestMsg?.content || ''),
-        text: decryptMessage(latestMsg?.content || ''),
-      },
-      last_message: decryptMessage(latestMsg?.content || ''),
-      last_message_at: latestMsg?.created_at,
-      updated_at: latestMsg?.created_at,
-      created_at: latestMsg?.created_at,
-    };
-  })
-  .sort((a, b) => {
-    const aTime = new Date(a.latest_message?.created_at || 0).getTime();
-    const bTime = new Date(b.latest_message?.created_at || 0).getTime();
-    return bTime - aTime;
-  })
-  .slice(offset, offset + limit);
+    const formattedConversations = Array.from(conversationMap.entries())
+      .map(([key, conversation]) => {
+        const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
+        const partner = userProfiles.get(partnerKey) || {};
+        const latestMsg = conversation.messages[0]; // Most recent message
+        
+        return {
+          // Use composite ID to differentiate between alumni and admin with same numeric ID
+          id: `${conversation.partnerType}_${conversation.partnerId}`,
+          connection_id: conversation.partnerId,
+          user_type: conversation.partnerType || 'alumni',
+          first_name: partner.first_name || 'Unknown',
+          last_name: partner.last_name || '',
+          email: partner.email || '',
+          alumni_photo: partner.alumni_photo || null,
+          program: partner.program || (conversation.partnerType === 'admin' ? 'Admin Staff' : ''),
+          unread_count: conversation.unreadCount,
+          latest_message: {
+            id: latestMsg?.id,
+            content: decryptMessage(latestMsg?.content || ''),
+            created_at: latestMsg?.created_at,
+            message: decryptMessage(latestMsg?.content || ''),
+            text: decryptMessage(latestMsg?.content || ''),
+          },
+          last_message: decryptMessage(latestMsg?.content || ''),
+          last_message_at: latestMsg?.created_at,
+          updated_at: latestMsg?.created_at,
+          created_at: latestMsg?.created_at,
+        };
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.latest_message?.created_at || 0).getTime();
+        const bTime = new Date(b.latest_message?.created_at || 0).getTime();
+        return bTime - aTime;
+      })
+      .slice(offset, offset + limit);
 
     return formattedConversations;
   } catch (error) {

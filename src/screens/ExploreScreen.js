@@ -99,7 +99,7 @@ const ExploreScreen = ({ navigation }) => {
 
     if (item.action === "goToAlumniTracer") {
       if (typeof navigation.navigate === "function") {
-        navigation.navigate("AlumniTracer");
+        navigation.navigate("TracerMenu");  // Changed from "AlumniTracer" to "TracerMenu"
       }
       return;
     }

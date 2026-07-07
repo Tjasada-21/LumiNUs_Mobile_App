@@ -13,6 +13,7 @@ const Stack = createNativeStackNavigator();
 const ExploreStackNavigator = () => {
   return (
     <Stack.Navigator
+      initialRouteName="TracerMenu"     // ← this must be here
       screenOptions={{
         headerShown: false,
         animation: "slide_from_right",

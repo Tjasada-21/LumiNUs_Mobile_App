@@ -36,6 +36,7 @@ import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
 import { getAvatarUri } from "../utils/imageUtils";
 import { ThemedAlert } from "../components/ThemedAlert";
 
+/* ------------- helper functions (unchanged) ------------- */
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
   const normalizedValue = typeof dateValue === 'string' ? (dateValue.includes('T') ? dateValue : dateValue.replace(' ', 'T')) : dateValue;
@@ -121,46 +122,7 @@ const UserProfileScreen = ({ navigation }) => {
     ];
   }, [userData]);
 
-  const openBioModal = () => {
-    setBioDraft(userData?.alumni_bio ?? "");
-    setIsBioModalVisible(true);
-  };
-
-  const openWorkModal = (employment = null) => {
-    setWorkDraft({
-      id: employment?.id ?? null, title: employment?.title ?? "", subtitle: employment?.subtitle ?? "",
-      startYear: employment?.startYear ?? null, endYear: employment?.endYear ?? null,
-      location: employment?.location ?? "", description: employment?.description ?? "",
-    });
-    setIsWorkModalVisible(true);
-  };
-  
-  const closeWorkModal = () => { if (!isWorkSaving) setIsWorkModalVisible(false); };
-
-  const saveWorkExperience = async () => {
-    if (!workDraft.title.trim() || !workDraft.subtitle.trim() || !workDraft.location.trim()) {
-      ThemedAlert.alert("Missing field", "Please fill out all required fields.", [{ text: "OK" }], { variant: "error" });
-      return;
-    }
-    const payload = { title: workDraft.title.trim(), subtitle: workDraft.subtitle.trim(), location: workDraft.location.trim() };
-    if (workDraft.startYear) payload.start_date = `${workDraft.startYear}-01-01`;
-    if (workDraft.endYear) payload.end_date = `${workDraft.endYear}-12-31`;
-    if (workDraft.description.trim()) payload.description = workDraft.description.trim();
-
-    try {
-      setIsWorkSaving(true);
-      const supaUser = await getCurrentUser();
-      if (workDraft.id) await updateEmploymentRecord(workDraft.id, payload);
-      else await addEmploymentRecord(supaUser.id, payload);
-      await loadProfile();
-      setIsWorkModalVisible(false);
-      ThemedAlert.alert("Success", "Work experience saved.", [{ text: "OK" }], { variant: "success" });
-    } catch (err) {
-      ThemedAlert.alert("Error", "Unable to save work experience.", [{ text: "OK" }], { variant: "error" });
-    } finally { setIsWorkSaving(false); }
-  };
-
-  const getPostAuthorName = (post) => [post?.alumni?.first_name ?? "", post?.alumni?.last_name ?? ""].filter(Boolean).join(" ").trim() || "Alumni";
+  /* ------------- helper to build full image URL ------------- */
   const getPostImageUri = (image) => {
     const raw = image?.image_url ?? image?.image_path ?? "";
     if (!raw) return "";
@@ -168,6 +130,7 @@ const UserProfileScreen = ({ navigation }) => {
     return `https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_assets/${String(raw).replace(/^\/+/, "")}`;
   };
 
+  /* ------------- load profile & enrich with images ------------- */
   const loadProfile = async ({ showLoading = true } = {}) => {
     try {
       if (showLoading) setLoading(true);
@@ -176,16 +139,46 @@ const UserProfileScreen = ({ navigation }) => {
       if (!supaUser) { setErrorMessage("No active session found."); return; }
 
       const [profile, posts, followingRows, followerRows] = await Promise.all([
-        getAlumniProfile(supaUser.id), getUserPosts(supaUser.id, 50, 0),
-        getFollowing(supaUser.id).catch(() => []), getFollowers(supaUser.id).catch(() => []),
+        getAlumniProfile(supaUser.id),
+        getUserPosts(supaUser.id, 50, 0),
+        getFollowing(supaUser.id).catch(() => []),
+        getFollowers(supaUser.id).catch(() => []),
       ]);
+
+      // ----- Ensure every post has its images by fetching missing ones -----
+      const enrichedPosts = Array.isArray(posts) ? posts : [];
+      const postIdsWithoutImages = enrichedPosts
+        .filter(p => !Array.isArray(p.images) || p.images.length === 0)
+        .map(p => p.id);
+
+      if (postIdsWithoutImages.length > 0) {
+        const { data: imageRows, error: imgError } = await supabase
+          .from('images_posts')
+          .select('post_id, image_path, id')
+          .in('post_id', postIdsWithoutImages);
+
+        if (!imgError && imageRows) {
+          // group by post_id
+          const imagesByPostId = {};
+          imageRows.forEach(row => {
+            if (!imagesByPostId[row.post_id]) imagesByPostId[row.post_id] = [];
+            imagesByPostId[row.post_id].push({ id: row.id, image_path: row.image_path });
+          });
+          enrichedPosts.forEach(p => {
+            if (postIdsWithoutImages.includes(p.id)) {
+              p.images = imagesByPostId[p.id] || [];
+            }
+          });
+        }
+      }
+      // ----------------------------------------------------------------
 
       const connectionIds = new Set();
       (followingRows || []).forEach((row) => { if (row?.followed?.id) connectionIds.add(row.followed.id); });
       (followerRows || []).forEach((row) => { if (row?.follower?.id) connectionIds.add(row.follower.id); });
 
       setUserData(profile ?? null);
-      setProfilePosts(Array.isArray(posts) ? posts : []);
+      setProfilePosts(enrichedPosts);
       setResolvedConnectionsCount(connectionIds.size);
     } catch (error) {
       setErrorMessage("Unable to load profile right now.");
@@ -194,6 +187,7 @@ const UserProfileScreen = ({ navigation }) => {
     }
   };
 
+  /* ------------- fetch skills on focus ------------- */
   useFocusEffect(
     useCallback(() => {
       const fetchSkills = async () => {
@@ -220,6 +214,12 @@ const UserProfileScreen = ({ navigation }) => {
   const handleRefresh = async () => { setIsRefreshing(true); await loadProfile({ showLoading: false }); setIsRefreshing(false); };
   useEffect(() => { loadProfile(); }, []);
 
+  /* ------------- biography ------------- */
+  const openBioModal = () => {
+    setBioDraft(userData?.alumni_bio ?? "");
+    setIsBioModalVisible(true);
+  };
+
   const saveBiography = async () => {
     const nextBio = bioDraft.trim();
     const previousBio = userData?.alumni_bio ?? "";
@@ -234,8 +234,12 @@ const UserProfileScreen = ({ navigation }) => {
     }
   };
 
-  // --- FIXED FORMATTING FOR POST IMAGE LAYOUT ---
+  /* ------------- post rendering helpers ------------- */
+  const getPostAuthorName = (post) => [post?.alumni?.first_name ?? "", post?.alumni?.last_name ?? ""].filter(Boolean).join(" ").trim() || "Alumni";
+
   const renderPostImageLayout = (postId, postImages) => {
+    if (!Array.isArray(postImages) || postImages.length === 0) return null;
+
     if (postImages.length === 1) {
       return (
         <View style={[styles.postSingleImageWrap, { aspectRatio: 1.2 }]}>
@@ -305,13 +309,13 @@ const UserProfileScreen = ({ navigation }) => {
   };
 
   const renderSinglePostContent = (postObj, isNested = false) => {
-		const postAuthorName = getPostAuthorName(postObj);
-		const avatarUri = getAvatarUri(postAuthorName, postObj.alumni?.alumni_photo);
-		const postImages = postObj.images ?? [];
-		const timeStr = getRelativeTimeLabel(getFeedItemDateValue(postObj));
+    const postAuthorName = getPostAuthorName(postObj);
+    const avatarUri = getAvatarUri(postAuthorName, postObj.alumni?.alumni_photo);
+    const postImages = postObj.images ?? [];
+    const timeStr = getRelativeTimeLabel(getFeedItemDateValue(postObj));
 
-		return (
-			<>
+    return (
+      <>
         <View style={styles.postHeader}>
           <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
           <View style={styles.postHeaderTextWrap}>
@@ -346,239 +350,232 @@ const UserProfileScreen = ({ navigation }) => {
             </Pressable>
           </View>
         )}
-			</>
-		);
-	};
+      </>
+    );
+  };
 
+  /* ------------- main render (unchanged UI) ------------- */
   return (
-      <View style={styles.container}>
-        
-        {/* TOP HEADER LOGOS */}
-        <HomeHeader />
+    <View style={styles.container}>
+      <HomeHeader />
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#31429B" />}
-        >
-          {loading ? (
-            <View style={styles.stateWrap}><ActivityIndicator size="large" color="#31429B" /></View>
-          ) : errorMessage ? (
-            <View style={styles.stateWrap}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
-              <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("SettingsScreen")}>
-                <Text style={styles.actionButtonText}>Open Account Settings</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              {/* WHITE HERO SECTION */}
-              <View style={styles.heroSection}>
-                <View style={styles.heroRow}>
-                  <Image source={{ uri: profileImageUri }} style={[styles.avatar, { width: layout.avatarSize, height: layout.avatarSize, borderRadius: layout.avatarSize / 2 }]} />
-                  <View style={styles.heroCopy}>
-                    <Text style={styles.name}>{profileName}</Text>
-                    <View style={styles.tagPill}>
-                      <Ionicons name="school" size={12} color="#31429B" />
-                      <Text style={styles.tagText}>{profileSummary.classTag} | {profileSummary.sectionTag}</Text>
-                    </View>
-                    <View style={styles.statsRow}>
-                      <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.connectionsCount}</Text> Connections</Text>
-                      <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.postsCount}</Text> Posts</Text>
-                    </View>
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("SettingsScreen")}>
-                        <Ionicons name="create-outline" size={16} color="#1C1C1E" />
-                        <Text style={styles.editProfileText}>Edit Profile</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate("SettingsScreen")}>
-                        <Ionicons name="settings-sharp" size={18} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    </View>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#31429B" />}
+      >
+        {loading ? (
+          <View style={styles.stateWrap}><ActivityIndicator size="large" color="#31429B" /></View>
+        ) : errorMessage ? (
+          <View style={styles.stateWrap}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("SettingsScreen")}>
+              <Text style={styles.actionButtonText}>Open Account Settings</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* WHITE HERO SECTION */}
+            <View style={styles.heroSection}>
+              <View style={styles.heroRow}>
+                <Image source={{ uri: profileImageUri }} style={[styles.avatar, { width: layout.avatarSize, height: layout.avatarSize, borderRadius: layout.avatarSize / 2 }]} />
+                <View style={styles.heroCopy}>
+                  <Text style={styles.name}>{profileName}</Text>
+                  <View style={styles.tagPill}>
+                    <Ionicons name="school" size={12} color="#31429B" />
+                    <Text style={styles.tagText}>{profileSummary.classTag} | {profileSummary.sectionTag}</Text>
                   </View>
-                </View>
-
-                {/* ABOUT ME */}
-                <View style={styles.aboutSection}>
-                  <Text style={styles.sectionHeadingBlack}>About Me</Text>
-                  <View style={styles.aboutItem}>
-                    <Ionicons name="briefcase" size={18} color="#31429B" style={styles.aboutIcon} />
-                    <Text style={styles.aboutText}>{profileSummary.headlineText}</Text>
+                  <View style={styles.statsRow}>
+                    <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.connectionsCount}</Text> Connections</Text>
+                    <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.postsCount}</Text> Posts</Text>
                   </View>
-                  <View style={styles.aboutItem}>
-                    <Ionicons name="location-sharp" size={18} color="#31429B" style={styles.aboutIcon} />
-                    <Text style={styles.aboutText}>{profileSummary.locationText}</Text>
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("SettingsScreen")}>
+                      <Ionicons name="create-outline" size={16} color="#1C1C1E" />
+                      <Text style={styles.editProfileText}>Edit Profile</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate("SettingsScreen")}>
+                      <Ionicons name="settings-sharp" size={18} color="#FFFFFF" />
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
 
-              {/* DARK BLUE SECTION WITH SPACE BACKGROUND */}
-              <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="cover">
-                
-                {/* Biography */}
-                <View style={styles.darkSectionHeaderRow}>
-                  <Text style={styles.sectionHeadingYellow}>Biography</Text>
-                  <TouchableOpacity style={styles.outlineEditPill} onPress={openBioModal}>
-                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.outlineEditText}>Edit</Text>
-                  </TouchableOpacity>
+              {/* ABOUT ME */}
+              <View style={styles.aboutSection}>
+                <Text style={styles.sectionHeadingBlack}>About Me</Text>
+                <View style={styles.aboutItem}>
+                  <Ionicons name="briefcase" size={18} color="#31429B" style={styles.aboutIcon} />
+                  <Text style={styles.aboutText}>{profileSummary.headlineText}</Text>
                 </View>
-                <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
+                <View style={styles.aboutItem}>
+                  <Ionicons name="location-sharp" size={18} color="#31429B" style={styles.aboutIcon} />
+                  <Text style={styles.aboutText}>{profileSummary.locationText}</Text>
+                </View>
+              </View>
+            </View>
 
-                {/* Work Experience */}
-                <View style={styles.darkSectionHeaderRow}>
-                  <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
-                  <TouchableOpacity 
-                    style={styles.outlineEditPill} 
-                    onPress={() => navigation.navigate("WorkExperienceScreen")}
-                  >
-                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.outlineEditText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
-                  {workExperiences.map((emp, index) => (
-                    <View key={emp.id ?? index} style={styles.workCard}>
-                      <Ionicons name="ellipsis-horizontal" size={20} color="#31429B" style={styles.workMenuIcon} />
-                      <Ionicons name="briefcase" size={28} color="#31429B" style={styles.workBriefcase} />
-                      <Text style={styles.workTitle}>{emp.title}</Text>
-                      <Text style={styles.workSubtitle}>{emp.subtitle}</Text>
-                      <Text style={styles.workPeriod}>{emp.period}</Text>
-                      <Text style={styles.workDescription}>{emp.description}</Text>
+            {/* DARK BLUE SECTION */}
+            <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="cover">
+              {/* Biography */}
+              <View style={styles.darkSectionHeaderRow}>
+                <Text style={styles.sectionHeadingYellow}>Biography</Text>
+                <TouchableOpacity style={styles.outlineEditPill} onPress={openBioModal}>
+                  <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.outlineEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
+
+              {/* Work Experience */}
+              <View style={styles.darkSectionHeaderRow}>
+                <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
+                <TouchableOpacity 
+                  style={styles.outlineEditPill} 
+                  onPress={() => navigation.navigate("WorkExperienceScreen")}
+                >
+                  <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.outlineEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
+                {workExperiences.map((emp, index) => (
+                  <View key={emp.id ?? index} style={styles.workCard}>
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#31429B" style={styles.workMenuIcon} />
+                    <Ionicons name="briefcase" size={28} color="#31429B" style={styles.workBriefcase} />
+                    <Text style={styles.workTitle}>{emp.title}</Text>
+                    <Text style={styles.workSubtitle}>{emp.subtitle}</Text>
+                    <Text style={styles.workPeriod}>{emp.period}</Text>
+                    <Text style={styles.workDescription}>{emp.description}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Skills */}
+              <View style={styles.darkSectionHeaderRow}>
+                <Text style={styles.sectionHeadingYellow}>Skills</Text>
+                <TouchableOpacity 
+                  style={styles.outlineEditPill} 
+                  onPress={() => navigation.navigate("AddSkillsScreen")}
+                >
+                  <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.outlineEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.skillsGrid}>
+                {userSkills.length > 0 ? (
+                  userSkills.map((skillObj) => (
+                    <View key={skillObj.id} style={styles.skillPill}>
+                      <Text style={styles.skillText}>{skillObj.skill_name}</Text>
                     </View>
-                  ))}
-                </ScrollView>
-
-                {/* Skills */}
-                <View style={styles.darkSectionHeaderRow}>
-                  <Text style={styles.sectionHeadingYellow}>Skills</Text>
-                  <TouchableOpacity 
-                    style={styles.outlineEditPill} 
-                    onPress={() => navigation.navigate("AddSkillsScreen")}
-                  >
-                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.outlineEditText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.skillsGrid}>
-                  {userSkills.length > 0 ? (
-                    userSkills.map((skillObj) => (
-                      <View key={skillObj.id} style={styles.skillPill}>
-                        <Text style={styles.skillText}>{skillObj.skill_name}</Text>
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={{ color: "rgba(255,255,255,0.6)", paddingHorizontal: 20, fontStyle: 'italic' }}>
-                      No skills added yet.
-                    </Text>
-                  )}
-                </View>
-
-                {userSkills.length > 0 && (
-                  <TouchableOpacity style={styles.viewAllButton}>
-                    <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
-                  </TouchableOpacity>
-                )}
-
-              </ImageBackground>
-
-              {/* POSTS SECTION */}
-              <View style={styles.postsSection}>
-                <View style={styles.postsHeaderRow}>
-                  <Text style={styles.sectionHeadingBlack}>Posts</Text>
-                  <TouchableOpacity style={styles.createPostPill} onPress={() => navigation.navigate("CreatePostScreen")}>
-                    <Ionicons name="create" size={14} color="#1C1C1E" />
-                    <Text style={styles.createPostPillText}>Create New Post</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                {profilePosts.length === 0 ? (
-                  <Text style={styles.emptyPostsText}>No posts yet.</Text>
+                  ))
                 ) : (
-                  profilePosts.map((post) => {
-                    const isRepostFeedItem = post.feed_type === 'repost';
-                    const originalPost = post.original_post ?? null;
-                    
-                    if (isRepostFeedItem && originalPost) {
-                      const reposterName = getPostAuthorName(post);
-                      const reposterAvatar = getAvatarUri(reposterName, post.alumni?.alumni_photo);
-                      return (
-                        <View key={post.id} style={styles.repostWrapper}>
-                          <View style={styles.repostBanner}>
-                            <Image source={{ uri: reposterAvatar }} style={styles.repostBannerAvatar} />
-                            <Text style={styles.repostBannerText} numberOfLines={1}>
-                              <Text style={styles.repostBannerName}>{reposterName}</Text> reposted this.
-                            </Text>
-                          </View>
-                          <View style={styles.repostInnerCard}>
-                            {renderSinglePostContent(originalPost, true)}
-                            <View style={styles.postReactionRow}>
-                              <Pressable style={styles.postActionButton}>
-                                <Ionicons name={post.my_reaction ? 'heart' : 'heart-outline'} size={22} color={post.my_reaction ? '#EF4444' : '#31429B'} />
-                                <Text style={styles.postActionCount}>{post.reaction_count ?? 0}</Text>
-                              </Pressable>
-                              <Pressable style={styles.postActionButton}>
-                                <Ionicons name="chatbubble-outline" size={20} color="#31429B" />
-                                <Text style={styles.postActionCount}>{post.comment_count ?? 0}</Text>
-                              </Pressable>
-                              <Pressable style={styles.postActionButton}>
-                                <Ionicons name="repeat" size={22} color={post.my_repost ? '#15803D' : '#31429B'} />
-                                <Text style={styles.postActionCount}>{post.repost_count ?? 0}</Text>
-                              </Pressable>
-                            </View>
+                  <Text style={{ color: "rgba(255,255,255,0.6)", paddingHorizontal: 20, fontStyle: 'italic' }}>
+                    No skills added yet.
+                  </Text>
+                )}
+              </View>
+              {userSkills.length > 0 && (
+                <TouchableOpacity style={styles.viewAllButton}>
+                  <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
+                </TouchableOpacity>
+              )}
+            </ImageBackground>
+
+            {/* POSTS SECTION */}
+            <View style={styles.postsSection}>
+              <View style={styles.postsHeaderRow}>
+                <Text style={styles.sectionHeadingBlack}>Posts</Text>
+                <TouchableOpacity style={styles.createPostPill} onPress={() => navigation.navigate("CreatePostScreen")}>
+                  <Ionicons name="create" size={14} color="#1C1C1E" />
+                  <Text style={styles.createPostPillText}>Create New Post</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {profilePosts.length === 0 ? (
+                <Text style={styles.emptyPostsText}>No posts yet.</Text>
+              ) : (
+                profilePosts.map((post) => {
+                  const isRepostFeedItem = post.feed_type === 'repost';
+                  const originalPost = post.original_post ?? null;
+                  
+                  if (isRepostFeedItem && originalPost) {
+                    const reposterName = getPostAuthorName(post);
+                    const reposterAvatar = getAvatarUri(reposterName, post.alumni?.alumni_photo);
+                    return (
+                      <View key={post.id} style={styles.repostWrapper}>
+                        <View style={styles.repostBanner}>
+                          <Image source={{ uri: reposterAvatar }} style={styles.repostBannerAvatar} />
+                          <Text style={styles.repostBannerText} numberOfLines={1}>
+                            <Text style={styles.repostBannerName}>{reposterName}</Text> reposted this.
+                          </Text>
+                        </View>
+                        <View style={styles.repostInnerCard}>
+                          {renderSinglePostContent(originalPost, true)}
+                          <View style={styles.postReactionRow}>
+                            <Pressable style={styles.postActionButton}>
+                              <Ionicons name={post.my_reaction ? 'heart' : 'heart-outline'} size={22} color={post.my_reaction ? '#EF4444' : '#31429B'} />
+                              <Text style={styles.postActionCount}>{post.reaction_count ?? 0}</Text>
+                            </Pressable>
+                            <Pressable style={styles.postActionButton}>
+                              <Ionicons name="chatbubble-outline" size={20} color="#31429B" />
+                              <Text style={styles.postActionCount}>{post.comment_count ?? 0}</Text>
+                            </Pressable>
+                            <Pressable style={styles.postActionButton}>
+                              <Ionicons name="repeat" size={22} color={post.my_repost ? '#15803D' : '#31429B'} />
+                              <Text style={styles.postActionCount}>{post.repost_count ?? 0}</Text>
+                            </Pressable>
                           </View>
                         </View>
-                      );
-                    }
-
-                    return (
-                      <View key={post.id} style={styles.postCard}>
-                        {renderSinglePostContent(post)}
                       </View>
                     );
-                  })
-                )}
-              </View>
-            </>
-          )}
-        </ScrollView>
-        
-        {/* Modals for Biography and Work Experience */}
-        <Modal visible={isBioModalVisible} transparent animationType="fade" onRequestClose={() => setIsBioModalVisible(false)}>
-          <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Biography</Text>
-                <TouchableOpacity onPress={() => setIsBioModalVisible(false)} style={styles.modalCloseButton} activeOpacity={0.8}>
-                  <Ionicons name="close" size={22} color="#31429B" />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                value={bioDraft}
-                onChangeText={setBioDraft}
-                placeholder="Write your biography here..."
-                placeholderTextColor="#94A3B8"
-                multiline
-                textAlignVertical="top"
-                style={styles.bioInput}
-                maxLength={1000}
-              />
-              <View style={styles.modalButtonRow}>
-                <TouchableOpacity style={[styles.modalActionButton, styles.modalCancelButton]} onPress={() => setIsBioModalVisible(false)}>
-                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalActionButton, styles.modalSaveButton]} onPress={saveBiography}>
-                  <Text style={styles.modalSaveButtonText}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+                  }
 
-      </View>
+                  return (
+                    <View key={post.id} style={styles.postCard}>
+                      {renderSinglePostContent(post)}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Biography Modal (unchanged) */}
+      <Modal visible={isBioModalVisible} transparent animationType="fade" onRequestClose={() => setIsBioModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Biography</Text>
+              <TouchableOpacity onPress={() => setIsBioModalVisible(false)} style={styles.modalCloseButton} activeOpacity={0.8}>
+                <Ionicons name="close" size={22} color="#31429B" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              value={bioDraft}
+              onChangeText={setBioDraft}
+              placeholder="Write your biography here..."
+              placeholderTextColor="#94A3B8"
+              multiline
+              textAlignVertical="top"
+              style={styles.bioInput}
+              maxLength={1000}
+            />
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity style={[styles.modalActionButton, styles.modalCancelButton]} onPress={() => setIsBioModalVisible(false)}>
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalActionButton, styles.modalSaveButton]} onPress={saveBiography}>
+                <Text style={styles.modalSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 };
 

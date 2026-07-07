@@ -7,21 +7,48 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-// Make sure this path matches where you saved the styles file!
 import styles from '../styles/AddSkillsScreen.styles'; 
+import supabase from '../services/supabase';
+import { getCurrentUser } from '../services/supabaseAuth';
+import { ThemedAlert } from '../components/ThemedAlert';
 
 const AddSkillsScreen = ({ navigation }) => {
-  const [skill, setSkill] = useState('Graphic Design');
+  const [skill, setSkill] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    // Add your save logic here for the LumiNUs database
-    console.log("Saving skill:", skill);
-    navigation.goBack();
+  const handleSave = async () => {
+    if (!skill.trim()) {
+      ThemedAlert.alert("Missing Field", "Please enter a skill before saving.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const user = await getCurrentUser();
+      if (!user?.id) throw new Error("No active session found.");
+
+      const { error } = await supabase
+        .from('alumni_skills')
+        .insert([{ 
+          alumni_id: user.id, 
+          skill_name: skill.trim() 
+        }]);
+
+      if (error) throw error;
+
+      // Successfully saved, go back to profile
+      navigation.goBack();
+    } catch (error) {
+      console.error("Error saving skill:", error);
+      ThemedAlert.alert("Error", "Could not save your skill. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -51,8 +78,9 @@ const AddSkillsScreen = ({ navigation }) => {
                 style={styles.input}
                 value={skill}
                 onChangeText={setSkill}
-                placeholder="Enter a skill"
+                placeholder="e.g. Graphic Design, JavaScript, Project Management"
                 placeholderTextColor="#9CA3AF"
+                autoFocus
               />
             </View>
 
@@ -74,6 +102,7 @@ const AddSkillsScreen = ({ navigation }) => {
                 <TouchableOpacity 
                   style={styles.discardButton} 
                   onPress={() => navigation.goBack()}
+                  disabled={saving}
                 >
                   <Text style={styles.discardButtonText}>Discard</Text>
                 </TouchableOpacity>
@@ -81,8 +110,13 @@ const AddSkillsScreen = ({ navigation }) => {
                 <TouchableOpacity 
                   style={styles.saveButton} 
                   onPress={handleSave}
+                  disabled={saving}
                 >
-                  <Text style={styles.saveButtonText}>Save</Text>
+                  {saving ? (
+                    <ActivityIndicator color="#31429B" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

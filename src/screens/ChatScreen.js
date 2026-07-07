@@ -148,39 +148,45 @@ const ChatScreen = ({ navigation }) => {
     navigation.navigate("NewMessage");
   };
 
-// In ChatScreen.js, update the openConversation function
-const openConversation = (contact) => {
-  const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Alumni";
-  const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
-  // Use the composite ID or the connection_id
-  const conversationId = contact?.id;
-  
-  // Get receiver type from contact data
-  const receiverType = contact?.user_type || 'alumni';
+  // --- OPTIMISTICALLY UN-HIGHLIGHT DIRECT MESSAGES ---
+  const openConversation = (contact) => {
+    const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Alumni";
+    const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
+    const conversationId = contact?.id;
+    const receiverType = contact?.user_type || 'alumni';
 
-  setConversationViewTimestamps((prev) => ({
-    ...prev,
-    [conversationId]: Date.now(),
-  }));
+    setConversationViewTimestamps((prev) => ({
+      ...prev,
+      [conversationId]: Date.now(),
+    }));
 
-  const parentNavigator = navigation.getParent?.();
-  if (parentNavigator?.navigate) {
-    parentNavigator.navigate("ConvoScreen", { 
-      contactId: contact?.connection_id, // Use the actual numeric ID for sending messages
+    // Optimistically clear the unread styling immediately on press
+    setContacts((prevContacts) => 
+      prevContacts.map((c) => 
+        c.id === conversationId ? { ...c, unread_count: 0, is_read: true } : c
+      )
+    );
+    void refreshUnreadMessages();
+
+    const parentNavigator = navigation.getParent?.();
+    if (parentNavigator?.navigate) {
+      parentNavigator.navigate("ConvoScreen", { 
+        contactId: contact?.connection_id,
+        contactName, 
+        contactAvatar,
+        receiverType,
+      });
+      return;
+    }
+    navigation.navigate("ConvoScreen", { 
+      contactId: contact?.connection_id,
       contactName, 
       contactAvatar,
-      receiverType, // Pass the receiver type (alumni or admin)
+      receiverType,
     });
-    return;
-  }
-  navigation.navigate("ConvoScreen", { 
-    contactId: contact?.connection_id, // Use the actual numeric ID for sending messages
-    contactName, 
-    contactAvatar,
-    receiverType, // Pass the receiver type
-  });
-};
+  };
 
+  // --- OPTIMISTICALLY UN-HIGHLIGHT GROUP MESSAGES ---
   const openGroupConversation = (groupChat) => {
     const groupName = groupChat?.name ?? "Group Chat";
     const groupAvatar = getAvatarUri(groupName, groupChat?.avatar_url);
@@ -192,6 +198,14 @@ const openConversation = (contact) => {
       [conversationId]: Date.now(),
     }));
 
+    // Optimistically clear the unread styling immediately on press
+    setGroupChats((prevGroups) => 
+      prevGroups.map((g) => 
+        g.id === conversationId ? { ...g, unread_count: 0, is_read: true } : g
+      )
+    );
+    void refreshUnreadMessages();
+
     const parentNavigator = navigation.getParent?.();
     const conversationParams = { groupId: groupChat?.id, groupName, groupAvatar, groupMembers };
 
@@ -202,154 +216,153 @@ const openConversation = (contact) => {
     navigation.navigate("ConvoScreen", conversationParams);
   };
 
-const loadChatData = useCallback(async () => {
-  try {
-    setIsLoadingChatData(true);
-    setIsLoadingAdmins(true);
-    const supaUser = await getCurrentUser();
+  const loadChatData = useCallback(async () => {
+    try {
+      setIsLoadingChatData(true);
+      setIsLoadingAdmins(true);
+      const supaUser = await getCurrentUser();
 
-    if (!supaUser) {
+      if (!supaUser) {
+        setUserData(null);
+        setContacts([]);
+        setGroupChats([]);
+        return;
+      }
+
+      const conversationsPromise = getConversations(supaUser.id, 'alumni', 0, CHAT_LIMIT);
+      setPageOffset(0);
+      setHasMoreChats(true);
+
+      const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
+      const followingPromise = getFollowing(supaUser.id).catch(() => []);
+      const followersPromise = getFollowers(supaUser.id).catch(() => []);
+      const favoritesPromise = supabase.from("favorite_chats").select("contact_id").eq("user_id", supaUser.id);
+
+      const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
+        conversationsPromise,
+        groupChatsPromise,
+        followingPromise,
+        followersPromise,
+        favoritesPromise,
+      ]);
+
+      setUserData(supaUser);
+      const connectionsMap = new Map();
+
+      (followingRows || []).forEach((row) => {
+        const contact = row?.followed;
+        if (!contact?.id) return;
+        connectionsMap.set(`alumni_${contact.id}`, {
+          id: `alumni_${contact.id}`, // Composite ID
+          connection_id: contact.id, // Actual numeric ID
+          user_type: 'alumni',
+          first_name: contact.first_name, 
+          last_name: contact.last_name, 
+          email: contact.email, 
+          alumni_photo: contact.alumni_photo, 
+          program: contact.program, 
+          created_at: row?.created_at ?? null, 
+          unread_count: 0,
+        });
+      });
+
+      (followerRows || []).forEach((row) => {
+        const contact = row?.follower;
+        if (!contact?.id) return;
+        const key = `alumni_${contact.id}`;
+        if (connectionsMap.has(key)) return;
+        connectionsMap.set(key, {
+          id: key, // Composite ID
+          connection_id: contact.id, // Actual numeric ID
+          user_type: 'alumni',
+          first_name: contact.first_name, 
+          last_name: contact.last_name, 
+          email: contact.email, 
+          alumni_photo: contact.alumni_photo, 
+          program: contact.program, 
+          created_at: row?.created_at ?? null, 
+          unread_count: 0,
+        });
+      });
+
+      const conversationsList = Array.isArray(conversations) ? conversations : [];
+      conversationsList.forEach((conversation) => {
+        if (!conversation?.id) return;
+        const key = conversation.id; // Already composite from getConversations
+        const baseContact = connectionsMap.get(key) || {};
+        connectionsMap.set(key, {
+          ...baseContact, 
+          ...conversation, 
+          id: conversation.id, // Keep composite ID
+          connection_id: conversation.connection_id ?? baseContact.connection_id,
+          user_type: conversation.user_type || 'alumni',
+          first_name: conversation.first_name ?? baseContact.first_name, 
+          last_name: conversation.last_name ?? baseContact.last_name, 
+          email: conversation.email ?? baseContact.email, 
+          alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+        });
+      });
+
+      const nextContacts = Array.from(connectionsMap.values());
+      setContacts(nextContacts);
+
+      try {
+        const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
+        setFavoriteContactIds(new Set(favoriteIds));
+      } catch (e) {}
+
+      const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
+      setGroupChats(nextGroupChats);
+      setAdmins([]);
+      cachedContacts = nextContacts;
+      cachedContactsLoadedAt = Date.now();
+      void refreshUnreadMessages();
+    } catch (error) {
       setUserData(null);
       setContacts([]);
       setGroupChats([]);
-      return;
+    } finally {
+      setIsLoadingChatData(false);
+      setIsLoadingAdmins(false);
     }
+  }, []);
 
-    const conversationsPromise = getConversations(supaUser.id, 'alumni', 0, CHAT_LIMIT);
-    setPageOffset(0);
-    setHasMoreChats(true);
-
-    const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
-    const followingPromise = getFollowing(supaUser.id).catch(() => []);
-    const followersPromise = getFollowers(supaUser.id).catch(() => []);
-    const favoritesPromise = supabase.from("favorite_chats").select("contact_id").eq("user_id", supaUser.id);
-
-    const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
-      conversationsPromise,
-      groupChatsPromise,
-      followingPromise,
-      followersPromise,
-      favoritesPromise,
-    ]);
-
-    setUserData(supaUser);
-    const connectionsMap = new Map();
-
-    (followingRows || []).forEach((row) => {
-      const contact = row?.followed;
-      if (!contact?.id) return;
-      connectionsMap.set(`alumni_${contact.id}`, {
-        id: `alumni_${contact.id}`, // Composite ID
-        connection_id: contact.id, // Actual numeric ID
-        user_type: 'alumni',
-        first_name: contact.first_name, 
-        last_name: contact.last_name, 
-        email: contact.email, 
-        alumni_photo: contact.alumni_photo, 
-        program: contact.program, 
-        created_at: row?.created_at ?? null, 
-        unread_count: 0,
-      });
-    });
-
-    (followerRows || []).forEach((row) => {
-      const contact = row?.follower;
-      if (!contact?.id) return;
-      const key = `alumni_${contact.id}`;
-      if (connectionsMap.has(key)) return;
-      connectionsMap.set(key, {
-        id: key, // Composite ID
-        connection_id: contact.id, // Actual numeric ID
-        user_type: 'alumni',
-        first_name: contact.first_name, 
-        last_name: contact.last_name, 
-        email: contact.email, 
-        alumni_photo: contact.alumni_photo, 
-        program: contact.program, 
-        created_at: row?.created_at ?? null, 
-        unread_count: 0,
-      });
-    });
-
-    const conversationsList = Array.isArray(conversations) ? conversations : [];
-    conversationsList.forEach((conversation) => {
-      if (!conversation?.id) return;
-      const key = conversation.id; // Already composite from getConversations
-      const baseContact = connectionsMap.get(key) || {};
-      connectionsMap.set(key, {
-        ...baseContact, 
-        ...conversation, 
-        id: conversation.id, // Keep composite ID
-        connection_id: conversation.connection_id ?? baseContact.connection_id,
-        user_type: conversation.user_type || 'alumni',
-        first_name: conversation.first_name ?? baseContact.first_name, 
-        last_name: conversation.last_name ?? baseContact.last_name, 
-        email: conversation.email ?? baseContact.email, 
-        alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
-      });
-    });
-
-    const nextContacts = Array.from(connectionsMap.values());
-    setContacts(nextContacts);
-
+  const handleLoadMore = async () => {
+    if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
     try {
-      // For favorites, we need to handle both alumni and admin contacts
-      const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
-      setFavoriteContactIds(new Set(favoriteIds));
-    } catch (e) {}
-
-    const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
-    setGroupChats(nextGroupChats);
-    setAdmins([]);
-    cachedContacts = nextContacts;
-    cachedContactsLoadedAt = Date.now();
-    void refreshUnreadMessages();
-  } catch (error) {
-    setUserData(null);
-    setContacts([]);
-    setGroupChats([]);
-  } finally {
-    setIsLoadingChatData(false);
-    setIsLoadingAdmins(false);
-  }
-}, []);
-
-const handleLoadMore = async () => {
-  if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
-  try {
-    setIsFetchingMore(true);
-    const nextOffset = pageOffset + CHAT_LIMIT;
-    const newConversations = await getConversations(userData.id, 'alumni', nextOffset, CHAT_LIMIT);
-    if (!newConversations || newConversations.length < CHAT_LIMIT) {
-      setHasMoreChats(false);
-    }
-    if (newConversations && newConversations.length > 0) {
-      setContacts((prevContacts) => {
-        const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
-        newConversations.forEach((conversation) => {
-          if (!conversation?.id) return;
-          const key = conversation.id; // Already composite
-          const baseContact = connectionsMap.get(key) || {};
-          connectionsMap.set(key, {
-            ...baseContact, 
-            ...conversation, 
-            id: conversation.id,
-            connection_id: conversation.connection_id ?? baseContact.connection_id,
-            user_type: conversation.user_type || 'alumni',
-            first_name: conversation.first_name ?? baseContact.first_name, 
-            last_name: conversation.last_name ?? baseContact.last_name, 
-            email: conversation.email ?? baseContact.email, 
-            alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+      setIsFetchingMore(true);
+      const nextOffset = pageOffset + CHAT_LIMIT;
+      const newConversations = await getConversations(userData.id, 'alumni', nextOffset, CHAT_LIMIT);
+      if (!newConversations || newConversations.length < CHAT_LIMIT) {
+        setHasMoreChats(false);
+      }
+      if (newConversations && newConversations.length > 0) {
+        setContacts((prevContacts) => {
+          const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
+          newConversations.forEach((conversation) => {
+            if (!conversation?.id) return;
+            const key = conversation.id; // Already composite
+            const baseContact = connectionsMap.get(key) || {};
+            connectionsMap.set(key, {
+              ...baseContact, 
+              ...conversation, 
+              id: conversation.id,
+              connection_id: conversation.connection_id ?? baseContact.connection_id,
+              user_type: conversation.user_type || 'alumni',
+              first_name: conversation.first_name ?? baseContact.first_name, 
+              last_name: conversation.last_name ?? baseContact.last_name, 
+              email: conversation.email ?? baseContact.email, 
+              alumni_photo: conversation.alumni_photo ?? baseContact.alumni_photo,
+            });
           });
+          return Array.from(connectionsMap.values());
         });
-        return Array.from(connectionsMap.values());
-      });
-      setPageOffset(nextOffset);
+        setPageOffset(nextOffset);
+      }
+    } catch (error) {} finally {
+      setIsFetchingMore(false);
     }
-  } catch (error) {} finally {
-    setIsFetchingMore(false);
-  }
-};
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -438,7 +451,6 @@ const handleLoadMore = async () => {
     const contactAvatar = getAvatarUri(contactName, item?.alumni_photo);
     const unreadCount = Number(item?.unread_count ?? (item?.is_read === false ? 1 : 0));
     
-    // Handle different message structures
     const latestMessage =
       item?.latest_message?.content ||
       item?.last_message ||

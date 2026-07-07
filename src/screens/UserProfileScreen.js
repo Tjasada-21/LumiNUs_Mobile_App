@@ -17,9 +17,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import HomeHeader from "../components/HomeHeader"; 
 import styles from "../styles/UserProfileScreen.styles";
 import { getCurrentUser } from "../services/supabaseAuth";
+import supabase from "../services/supabase";
 import {
   getAlumniProfile,
   getAlumniEmployment,
@@ -68,6 +70,7 @@ const UserProfileScreen = ({ navigation }) => {
 
   const [userData, setUserData] = useState(null);
   const [profilePosts, setProfilePosts] = useState([]);
+  const [userSkills, setUserSkills] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -81,8 +84,6 @@ const UserProfileScreen = ({ navigation }) => {
   const [workDraft, setWorkDraft] = useState({ id: null, title: "", subtitle: "", startYear: null, endYear: null, location: "", description: "" });
   const [isWorkSaving, setIsWorkSaving] = useState(false);
   const [yearDropdownType, setYearDropdownType] = useState(null); 
-
-  const skills = ["Programming", "Graphic Design", "Java", "MySQL", "Mobile Programming", "React"];
 
   const profileName = useMemo(() => {
     if (!userData) return "Dela Cruz, Juan Miguel";
@@ -193,6 +194,29 @@ const UserProfileScreen = ({ navigation }) => {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const fetchSkills = async () => {
+        try {
+          const user = await getCurrentUser();
+          if (!user?.id) return;
+          const { data, error } = await supabase
+            .from('alumni_skills')
+            .select('id, skill_name')
+            .eq('alumni_id', user.id)
+            .order('created_at', { ascending: false });
+            
+          if (!error && data) {
+            setUserSkills(data);
+          }
+        } catch (e) {
+          console.error("Error fetching skills", e);
+        }
+      };
+      fetchSkills();
+    }, [])
+  );
+
   const handleRefresh = async () => { setIsRefreshing(true); await loadProfile({ showLoading: false }); setIsRefreshing(false); };
   useEffect(() => { loadProfile(); }, []);
 
@@ -210,14 +234,75 @@ const UserProfileScreen = ({ navigation }) => {
     }
   };
 
+  // --- FIXED FORMATTING FOR POST IMAGE LAYOUT ---
   const renderPostImageLayout = (postId, postImages) => {
-		if (postImages.length === 1) return <View style={[styles.postSingleImageWrap, { aspectRatio: 1.2 }]}><Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" /></View>;
-		if (postImages.length === 2) return <View style={styles.postTwoGrid}><View style={[styles.postTwoPrimaryTile, { aspectRatio: 1.05 }]}><Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" /></View><View style={[styles.postTwoSecondaryTile, { aspectRatio: 0.95 }]}><Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" /></View></View>;
-		if (postImages.length === 3) return <View style={styles.postThreeCollage}><View style={styles.postThreeLeftTile}><Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" /></View><View style={styles.postThreeRightColumn}><View style={styles.postThreeRightTile}><Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" /></View><View style={styles.postThreeRightTile}><Image source={{ uri: getPostImageUri(postImages[2]) }} style={styles.postCollageImage} resizeMode="cover" /></View></View></View>;
-		if (postImages.length === 4) return <View style={styles.postFourGrid}>{postImages.slice(0, 4).map((image, idx) => <View key={image.id ?? idx} style={styles.postFourGridTile}><Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" /></View>)}</View>;
-		const remainingCount = Math.max(postImages.length - 4, 0);
-		return <View style={styles.postFivePlusGrid}>{postImages.slice(0, 4).map((image, idx) => <View key={image.id ?? idx} style={styles.postFivePlusTile}><Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" />{idx === 3 ? <View style={styles.postImageOverlay}><Text style={styles.postImageOverlayText}>+{remainingCount}</Text></View> : null}</View>)}</View>;
-	};
+    if (postImages.length === 1) {
+      return (
+        <View style={[styles.postSingleImageWrap, { aspectRatio: 1.2 }]}>
+          <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+        </View>
+      );
+    }
+    
+    if (postImages.length === 2) {
+      return (
+        <View style={styles.postTwoGrid}>
+          <View style={[styles.postTwoPrimaryTile, { aspectRatio: 1.05 }]}>
+            <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+          </View>
+          <View style={[styles.postTwoSecondaryTile, { aspectRatio: 0.95 }]}>
+            <Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" />
+          </View>
+        </View>
+      );
+    }
+
+    if (postImages.length === 3) {
+      return (
+        <View style={styles.postThreeCollage}>
+          <View style={styles.postThreeLeftTile}>
+            <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+          </View>
+          <View style={styles.postThreeRightColumn}>
+            <View style={styles.postThreeRightTile}>
+              <Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" />
+            </View>
+            <View style={styles.postThreeRightTile}>
+              <Image source={{ uri: getPostImageUri(postImages[2]) }} style={styles.postCollageImage} resizeMode="cover" />
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (postImages.length === 4) {
+      return (
+        <View style={styles.postFourGrid}>
+          {postImages.slice(0, 4).map((image, idx) => (
+            <View key={image.id ?? idx} style={styles.postFourGridTile}>
+              <Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" />
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    const remainingCount = Math.max(postImages.length - 4, 0);
+    return (
+      <View style={styles.postFivePlusGrid}>
+        {postImages.slice(0, 4).map((image, idx) => (
+          <View key={image.id ?? idx} style={styles.postFivePlusTile}>
+            <Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" />
+            {idx === 3 && (
+              <View style={styles.postImageOverlay}>
+                <Text style={styles.postImageOverlayText}>+{remainingCount}</Text>
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   const renderSinglePostContent = (postObj, isNested = false) => {
 		const postAuthorName = getPostAuthorName(postObj);
@@ -329,7 +414,7 @@ const UserProfileScreen = ({ navigation }) => {
               </View>
 
               {/* DARK BLUE SECTION WITH SPACE BACKGROUND */}
-              <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="conver">
+              <ImageBackground source={require("../../assets/images/Demos (1) 1.png")} style={styles.darkSection} resizeMode="cover">
                 
                 {/* Biography */}
                 <View style={styles.darkSectionHeaderRow}>
@@ -342,16 +427,16 @@ const UserProfileScreen = ({ navigation }) => {
                 <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
 
                 {/* Work Experience */}
-<View style={styles.darkSectionHeaderRow}>
-  <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
-  <TouchableOpacity 
-    style={styles.outlineEditPill} 
-    onPress={() => navigation.navigate("WorkExperienceScreen")}
-  >
-    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-    <Text style={styles.outlineEditText}>Edit</Text>
-  </TouchableOpacity>
-</View>
+                <View style={styles.darkSectionHeaderRow}>
+                  <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
+                  <TouchableOpacity 
+                    style={styles.outlineEditPill} 
+                    onPress={() => navigation.navigate("WorkExperienceScreen")}
+                  >
+                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.outlineEditText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
                 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
                   {workExperiences.map((emp, index) => (
@@ -367,29 +452,36 @@ const UserProfileScreen = ({ navigation }) => {
                 </ScrollView>
 
                 {/* Skills */}
-<View style={styles.darkSectionHeaderRow}>
-  <Text style={styles.sectionHeadingYellow}>Skills</Text>
-  {/* Add the onPress prop here to navigate to the new screen */}
-  <TouchableOpacity 
-    style={styles.outlineEditPill} 
-    onPress={() => navigation.navigate("AddSkillsScreen")}
-  >
-    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
-    <Text style={styles.outlineEditText}>Edit</Text>
-  </TouchableOpacity>
-</View>
-
-                <View style={styles.skillsGrid}>
-                  {skills.map((skill, i) => (
-                    <View key={i} style={styles.skillPill}>
-                      <Text style={styles.skillText}>{skill}</Text>
-                    </View>
-                  ))}
+                <View style={styles.darkSectionHeaderRow}>
+                  <Text style={styles.sectionHeadingYellow}>Skills</Text>
+                  <TouchableOpacity 
+                    style={styles.outlineEditPill} 
+                    onPress={() => navigation.navigate("AddSkillsScreen")}
+                  >
+                    <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.outlineEditText}>Edit</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
-                </TouchableOpacity>
+                <View style={styles.skillsGrid}>
+                  {userSkills.length > 0 ? (
+                    userSkills.map((skillObj) => (
+                      <View key={skillObj.id} style={styles.skillPill}>
+                        <Text style={styles.skillText}>{skillObj.skill_name}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={{ color: "rgba(255,255,255,0.6)", paddingHorizontal: 20, fontStyle: 'italic' }}>
+                      No skills added yet.
+                    </Text>
+                  )}
+                </View>
+
+                {userSkills.length > 0 && (
+                  <TouchableOpacity style={styles.viewAllButton}>
+                    <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
+                  </TouchableOpacity>
+                )}
 
               </ImageBackground>
 

@@ -21,6 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeHeader from '../components/HomeHeader';
+import CustomKeyboardView from '../components/CustomKeyboardView';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
@@ -48,7 +49,6 @@ const VIEWER_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.72;
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 const SWIPE_DISMISS_THRESHOLD = 100;
 
-// --- RESTORED UTILITY FUNCTIONS ---
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
   const normalizedValue = typeof dateValue === 'string' ? (dateValue.includes('T') ? dateValue : dateValue.replace(' ', 'T')) : dateValue;
@@ -2059,72 +2059,77 @@ const UserFeedScreen = ({ navigation }) => {
         animationType="slide"
         onRequestClose={closeRepostComposer}
       >
-        <View style={styles.repostModalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
-          <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
-            <Animated.View
-              style={[
-                styles.repostModalCard,
-                { transform: [{ translateY: repostComposerTranslateY }] },
-              ]}
-              onTouchMove={handleRepostComposerSwipe}
-              onTouchEnd={() => {
-                resetSwipeRefs();
-              }}
-            >
-              <View
-                style={{
-                  height: 4,
-                  width: 40,
-                  backgroundColor: '#D1D5DB',
-                  borderRadius: 2,
-                  alignSelf: 'center',
-                  marginTop: 8,
-                  marginBottom: 8,
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.repostModalBackdrop}>
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
+            <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
+              <Animated.View
+                style={[
+                  styles.repostModalCard,
+                  { transform: [{ translateY: repostComposerTranslateY }] },
+                ]}
+                onTouchMove={handleRepostComposerSwipe}
+                onTouchEnd={() => {
+                  resetSwipeRefs();
                 }}
-              />
-              <Text style={styles.repostModalTitle}>Repost with your caption</Text>
-              <Text style={styles.repostModalSubtitle} numberOfLines={1}>
-                {activeRepostPost
-                  ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post`
-                  : 'Add context to your repost'}
-              </Text>
-              <TextInput
-                value={repostCaptionDraft}
-                onChangeText={setRepostCaptionDraft}
-                placeholder="Share your thoughts..."
-                placeholderTextColor="#8A94A6"
-                style={styles.repostCaptionInput}
-                multiline
-                textAlignVertical="top"
-              />
-              {repostMentionContext && repostMentionSuggestions.length > 0 ? (
-                <View style={styles.mentionPanel}>
-                  {repostMentionSuggestions.map((item) => (
-                    <Pressable
-                      key={`repost-mention-${String(item.id ?? item.name)}`}
-                      style={styles.mentionItem}
-                      onPress={() => handleRepostMentionPick(item.handle)}
-                    >
-                      <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                      <Text style={styles.mentionName} numberOfLines={1}>
-                        @{item.handle}
-                      </Text>
-                    </Pressable>
-                  ))}
+              >
+                <View
+                  style={{
+                    height: 4,
+                    width: 40,
+                    backgroundColor: '#D1D5DB',
+                    borderRadius: 2,
+                    alignSelf: 'center',
+                    marginTop: 8,
+                    marginBottom: 8,
+                  }}
+                />
+                <Text style={styles.repostModalTitle}>Repost with your caption</Text>
+                <Text style={styles.repostModalSubtitle} numberOfLines={1}>
+                  {activeRepostPost
+                    ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post`
+                    : 'Add context to your repost'}
+                </Text>
+                <TextInput
+                  value={repostCaptionDraft}
+                  onChangeText={setRepostCaptionDraft}
+                  placeholder="Share your thoughts..."
+                  placeholderTextColor="#8A94A6"
+                  style={styles.repostCaptionInput}
+                  multiline
+                  textAlignVertical="top"
+                />
+                {repostMentionContext && repostMentionSuggestions.length > 0 ? (
+                  <View style={styles.mentionPanel}>
+                    {repostMentionSuggestions.map((item) => (
+                      <Pressable
+                        key={`repost-mention-${String(item.id ?? item.name)}`}
+                        style={styles.mentionItem}
+                        onPress={() => handleRepostMentionPick(item.handle)}
+                      >
+                        <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                        <Text style={styles.mentionName} numberOfLines={1}>
+                          @{item.handle}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={styles.repostModalActionsRow}>
+                  <Pressable style={styles.repostCancelButton} onPress={closeRepostComposer}>
+                    <Text style={styles.repostCancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={styles.repostSubmitButton} onPress={submitRepostWithCaption}>
+                    <Text style={styles.repostSubmitButtonText}>Repost</Text>
+                  </Pressable>
                 </View>
-              ) : null}
-              <View style={styles.repostModalActionsRow}>
-                <Pressable style={styles.repostCancelButton} onPress={closeRepostComposer}>
-                  <Text style={styles.repostCancelButtonText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={styles.repostSubmitButton} onPress={submitRepostWithCaption}>
-                  <Text style={styles.repostSubmitButtonText}>Repost</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
-          </SafeAreaView>
-        </View>
+              </Animated.View>
+            </SafeAreaView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -2179,74 +2184,39 @@ const UserFeedScreen = ({ navigation }) => {
         <View style={styles.commentsModalBackdrop}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
           <SafeAreaView style={styles.commentsSheet} edges={['top', 'bottom']}>
-            <KeyboardAvoidingView 
-              style={{ flex: 1 }} 
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            <Animated.View
+              style={{ flex: 1, transform: [{ translateY: commentsTranslateY }] }}
+              onTouchMove={handleCommentsSwipe}
+              onTouchEnd={() => {
+                resetSwipeRefs();
+              }}
             >
-              <Animated.View
-                style={{ flex: 1, transform: [{ translateY: commentsTranslateY }] }}
-                onTouchMove={handleCommentsSwipe}
-                onTouchEnd={() => {
-                  resetSwipeRefs();
+              {/* Drag Handle */}
+              <View
+                style={{
+                  height: 5,
+                  width: 40,
+                  backgroundColor: '#D1D5DB',
+                  borderRadius: 3,
+                  alignSelf: 'center',
+                  marginTop: 8,
+                  marginBottom: 12,
                 }}
-              >
-                {/* Drag Handle */}
-                <View
-                  style={{
-                    height: 5,
-                    width: 40,
-                    backgroundColor: '#D1D5DB',
-                    borderRadius: 3,
-                    alignSelf: 'center',
-                    marginTop: 8,
-                    marginBottom: 12,
-                  }}
-                />
+              />
 
-                {/* Header Row */}
-                <View style={styles.commentsHeaderRow}>
-                  <Text style={styles.commentsTitle}>
-                    {activeCommentPost?.comment_count ?? comments.length} comments
-                  </Text>
-                  <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
-                    <Ionicons name="close" size={24} color="#1C1C1E" />
-                  </Pressable>
-                </View>
+              {/* Header Row */}
+              <View style={styles.commentsHeaderRow}>
+                <Text style={styles.commentsTitle}>
+                  {activeCommentPost?.comment_count ?? comments.length} comments
+                </Text>
+                <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
+                  <Ionicons name="close" size={24} color="#1C1C1E" />
+                </Pressable>
+              </View>
 
-                {/* Body Content */}
-                <View style={[styles.commentsBody, { flex: 1 }]}>
-                  <ScrollView
-                    style={styles.commentsList}
-                    contentContainerStyle={styles.commentsListContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    nestedScrollEnabled
-                  >
-                    {commentsLoading ? (
-                      <View style={styles.commentsEmptyState}>
-                        <ActivityIndicator size="small" color="#31429B" />
-                        <Text style={styles.commentsEmptyText}>Loading comments...</Text>
-                      </View>
-                    ) : commentsError ? (
-                      <View style={styles.commentsEmptyState}>
-                        <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
-                        <Text style={styles.commentsEmptyText}>{commentsError}</Text>
-                      </View>
-                    ) : comments.length === 0 ? (
-                      <View style={styles.commentsEmptyState}>
-                        <Ionicons
-                          name="chatbubble-ellipses-outline"
-                          size={26}
-                          color="#94A3B8"
-                        />
-                        <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
-                      </View>
-                    ) : (
-                      commentTree.map((thread) => renderCommentNode(thread))
-                    )}
-                  </ScrollView>
-                  
-                  {/* Keyboard Footer Input */}
+              <CustomKeyboardView
+                style={{ flex: 1 }}
+                footer={
                   <View style={styles.commentComposerSafeArea}>
                     <View style={styles.commentComposer}>
                       <View style={styles.commentComposerContent}>
@@ -2338,9 +2308,41 @@ const UserFeedScreen = ({ navigation }) => {
                       </View>
                     </View>
                   </View>
-                </View>
-              </Animated.View>
-            </KeyboardAvoidingView>
+                }
+              >
+                {/* Body Content */}
+                <ScrollView
+                  style={[styles.commentsList, styles.commentsBody]}
+                  contentContainerStyle={styles.commentsListContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                >
+                  {commentsLoading ? (
+                    <View style={styles.commentsEmptyState}>
+                      <ActivityIndicator size="small" color="#31429B" />
+                      <Text style={styles.commentsEmptyText}>Loading comments...</Text>
+                    </View>
+                  ) : commentsError ? (
+                    <View style={styles.commentsEmptyState}>
+                      <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
+                      <Text style={styles.commentsEmptyText}>{commentsError}</Text>
+                    </View>
+                  ) : comments.length === 0 ? (
+                    <View style={styles.commentsEmptyState}>
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={26}
+                        color="#94A3B8"
+                      />
+                      <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
+                    </View>
+                  ) : (
+                    commentTree.map((thread) => renderCommentNode(thread))
+                  )}
+                </ScrollView>
+              </CustomKeyboardView>
+            </Animated.View>
           </SafeAreaView>
         </View>
       </Modal>

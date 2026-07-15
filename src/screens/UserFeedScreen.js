@@ -621,6 +621,49 @@ const UserFeedScreen = ({ navigation }) => {
     return getAvatarUri(renderPostAuthorName(post), source.alumni_photo);
   };
 
+  const connectionIdSet = useMemo(() => {
+    return new Set(
+      connections
+        .map((connection) => String(connection?.id ?? connection?.alumni_id ?? connection?.connection_id ?? ''))
+        .filter(Boolean)
+    );
+  }, [connections]);
+
+  const renderConnectionRepostSummary = useCallback((post) => {
+    const reposters = Array.isArray(post?.reposters) ? post.reposters : [];
+    const connectionReposters = reposters.filter(
+      (reposter) => reposter?.id && connectionIdSet.has(String(reposter.id)),
+    );
+
+    if (connectionReposters.length === 0) {
+      return null;
+    }
+
+    const names = connectionReposters
+      .map((reposter) => [reposter?.first_name, reposter?.middle_name, reposter?.last_name].filter(Boolean).join(' ').trim())
+      .filter(Boolean);
+
+    if (names.length === 0) {
+      return null;
+    }
+
+    const visibleNames = names.slice(0, 2);
+    const remainingCount = names.length - visibleNames.length;
+    const label =
+      names.length >= 3
+        ? `${visibleNames.join(', ')} and ${remainingCount} others`
+        : visibleNames.join(', ');
+
+    return (
+      <View style={styles.repostContextRow}>
+        <Ionicons name="repeat" size={13} color="#15803D" />
+        <Text style={styles.repostContextText} numberOfLines={2}>
+          <Text style={styles.repostContextName}>{label}</Text> reposted this.
+        </Text>
+      </View>
+    );
+  }, [connectionIdSet]);
+
   const getPostVisibilityLabel = (post) => {
     if (post?.is_draft) return 'Draft';
     const visibility = String(post?.visibility ?? 'public').toLowerCase();
@@ -1730,7 +1773,10 @@ const closeCommentsModal = () => {
             )}
           </>
         ) : (
-          renderExpandableCaption(getFeedItemKey(postObj), postObj.caption, styles.postCaption)
+          <>
+            {renderExpandableCaption(getFeedItemKey(postObj), postObj.caption, styles.postCaption)}
+            {!isNested ? renderConnectionRepostSummary(postObj) : null}
+          </>
         )}
 
         {postImages.length > 0 ? renderPostImageLayout(postObj, postObj.id, postImages) : null}
@@ -1811,59 +1857,6 @@ const closeCommentsModal = () => {
         ) : (
           <View>
             {displayedPosts.map((post) => {
-              const isRepostFeedItem = post.feed_type === 'repost';
-              const originalPost = post.original_post ?? null;
-
-              if (isRepostFeedItem && originalPost) {
-                const reposterName = renderPostAuthorName(post);
-                const reposterAvatar = renderPostAvatarUri(post);
-                return (
-                  <View key={getFeedItemKey(post)} style={styles.repostWrapper}>
-                    <View style={styles.repostBanner}>
-                      <Image source={{ uri: reposterAvatar }} style={styles.repostBannerAvatar} />
-                      <Text style={styles.repostBannerText} numberOfLines={1}>
-                        <Text style={styles.repostBannerName}>{reposterName}</Text> reposted this.
-                      </Text>
-                    </View>
-                    <View style={styles.repostInnerCard}>
-                      {renderSinglePostContent(originalPost, true)}
-
-                      <View style={styles.postReactionRow}>
-                        <Pressable
-                          style={styles.postActionButton}
-                          onPress={() => handlePostReaction(post)}
-                        >
-                          <Ionicons
-                            name={post.my_reaction ? 'heart' : 'heart-outline'}
-                            size={22}
-                            color={post.my_reaction ? '#EF4444' : '#31429B'}
-                          />
-                          <Text style={styles.postActionCount}>{post.reaction_count ?? 0}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.postActionButton}
-                          onPress={() => handlePostComment(post)}
-                        >
-                          <Ionicons name="chatbubble-outline" size={20} color="#31429B" />
-                          <Text style={styles.postActionCount}>{post.comment_count ?? 0}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.postActionButton}
-                          onPress={() => openRepostComposer(post)}
-                        >
-                          <Ionicons
-                            name="repeat"
-                            size={22}
-                            color={post.my_repost ? '#15803D' : '#31429B'}
-                          />
-                          <Text style={styles.postActionCount}>{post.repost_count ?? 0}</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                );
-              }
-
               return (
                 <View key={getFeedItemKey(post)} style={styles.postCard}>
                   {renderSinglePostContent(post)}

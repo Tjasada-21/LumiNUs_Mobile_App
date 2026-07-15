@@ -1,11 +1,13 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View, Platform } from "react-native";
+import { Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AvatarInitials from "./AvatarInitials";
 
 const ChatHeader = ({
   title,
   subtitle,
   avatarUri,
+  avatarName,
   onBackPress,
   onProfilePress,
   onInfoPress,
@@ -32,7 +34,7 @@ const ChatHeader = ({
         </Pressable>
 
         <Pressable style={styles.headerProfileWrap} onPress={onProfilePress}>
-          <Image source={{ uri: avatarUri }} style={styles.headerAvatar} />
+          <AvatarInitials name={avatarName ?? title} uri={avatarUri} size={44} style={styles.headerAvatar} />
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {title}

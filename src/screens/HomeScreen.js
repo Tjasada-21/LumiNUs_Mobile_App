@@ -250,9 +250,13 @@ const HomeScreen = ({ navigation }) => {
     if (supported) await Linking.openURL(url);
   };
 
+  const openNUQuestWebsite = async () => {
+    const url = "https://onlineapp.nu-lipa.edu.ph/quest/home.php";
+    const supported = await Linking.canOpenURL(url);
+    if (supported) await Linking.openURL(url);
+  };
+
   const openPerksScreen = () => {
-    const parentNavigator = navigation.getParent?.();
-    if (parentNavigator?.navigate) { parentNavigator.navigate("Explore", { screen: "Perks" }); return; }
     navigation.navigate("Explore", { screen: "Perks" });
   };
 
@@ -315,7 +319,7 @@ const HomeScreen = ({ navigation }) => {
     { key: "perks", label: "Perks", icon: require("../../assets/images/view-perks-icon-in-blue-1.png"), onPress: openPerksScreen },
     { key: "yearbook", label: "Yearbook", icon: require("../../assets/images/view-yearbook-icon.png"), onPress: openViewYearbook },
     { key: "website", label: "NU Website", icon: require("../../assets/images/nulogo.png"), onPress: openNUWebsite },
-    { key: "nuquest", label: "NUQuest", icon: require("../../assets/images/NUQuest_Logo.png"), onPress: openTracerScreen },
+    { key: "nuquest", label: "NUQuest", icon: require("../../assets/images/NUQuest_Logo.png"), onPress: openNUQuestWebsite },
   ];
 
   const toggleIdCard = () => {

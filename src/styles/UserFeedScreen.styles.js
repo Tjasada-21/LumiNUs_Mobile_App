@@ -197,6 +197,23 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_700Bold",
     marginBottom: 6,
   },
+  repostContextRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginBottom: 12,
+  },
+  repostContextText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#475569",
+    fontFamily: "Poppins_400Regular",
+  },
+  repostContextName: {
+    fontFamily: "Poppins_700Bold",
+    color: "#15803D",
+  },
 
   // --- POST IMAGES ---
   postSingleImageWrap: {

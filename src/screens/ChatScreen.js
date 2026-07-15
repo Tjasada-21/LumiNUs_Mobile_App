@@ -29,6 +29,7 @@ import {
 } from "../services/messageQueries";
 import { getFollowers, getFollowing } from "../services/connectionQueries";
 import { getAvatarUri } from "../utils/imageUtils";
+import AvatarInitials from "../components/AvatarInitials";
 import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
 import { useUnreadMessages } from "../context/UnreadMessagesContext";
 import styles from "../styles/ChatScreen.styles";
@@ -472,7 +473,7 @@ const ChatScreen = ({ navigation }) => {
         onPress={() => openConversation(item)}
         onLongPress={() => { setModalContact(item); setIsActionModalVisible(true); }}
       >
-        <Image source={{ uri: contactAvatar }} style={styles.chatAvatar} />
+        <AvatarInitials name={contactName} uri={contactAvatar} size={48} style={styles.chatAvatar} />
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{contactName}</Text>
@@ -559,7 +560,7 @@ const ChatScreen = ({ navigation }) => {
         onPress={() => openGroupConversation(item)}
         onLongPress={() => { setModalGroup(item); setIsGroupActionModalVisible(true); }}
       >
-        <Image source={{ uri: groupAvatar }} style={styles.chatAvatar} />
+        <AvatarInitials name={groupName} uri={groupAvatar} size={48} style={styles.chatAvatar} />
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{groupName}</Text>
@@ -652,7 +653,7 @@ const ChatScreen = ({ navigation }) => {
               </TouchableOpacity>
              
               <TouchableOpacity style={styles.avatarButton}>
-                <Image source={{ uri: avatarUri }} style={styles.headerAvatar} />
+                <AvatarInitials name={displayName} uri={avatarUri} size={36} style={styles.headerAvatar} />
               </TouchableOpacity>
             </View>
           </View>

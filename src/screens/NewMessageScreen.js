@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   FlatList,
   Image,
+  Modal,
+  Pressable,
   SafeAreaView,
   Platform,
   KeyboardAvoidingView,
@@ -14,13 +17,19 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
-import { getAvatarUri } from "../utils/imageUtils";
+import { createGroupChat } from "../services/messageQueries";
+import AvatarInitials from "../components/AvatarInitials";
 import styles from "../styles/NewMessageScreen.styles";
 
 export default function NewMessageScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -33,6 +42,7 @@ export default function NewMessageScreen({ navigation }) {
       // Get the currently logged-in user so we don't show them in their own list
       const currentUser = await getCurrentUser().catch(() => null);
       const currentUserId = currentUser?.id;
+      setCurrentUserId(currentUserId ?? null);
 
       // Fetch all alumni from Supabase
       const { data, error } = await supabase
@@ -58,6 +68,51 @@ export default function NewMessageScreen({ navigation }) {
     return fullName.includes(searchQuery.toLowerCase());
   });
 
+  const selectedUsers = users.filter((user) => selectedMemberIds.includes(user.id));
+
+  const openGroupModal = () => {
+    setGroupName("");
+    setSelectedMemberIds([]);
+    setIsGroupModalVisible(true);
+  };
+
+  const toggleSelectedMember = (userId) => {
+    setSelectedMemberIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId],
+    );
+  };
+
+  const handleCreateGroupChat = async () => {
+    if (!currentUserId) {
+      Alert.alert("Error", "Your account could not be identified.");
+      return;
+    }
+
+    if (selectedMemberIds.length < 1) {
+      Alert.alert("Select members", "Choose at least one connection to create a group chat.");
+      return;
+    }
+
+    try {
+      setIsCreatingGroup(true);
+      const finalGroupName = groupName.trim() || "Group Chat";
+      const createdGroup = await createGroupChat(currentUserId, finalGroupName, selectedMemberIds);
+
+      setIsGroupModalVisible(false);
+      navigation.navigate("ConvoScreen", {
+        groupId: createdGroup.id,
+        groupName: finalGroupName,
+        groupMembers: selectedUsers,
+      });
+    } catch (error) {
+      Alert.alert("Unable to create group", error?.message || "Please try again.");
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
   const openChat = (selectedUser) => {
     const fullName = `${selectedUser.first_name || ""} ${selectedUser.last_name || ""}`.trim();
     navigation.navigate("ConvoScreen", {
@@ -69,11 +124,15 @@ export default function NewMessageScreen({ navigation }) {
 
   const renderItem = ({ item }) => {
     const fullName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
-    const avatarUrl = getAvatarUri(fullName, item.alumni_photo);
+    const isSelected = selectedMemberIds.includes(item.id);
 
     return (
-      <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={() => openChat(item)}>
-        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+      <TouchableOpacity
+        style={styles.listItem}
+        activeOpacity={0.7}
+        onPress={() => openChat(item)}
+      >
+        <AvatarInitials name={fullName} uri={item.alumni_photo} size={50} style={styles.avatar} />
         <Text style={styles.nameText}>{fullName}</Text>
       </TouchableOpacity>
     );
@@ -109,6 +168,11 @@ export default function NewMessageScreen({ navigation }) {
         {/* THIN DIVIDER LINE */}
         <View style={styles.divider} />
 
+        <TouchableOpacity style={styles.createGroupButton} activeOpacity={0.85} onPress={openGroupModal}>
+          <Ionicons name="people-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.createGroupButtonText}>Create Group Chat</Text>
+        </TouchableOpacity>
+
         {/* LIST */}
         {isLoading ? (
           <View style={styles.centerWrap}>
@@ -139,6 +203,74 @@ export default function NewMessageScreen({ navigation }) {
           />
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={isGroupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsGroupModalVisible(false)}
+      >
+        <Pressable style={styles.groupModalBackdrop} onPress={() => setIsGroupModalVisible(false)} />
+        <View style={styles.groupModalContainer}>
+          <View style={styles.groupModalCard}>
+            <View style={styles.groupModalHeader}>
+              <Text style={styles.groupModalTitle}>Create Group Chat</Text>
+              <Pressable onPress={() => setIsGroupModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#1C1C1E" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.groupModalLabel}>Group Name</Text>
+            <TextInput
+              value={groupName}
+              onChangeText={setGroupName}
+              placeholder="Optional group name"
+              placeholderTextColor="#9CA3AF"
+              style={styles.groupNameInput}
+            />
+
+            <Text style={styles.groupModalLabel}>Select members</Text>
+            <Text style={styles.groupModalHint}>Tap connections to include them in the group.</Text>
+
+            <FlatList
+              data={displayedUsers}
+              keyExtractor={(item) => String(item.id)}
+              style={styles.groupMemberList}
+              contentContainerStyle={styles.groupMemberListContent}
+              renderItem={({ item }) => {
+                const fullName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
+                const isSelected = selectedMemberIds.includes(item.id);
+
+                return (
+                  <Pressable
+                    style={[styles.groupMemberRow, isSelected && styles.groupMemberRowSelected]}
+                    onPress={() => toggleSelectedMember(item.id)}
+                  >
+                    <AvatarInitials name={fullName} uri={item.alumni_photo} size={38} style={styles.groupMemberAvatar} />
+                    <Text style={styles.groupMemberName} numberOfLines={1}>{fullName}</Text>
+                    <View style={[styles.groupMemberCheck, isSelected && styles.groupMemberCheckSelected]}>
+                      {isSelected ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+
+            <TouchableOpacity
+              style={[styles.groupCreateButton, isCreatingGroup && styles.groupCreateButtonDisabled]}
+              onPress={handleCreateGroupChat}
+              disabled={isCreatingGroup}
+              activeOpacity={0.85}
+            >
+              {isCreatingGroup ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.groupCreateButtonText}>Create</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -414,6 +414,32 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
       ]),
     );
 
+    const repostersByPostId = (repostsData || []).reduce((map, repost) => {
+      const originalPostId = repost?.original_post?.id ?? repost?.post_id ?? null;
+      const reposter = repost?.alumni ?? repost?.alumnis ?? repost?.author ?? null;
+
+      if (!originalPostId || !reposter?.id) {
+        return map;
+      }
+
+      const key = String(originalPostId);
+      const currentList = map.get(key) ?? [];
+      if (currentList.some((item) => String(item?.id) === String(reposter.id))) {
+        return map;
+      }
+
+      currentList.push({
+        id: reposter.id,
+        first_name: reposter.first_name ?? null,
+        middle_name: reposter.middle_name ?? null,
+        last_name: reposter.last_name ?? null,
+        alumni_photo: reposter.alumni_photo ?? null,
+        created_at: repost.created_at ?? null,
+      });
+      map.set(key, currentList);
+      return map;
+    }, new Map());
+
     const announcementReactionCountById = (
       announcementReactionCountsResult.data || []
     ).reduce((countMap, reaction) => {
@@ -433,25 +459,8 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
     ).map((post) => ({
       ...post,
       my_repost: userRepostByPostId.has(String(post?.id ?? "")),
+      reposters: repostersByPostId.get(String(post?.id ?? "")) ?? [],
     }));
-    const normalizedReposts = (repostsData || [])
-      .map((repost) =>
-        normalizeRepostFeedItem(
-          repost,
-          userRepostByPostId.has(
-            String(repost?.original_post?.id ?? repost?.post_id ?? ""),
-          ),
-        ),
-      )
-      .filter(Boolean)
-      .map((repost) => ({
-        ...repost,
-        my_reaction:
-          postReactionsResult.data?.find(
-            (reaction) =>
-              String(reaction?.post_id) === String(repost.original_post_id),
-          )?.reaction ?? null,
-      }));
     const normalizedAnnouncements = (announcementsData || [])
       .map((announcement) =>
         normalizeAnnouncementFeedItem(
@@ -469,7 +478,6 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
 
     const rankedFeed = [
       ...normalizedPosts,
-      ...normalizedReposts,
       ...normalizedAnnouncements,
     ]
       .map((item) => ({

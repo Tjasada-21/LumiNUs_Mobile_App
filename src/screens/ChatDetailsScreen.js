@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getAvatarUri } from "../utils/imageUtils";
+import AvatarInitials from "../components/AvatarInitials";
 import {
   addGroupMember,
   getGroupChat,
@@ -392,10 +393,10 @@ const ChatDetailsScreen = ({ route, navigation }) => {
             {/* PROFILE INFO SECTION */}
             <View style={styles.profileSection}>
               {isDM ? (
-                <Image source={{ uri: dmAvatar }} style={styles.avatarCircular} />
+                <AvatarInitials name={dmName} uri={dmAvatar} size={88} style={styles.avatarCircular} />
               ) : (
                 <View style={styles.avatarSquareWrap}>
-                  <Image source={{ uri: groupAvatarUri }} style={styles.avatarSquare} />
+                  <AvatarInitials name={groupName} uri={groupAvatarUri} size={88} style={styles.avatarSquare} />
                 </View>
               )}
               
@@ -525,7 +526,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
                 keyExtractor={(item) => String(item.id)}
                 renderItem={({ item }) => (
                   <View style={styles.candidateRow}>
-                    <Image source={{ uri: item.avatar }} style={styles.candidateAvatar} />
+                    <AvatarInitials name={item.name} uri={item.avatar} size={36} style={styles.candidateAvatar} />
                     <Text style={styles.candidateName} numberOfLines={1}>{item.name}</Text>
                     <TouchableOpacity style={styles.candidateAddButton} onPress={() => handleAddMember(item)}>
                       <Text style={styles.candidateAddButtonText}>Add</Text>

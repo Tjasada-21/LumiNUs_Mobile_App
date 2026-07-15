@@ -48,6 +48,7 @@ import {
   subscribeToGroupMessages,
 } from "../services/realtimeMessageService";
 import { getAvatarUri } from "../utils/imageUtils";
+import AvatarInitials from "../components/AvatarInitials";
 import CustomKeyboardView from "../components/CustomKeyboardView";
 import styles from "../styles/ConvoScreen.styles";
 import ChatHeader from "../components/ChatHeader";
@@ -863,6 +864,7 @@ export default function ConvoScreen() {
           isOutgoing={isOutgoing}
           showAvatar={!isOutgoing}
           senderAvatar={senderAvatar}
+          senderName={senderName}
           onLongPress={() => openMessageActions(item)}
           onSwipeReply={handleSwipeReply}
           onMentionPress={handleMentionPress}
@@ -996,6 +998,7 @@ export default function ConvoScreen() {
               title={conversationName}
               subtitle={headerSubtitle}
               avatarUri={getAvatarUri(conversationName, conversationAvatar)}
+              avatarName={isGroup ? (groupMembers.map((member) => member?.name).filter(Boolean).join(" ") || conversationName) : conversationName}
               onBackPress={() => navigation.goBack()}
               onProfilePress={() => {}}
               onCallPress={() => initiateCall("audio")}

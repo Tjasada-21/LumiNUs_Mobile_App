@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Animated,
   PanResponder,
   Linking,
 } from "react-native";
+import AvatarInitials from "./AvatarInitials";
 
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 
@@ -60,6 +60,7 @@ const MessageBubble = ({
   isOutgoing,
   showAvatar,
   senderAvatar,
+  senderName,
   onLongPress,
   onSwipeReply,
   read,
@@ -137,7 +138,7 @@ const MessageBubble = ({
     >
       {!isOutgoing ? (
         showAvatar ? (
-          <Image source={{ uri: senderAvatar }} style={styles.avatar} />
+          <AvatarInitials name={senderName} uri={senderAvatar} size={24} style={styles.avatar} />
         ) : (
           <View style={styles.avatarSpacer} />
         )

@@ -137,6 +137,12 @@ const MainTabNavigator = () => {
           tabBarActiveTintColor: "#31429B",
           tabBarInactiveTintColor: "#31429B",
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            event.preventDefault();
+            navigation.navigate("Explore", { screen: "ExploreHome" });
+          },
+        })}
       />
       <Tab.Screen 
         name="Feed" 

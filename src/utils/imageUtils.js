@@ -29,6 +29,8 @@ const getAvatarInitials = (name) => {
   return initials || rawName.charAt(0).toUpperCase() || "U";
 };
 
+export { getAvatarInitials };
+
 const createLocalAvatarDataUri = (
   name,
   background = DEFAULT_AVATAR_BACKGROUND,

@@ -381,7 +381,41 @@ const SectionQuestionsScreen = ({ navigation, route }) => {
     setSaving(true);
 
     try {
-      await saveAnswerDraft(responseId, currentQuestion.id, value || '');
+      // Build selections for choice-based questions
+      let selections = undefined;
+      
+      switch (currentQuestion.type) {
+        case 'multiple_choice':
+        case 'dropdown':
+        case 'likert_scale':
+          // Single selection - value is the option ID
+          if (value) {
+            selections = [{ optionId: parseInt(value), gridColumnId: null }];
+          }
+          break;
+          
+        case 'checkboxes':
+          // Multiple selections - value is comma-separated IDs
+          if (value) {
+            selections = value.split(',').map(id => ({
+              optionId: parseInt(id.trim()),
+              gridColumnId: null
+            }));
+          }
+          break;
+          
+        default:
+          // short_answer, paragraph - no selections needed
+          selections = undefined;
+          break;
+      }
+
+      await saveAnswerDraft(
+        responseId, 
+        currentQuestion.id, 
+        value || '', 
+        { selections }
+      );
       return true;
     } catch (error) {
       console.error("[SectionQuestions] Save error:", error);

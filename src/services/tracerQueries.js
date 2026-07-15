@@ -1,14 +1,10 @@
 import supabase from "./supabase";
 
-export const DRAFT_SUBMITTED_AT_SENTINEL = "1970-01-01T00:00:00.000Z";
-
 /**
  * Get all phases from active forms
- * This is what the TracerMenuScreen needs - a list of phases
  */
 export const getTracerForms = async () => {
   try {
-    // Get ALL phases directly without form status filtering
     const { data: phases, error } = await supabase
       .from("tracer_phases")
       .select(`
@@ -42,7 +38,6 @@ export const getTracerForms = async () => {
 
     console.log("[tracer] Phases fetched:", phases?.length || 0);
 
-    // Sort sections and questions
     if (phases) {
       phases.forEach(phase => {
         if (phase.sections) {
@@ -64,7 +59,7 @@ export const getTracerForms = async () => {
 };
 
 /**
- * Get a single phase by ID with all its sections and questions
+ * Get a single phase by ID
  */
 export const getPhaseById = async (phaseId) => {
   try {
@@ -112,11 +107,9 @@ export const getPhaseById = async (phaseId) => {
 
 /**
  * Get tracer progress for a specific alumni
- * Calculates which sections have been completed across all phases
  */
 export const getTracerProgress = async (alumniId) => {
   try {
-    // Get the latest response for this alumni (across all forms)
     const { data: response, error: responseError } = await supabase
       .from("tracer_responses")
       .select("id, form_id, status")
@@ -136,7 +129,6 @@ export const getTracerProgress = async (alumniId) => {
       };
     }
 
-    // Get all sections for this form
     const { data: phases, error: phasesError } = await supabase
       .from("tracer_phases")
       .select(`
@@ -150,7 +142,6 @@ export const getTracerProgress = async (alumniId) => {
 
     if (phasesError) throw phasesError;
 
-    // Get answered questions for this response
     const { data: answers, error: answersError } = await supabase
       .from("tracer_answers")
       .select("question_id")
@@ -193,42 +184,47 @@ export const getTracerProgress = async (alumniId) => {
 };
 
 /**
- * Get or create draft response for a form
+ * Get or create draft response - FINAL VERSION (no sentinel date)
  */
 export const getOrCreateDraftResponse = async (alumniId, formId) => {
   try {
-    // Check for existing draft
+    console.log("🔍 Looking for draft: alumniId=", alumniId, "formId=", formId);
+
+    // Find existing in_progress draft (submitted_at is null)
     const { data: existing, error: existingError } = await supabase
       .from("tracer_responses")
       .select("*")
       .eq("alumni_id", alumniId)
       .eq("form_id", formId)
-      .eq("submitted_at", DRAFT_SUBMITTED_AT_SENTINEL)
+      .eq("status", "in_progress")
+      .is("submitted_at", null)
       .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    console.log("🔍 Existing draft:", existing?.id || "NONE", "| Error:", existingError);
 
     if (existingError) throw existingError;
     if (existing?.id) return existing;
 
     // Create new draft
+    console.log("📝 Creating NEW draft...");
     const { data: newDraft, error: createError } = await supabase
       .from("tracer_responses")
-      .insert([
-        {
-          alumni_id: alumniId,
-          form_id: formId,
-          status: "in_progress",
-          submitted_at: DRAFT_SUBMITTED_AT_SENTINEL,
-        },
-      ])
+      .insert([{
+        alumni_id: alumniId,
+        form_id: formId,
+        status: "in_progress",
+      }])
       .select()
       .single();
+
+    console.log("📝 New draft created:", newDraft?.id, "| Error:", createError);
 
     if (createError) throw createError;
     return newDraft;
   } catch (error) {
-    console.error("[tracer] Get or create draft error:", error.message);
+    console.error("❌ getOrCreateDraft error:", error.message);
     throw error;
   }
 };
@@ -240,7 +236,8 @@ export const saveAnswerDraft = async (responseId, questionId, value, options = {
   try {
     const { filePath, fileName, gridRowId, selections } = options;
 
-    // Check if answer exists for this question
+    console.log("💾 Saving answer:", { responseId, questionId, value: value?.substring(0, 30), hasSelections: !!selections });
+
     const { data: existingData, error: existingError } = await supabase
       .from("tracer_answers")
       .select("id")
@@ -253,7 +250,7 @@ export const saveAnswerDraft = async (responseId, questionId, value, options = {
     let answerId;
 
     if (existingData) {
-      // Update existing answer
+      console.log("🔄 Updating existing answer:", existingData.id);
       const { error } = await supabase
         .from("tracer_answers")
         .update({
@@ -264,31 +261,37 @@ export const saveAnswerDraft = async (responseId, questionId, value, options = {
         })
         .eq("id", existingData.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Update error:", error);
+        throw error;
+      }
       answerId = existingData.id;
     } else {
-      // Create new answer
+      console.log("➕ Creating new answer...");
       const { data, error } = await supabase
         .from("tracer_answers")
-        .insert([
-          {
-            tracer_response_id: responseId,
-            question_id: questionId,
-            answer_value: value,
-            file_path: filePath || null,
-            file_name: fileName || null,
-            grid_row_id: gridRowId || null,
-          },
-        ])
+        .insert([{
+          tracer_response_id: responseId,
+          question_id: questionId,
+          answer_value: value,
+          file_path: filePath || null,
+          file_name: fileName || null,
+          grid_row_id: gridRowId || null,
+        }])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Insert error:", error);
+        throw error;
+      }
       answerId = data.id;
     }
 
-    // Handle selections (for multiple choice, checkboxes, grids)
+    // Handle selections
     if (selections !== undefined) {
+      console.log("🔗 Updating selections for answer:", answerId, selections);
+      
       await supabase
         .from("tracer_answer_selections")
         .delete()
@@ -305,13 +308,17 @@ export const saveAnswerDraft = async (responseId, questionId, value, options = {
           .from("tracer_answer_selections")
           .insert(selectionRecords);
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error("❌ Selections insert error:", insertError);
+          throw insertError;
+        }
       }
     }
 
+    console.log("✅ Answer saved successfully:", answerId);
     return { id: answerId, question_id: questionId, answer_value: value };
   } catch (error) {
-    console.error("[tracer] Save answer error:", error.message);
+    console.error("❌ saveAnswerDraft error:", error.message, error);
     throw error;
   }
 };
@@ -321,6 +328,8 @@ export const saveAnswerDraft = async (responseId, questionId, value, options = {
  */
 export const getDraftAnswers = async (responseId) => {
   try {
+    console.log("📖 Fetching draft answers for response:", responseId);
+    
     const { data, error } = await supabase
       .from("tracer_answers")
       .select(`
@@ -339,9 +348,11 @@ export const getDraftAnswers = async (responseId) => {
       .eq("tracer_response_id", responseId);
 
     if (error) throw error;
+    
+    console.log("📖 Draft answers fetched:", data?.length || 0);
     return data || [];
   } catch (error) {
-    console.error("[tracer] Get draft answers error:", error.message);
+    console.error("❌ getDraftAnswers error:", error.message);
     throw error;
   }
 };
@@ -351,6 +362,8 @@ export const getDraftAnswers = async (responseId) => {
  */
 export const submitDraftResponse = async (responseId) => {
   try {
+    console.log("📤 Submitting response:", responseId);
+    
     const { data, error } = await supabase
       .from("tracer_responses")
       .update({
@@ -361,10 +374,15 @@ export const submitDraftResponse = async (responseId) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("❌ Submit error:", error);
+      throw error;
+    }
+    
+    console.log("✅ Response submitted successfully:", data?.id);
     return data;
   } catch (error) {
-    console.error("[tracer] Submit draft error:", error.message);
+    console.error("❌ submitDraft error:", error.message);
     throw error;
   }
 };

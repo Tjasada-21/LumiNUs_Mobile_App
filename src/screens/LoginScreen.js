@@ -7,6 +7,10 @@ import {
   ImageBackground,
   Image,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
 } from "react-native";
 import SmartTextInput from "../components/SmartTextInput";
 import { Ionicons } from "@expo/vector-icons";
@@ -181,112 +185,130 @@ const LoginScreen = ({ navigation }) => {
       style={styles.backgroundImage}
       resizeMode="cover"
     >
-      {/* SECTION: Login card */}
-      <Animated.View
-        style={[
-          styles.cardContainer,
-          {
-            opacity: cardReveal,
-            transform: [
-              {
-                translateY: cardReveal.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [18, 0],
-                }),
-              },
-              {
-                scale: cardReveal.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.985, 1],
-                }),
-              },
-            ],
-          },
-        ]}
+      <StatusBar barStyle="light-content" backgroundColor="#31429B" />
+      
+      {/* SECTION: Keyboard avoiding wrapper */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
-        {/* SECTION: Logo */}
-        <Image
-          source={require("../../assets/images/lumi-n-us-logo-landscape-2.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-
-        {/* SECTION: Email field */}
-        <Text style={styles.label}>Email Address</Text>
-        <SmartTextInput
-          style={styles.input}
-          placeholder="Enter Your Email Address"
-          placeholderTextColor="#A0A0A0"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          editable={!loading}
-        />
-
-        {/* SECTION: Password field */}
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordContainer}>
-          <SmartTextInput
-            style={styles.passwordInput}
-            placeholder="Enter Your Password"
-            placeholderTextColor="#A0A0A0"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            editable={!loading}
-          />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}
-            disabled={loading}
-          >
-            <Ionicons
-              name={showPassword ? "eye-off" : "eye"}
-              size={20}
-              color="#666"
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* SECTION: Login options */}
-        <View style={styles.optionsRow}>
-          <TouchableOpacity
-            style={styles.rememberContainer}
-            onPress={() => setRememberMe(!rememberMe)}
-            disabled={loading}
-          >
-            <View
-              style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
-            >
-              {rememberMe && (
-                <Ionicons name="checkmark" size={14} color="#31429B" />
-              )}
-            </View>
-            <Text style={styles.optionText}>Remember Me</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => navigation.navigate("ForgetPassword")}
-            disabled={loading}
-          >
-            <Text style={styles.optionText}>Forget Password?</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* SECTION: Submit button */}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleLogin}
-          disabled={loading}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {loading ? (
-            <ActivityIndicator color="#31429B" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
+          {/* SECTION: Login card */}
+          <Animated.View
+            style={[
+              styles.cardContainer,
+              {
+                opacity: cardReveal,
+                transform: [
+                  {
+                    translateY: cardReveal.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                  {
+                    scale: cardReveal.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.985, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {/* SECTION: Logo */}
+            <Image
+              source={require("../../assets/images/lumi-n-us-logo-landscape-2.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+
+            {/* SECTION: Email field */}
+            <Text style={styles.label}>Email Address</Text>
+            <SmartTextInput
+              style={styles.input}
+              placeholder="Enter Your Email Address"
+              placeholderTextColor="#A0A0A0"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+            />
+
+            {/* SECTION: Password field */}
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordContainer}>
+              <SmartTextInput
+                style={styles.passwordInput}
+                placeholder="Enter Your Password"
+                placeholderTextColor="#A0A0A0"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#666"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* SECTION: Login options */}
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={styles.rememberContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+                disabled={loading}
+              >
+                <View
+                  style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
+                >
+                  {rememberMe && (
+                    <Ionicons name="checkmark" size={14} color="#31429B" />
+                  )}
+                </View>
+                <Text style={styles.optionText}>Remember Me</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => navigation.navigate("ForgetPassword")}
+                disabled={loading}
+              >
+                <Text style={styles.optionText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* SECTION: Submit button */}
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#31429B" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 };

@@ -16,6 +16,7 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -156,18 +157,6 @@ const ZoomableViewer = ({
   const pinchStartScaleRef = useRef(1);
   const isPinchingRef = useRef(false);
   const resolvedImages = images.filter((image) => Boolean(image?.uri));
-
-  useEffect(() => {
-    if (!visible) {
-      scale.setValue(1);
-      zoomedInRef.current = false;
-      return;
-    }
-    const clampedInitialIndex = clamp(initialIndex, 0, Math.max(resolvedImages.length - 1, 0));
-    requestAnimationFrame(() => {
-      pagerRef.current?.scrollTo({ x: clampedInitialIndex * SCREEN_WIDTH, y: 0, animated: false });
-    });
-  }, [initialIndex, resolvedImages.length, scale, visible]);
 
   const handleImageTap = () => {
     const now = Date.now();
@@ -384,6 +373,10 @@ const UserFeedScreen = ({ navigation }) => {
   const commentsSwipeStartRef = useRef(0);
   const commentsInitialYRef = useRef(0);
 
+  const commentsScrollViewRef = useRef(null);
+  const isClosingRef = useRef(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   const applyRubberBandingOffset = (distance) => {
     const RESISTANCE_FACTOR = 0.3;
     if (distance <= 0) return distance;
@@ -426,21 +419,34 @@ const UserFeedScreen = ({ navigation }) => {
       commentsInitialYRef.current = 0;
     }
     const distance = currentY - commentsSwipeStartRef.current;
-    commentsTranslateY.setValue(applyRubberBandingOffset(distance));
-    if (distance > SWIPE_DISMISS_THRESHOLD && distance > 0) {
-      closeCommentsModal();
-      commentsSwipeStartRef.current = 0;
+    
+    // Only apply rubber banding for positive distance (swiping down)
+    // Allow full range of motion without rubber banding for better feel
+    let newValue = distance;
+    if (distance > 0) {
+      // Apply slight resistance for a natural feel
+      newValue = distance * 0.6;
     }
+    
+    commentsTranslateY.setValue(newValue);
   };
-
+  
   const resetSwipeRefs = () => {
-    postActionsSwipeStartRef.current = 0;
-    repostComposerSwipeStartRef.current = 0;
-    commentsSwipeStartRef.current = 0;
-    Animated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
-    Animated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
-    Animated.spring(commentsTranslateY, { toValue: 0, useNativeDriver: false }).start();
-  };
+  postActionsSwipeStartRef.current = 0;
+  repostComposerSwipeStartRef.current = 0;
+  commentsSwipeStartRef.current = 0;
+  
+  Animated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
+  Animated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
+  
+  // Make sure comments translateY resets properly
+  Animated.spring(commentsTranslateY, { 
+    toValue: 0, 
+    useNativeDriver: false,
+    tension: 40,
+    friction: 8,
+  }).start();
+};
 
   const repostMentionContext = useMemo(() => extractMentionQuery(repostCaptionDraft), [repostCaptionDraft]);
   const commentMentionContext = useMemo(() => extractMentionQuery(commentDraft), [commentDraft]);
@@ -507,6 +513,23 @@ const UserFeedScreen = ({ navigation }) => {
       return getFeedItemTimestamp(b) - getFeedItemTimestamp(a);
     });
   }, [feedRefreshNonce, feedSortMode, posts]);
+
+  
+    // ✅ ADD THIS USEEFFECT INSIDE UserFeedScreen COMPONENT
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      if (commentsVisible) {
+        // Small delay ensures the layout has fully recalculated before scrolling
+        setTimeout(() => {
+          commentsScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, [commentsVisible]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -1016,20 +1039,40 @@ const UserFeedScreen = ({ navigation }) => {
     setViewerPost(null);
   };
 
-  const handlePostComment = useCallback((post) => {
-    setActiveCommentPost(post);
-    setReplyingToComment(null);
-    setCommentDraft('');
-    setComments([]);
-    setCommentsError('');
-    setExpandedCommentParents({});
-    setCommentsVisible(true);
-  }, []);
+// Update the handlePostComment function
+const handlePostComment = useCallback((post) => {
+  // Reset closing flag when opening
+  isClosingRef.current = false;
+  
+  setActiveCommentPost(post);
+  setReplyingToComment(null);
+  setCommentDraft('');
+  setComments([]);
+  setCommentsError('');
+  setExpandedCommentParents({});
+  // Set initial position to bottom for slide-up animation
+  commentsTranslateY.setValue(SCREEN_HEIGHT);
+  setCommentsVisible(true);
+}, []);
+
   const handleReplyToComment = useCallback((comment) => {
     setReplyingToComment(comment);
     setEditingComment(null);
   }, []);
-  const closeCommentsModal = () => {
+
+const closeCommentsModal = () => {
+  // Prevent multiple calls
+  if (isClosingRef.current) return;
+  isClosingRef.current = true;
+  
+  // Smooth slide-down animation
+  Animated.timing(commentsTranslateY, {
+    toValue: SCREEN_HEIGHT,
+    duration: 200, // Slightly faster for a snappier, more native feel
+    easing: Easing.out(Easing.quad), // More reliable than complex bezier
+    useNativeDriver: false,
+  }).start(() => {
+    // Close after animation completes
     setCommentsVisible(false);
     setActiveCommentPost(null);
     setReplyingToComment(null);
@@ -1037,7 +1080,18 @@ const UserFeedScreen = ({ navigation }) => {
     setCommentDraft('');
     setCommentInputHeight(48);
     setExpandedCommentParents({});
-  };
+    setKeyboardHeight(0);
+    
+    // ✅ DO NOT reset commentsTranslateY to 0 here! 
+    // Let it stay off-screen (SCREEN_HEIGHT) while it unmounts to prevent the flash.
+    // It will be reset to SCREEN_HEIGHT automatically the next time it opens.
+    
+    commentsSwipeStartRef.current = 0;
+    commentsInitialYRef.current = 0;
+    isClosingRef.current = false;
+  });
+};
+
   const handleCommentInputContentSizeChange = (e) =>
     setCommentInputHeight(Math.max(48, Math.min(e?.nativeEvent?.contentSize?.height ?? 48, 100)));
 
@@ -1428,6 +1482,47 @@ const UserFeedScreen = ({ navigation }) => {
       postMediaTapTimeoutRef.current = null;
     }
   }, []);
+
+  // ✅ KEEP THIS ONE - It's in the right place (inside UserFeedScreen component)
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      // Scroll to bottom after keyboard appears
+      setTimeout(() => {
+        commentsScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
+    });
+
+    
+
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  // Add this useEffect for smooth opening animation
+  useEffect(() => {
+    if (commentsVisible) {
+      // Reset closing flag
+      isClosingRef.current = false;
+      
+      // Reset to bottom first
+      commentsTranslateY.setValue(SCREEN_HEIGHT);
+      // Animate slide up
+      Animated.spring(commentsTranslateY, {
+        toValue: 0,
+        useNativeDriver: false,
+        tension: 65,
+        friction: 12,
+        velocity: 0.5,
+      }).start();
+    }
+  }, [commentsVisible]);
 
   const openRepostComposer = (post) => {
     if (post?.my_repost) {
@@ -2174,35 +2269,90 @@ const UserFeedScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* --- REFACTORED COMMENTS MODAL --- */}
+      {/* --- FIXED COMMENTS MODAL --- */}
       <Modal
         transparent
         visible={commentsVisible}
-        animationType="slide"
+        animationType="none"
         onRequestClose={closeCommentsModal}
       >
         <View style={styles.commentsModalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
-          <SafeAreaView style={styles.commentsSheet} edges={['top', 'bottom']}>
-            <Animated.View
-              style={{ flex: 1, transform: [{ translateY: commentsTranslateY }] }}
-              onTouchMove={handleCommentsSwipe}
-              onTouchEnd={() => {
-                resetSwipeRefs();
-              }}
-            >
-              {/* Drag Handle */}
-              <View
-                style={{
-                  height: 5,
-                  width: 40,
-                  backgroundColor: '#D1D5DB',
-                  borderRadius: 3,
-                  alignSelf: 'center',
-                  marginTop: 8,
+          {/* Backdrop with opacity that fades as you swipe */}
+          <Animated.View 
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                opacity: commentsTranslateY.interpolate({
+                  inputRange: [0, 300],
+                  outputRange: [1, 0],
+                  extrapolate: 'clamp',
+                }),
+              }
+            ]}
+          >
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
+          </Animated.View>
+          
+          {/* The entire sheet moves with translateY */}
+          <Animated.View 
+            style={[
+              styles.commentsSheet,
+              { 
+                transform: [{ 
+                  translateY: commentsTranslateY
+                }],
+                marginBottom: keyboardHeight > 0 ? keyboardHeight + 10 : 0,
+              }
+            ]}
+          >
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+              {/* Drag Handle - More responsive */}
+              <View 
+                style={{ 
+                  height: 5, 
+                  width: 40, 
+                  backgroundColor: '#D1D5DB', 
+                  borderRadius: 3, 
+                  alignSelf: 'center', 
+                  marginTop: 8, 
                   marginBottom: 12,
                 }}
-              />
+              >
+                {/* Invisible larger touch area for swiping - THIS IS THE ONLY TOUCH HANDLER */}
+                <Pressable 
+                  style={{ 
+                    position: 'absolute', 
+                    top: -20, 
+                    left: -SCREEN_WIDTH/2, 
+                    right: -SCREEN_WIDTH/2, 
+                    bottom: -10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onTouchMove={handleCommentsSwipe}
+                  onTouchEnd={() => {
+                    // Prevent multiple triggers
+                    if (isClosingRef.current) return;
+                    
+                    commentsTranslateY.stopAnimation((value) => {
+                      if (value > 150) {
+                        // Close the modal
+                        closeCommentsModal();
+                      } else {
+                        // Snap back with spring
+                        Animated.spring(commentsTranslateY, {
+                          toValue: 0,
+                          useNativeDriver: false,
+                          tension: 65,
+                          friction: 12,
+                        }).start();
+                      }
+                    });
+                    commentsSwipeStartRef.current = 0;
+                  }}
+                />
+              </View>
 
               {/* Header Row */}
               <View style={styles.commentsHeaderRow}>
@@ -2214,109 +2364,20 @@ const UserFeedScreen = ({ navigation }) => {
                 </Pressable>
               </View>
 
-              <CustomKeyboardView
-                style={{ flex: 1 }}
-                footer={
-                  <View style={styles.commentComposerSafeArea}>
-                    <View style={styles.commentComposer}>
-                      <View style={styles.commentComposerContent}>
-                        {editingComment ? (
-                          <View style={styles.commentReplyContext}>
-                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                              Editing comment
-                            </Text>
-                            <Pressable
-                              style={styles.commentReplyContextCancel}
-                              onPress={() => {
-                                setEditingComment(null);
-                                setCommentDraft('');
-                              }}
-                            >
-                              <Ionicons name="close" size={14} color="#31429B" />
-                            </Pressable>
-                          </View>
-                        ) : null}
-                        {replyingToComment ? (
-                          <View style={styles.commentReplyContext}>
-                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                              Replying to {renderCommentAuthorName(replyingToComment)}
-                            </Text>
-                            <Pressable
-                              style={styles.commentReplyContextCancel}
-                              onPress={() => setReplyingToComment(null)}
-                            >
-                              <Ionicons name="close" size={14} color="#31429B" />
-                            </Pressable>
-                          </View>
-                        ) : null}
-
-                        {/* Pill-Shaped Input */}
-                        <View style={styles.commentInputWrap}>
-                          <TextInput
-                            value={commentDraft}
-                            onChangeText={setCommentDraft}
-                            onContentSizeChange={handleCommentInputContentSizeChange}
-                            placeholder={
-                              editingComment
-                                ? 'Edit your comment...'
-                                : replyingToComment
-                                  ? 'Write a reply...'
-                                  : 'Write a comment...'
-                            }
-                            placeholderTextColor="#94A3B8"
-                            style={[styles.commentInput, { height: commentInputHeight }]}
-                            multiline
-                            scrollEnabled={false}
-                            textAlignVertical="center"
-                          />
-                          <Pressable
-                            style={[
-                              styles.commentSendButtonInside,
-                              !commentDraft.trim() ? styles.commentSendButtonDisabled : null,
-                            ]}
-                            onPress={handleSubmitComment}
-                            disabled={!commentDraft.trim()}
-                          >
-                            <Ionicons
-                              name="send"
-                              size={16}
-                              color="#FFFFFF"
-                              style={{ marginLeft: 2 }}
-                            />
-                          </Pressable>
-                        </View>
-
-                        {commentMentionContext && commentMentionSuggestions.length > 0 ? (
-                          <View style={styles.commentMentionPanel}>
-                            {commentMentionSuggestions.map((item) => (
-                              <Pressable
-                                key={`comment-mention-${String(item.id ?? item.name)}`}
-                                style={styles.mentionItem}
-                                onPress={() => handleCommentMentionPick(item.handle)}
-                              >
-                                <Image
-                                  source={{ uri: item.avatar }}
-                                  style={styles.mentionAvatar}
-                                />
-                                <Text style={styles.mentionName} numberOfLines={1}>
-                                  @{item.handle}
-                                </Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-                }
-              >
+              {/* Content */}
+              <View style={{ flex: 1 }}>
                 {/* Body Content */}
                 <ScrollView
+                  ref={commentsScrollViewRef}
                   style={[styles.commentsList, styles.commentsBody]}
-                  contentContainerStyle={styles.commentsListContent}
+                  contentContainerStyle={[styles.commentsListContent, { flexGrow: 1, paddingBottom: 20 }]}
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="interactive"
                   nestedScrollEnabled
+                  scrollEnabled={true}
+                  bounces={true}
+                  overScrollMode="always"
                 >
                   {commentsLoading ? (
                     <View style={styles.commentsEmptyState}>
@@ -2330,22 +2391,107 @@ const UserFeedScreen = ({ navigation }) => {
                     </View>
                   ) : comments.length === 0 ? (
                     <View style={styles.commentsEmptyState}>
-                      <Ionicons
-                        name="chatbubble-ellipses-outline"
-                        size={26}
-                        color="#94A3B8"
-                      />
+                      <Ionicons name="chatbubble-ellipses-outline" size={26} color="#94A3B8" />
                       <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
                     </View>
                   ) : (
                     commentTree.map((thread) => renderCommentNode(thread))
                   )}
                 </ScrollView>
-              </CustomKeyboardView>
-            </Animated.View>
-          </SafeAreaView>
+
+                {/* Footer Input - Always at bottom */}
+                <View style={[
+                  styles.commentComposerSafeArea,
+                  keyboardHeight > 0 && { paddingBottom: 4 }
+                ]}>
+                  <View style={styles.commentComposer}>
+                    <View style={styles.commentComposerContent}>
+                      {editingComment ? (
+                        <View style={styles.commentReplyContext}>
+                          <Text style={styles.commentReplyContextText} numberOfLines={1}>
+                            Editing comment
+                          </Text>
+                          <Pressable
+                            style={styles.commentReplyContextCancel}
+                            onPress={() => {
+                              setEditingComment(null);
+                              setCommentDraft('');
+                            }}
+                          >
+                            <Ionicons name="close" size={14} color="#31429B" />
+                          </Pressable>
+                        </View>
+                      ) : null}
+                      {replyingToComment ? (
+                        <View style={styles.commentReplyContext}>
+                          <Text style={styles.commentReplyContextText} numberOfLines={1}>
+                            Replying to {renderCommentAuthorName(replyingToComment)}
+                          </Text>
+                          <Pressable
+                            style={styles.commentReplyContextCancel}
+                            onPress={() => setReplyingToComment(null)}
+                          >
+                            <Ionicons name="close" size={14} color="#31429B" />
+                          </Pressable>
+                        </View>
+                      ) : null}
+
+                      {/* Pill-Shaped Input */}
+                      <View style={styles.commentInputWrap}>
+                        <TextInput
+                          value={commentDraft}
+                          onChangeText={setCommentDraft}
+                          onContentSizeChange={handleCommentInputContentSizeChange}
+                          placeholder={
+                            editingComment
+                              ? 'Edit your comment...'
+                              : replyingToComment
+                                ? 'Write a reply...'
+                                : 'Write a comment...'
+                          }
+                          placeholderTextColor="#94A3B8"
+                          style={[styles.commentInput, { height: commentInputHeight }]}
+                          multiline
+                          scrollEnabled={false}
+                          textAlignVertical="center"
+                        />
+                        <Pressable
+                          style={[
+                            styles.commentSendButtonInside,
+                            !commentDraft.trim() ? styles.commentSendButtonDisabled : null,
+                          ]}
+                          onPress={handleSubmitComment}
+                          disabled={!commentDraft.trim()}
+                        >
+                          <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                        </Pressable>
+                      </View>
+
+                      {commentMentionContext && commentMentionSuggestions.length > 0 ? (
+                        <View style={styles.commentMentionPanel}>
+                          {commentMentionSuggestions.map((item) => (
+                            <Pressable
+                              key={`comment-mention-${String(item.id ?? item.name)}`}
+                              style={styles.mentionItem}
+                              onPress={() => handleCommentMentionPick(item.handle)}
+                            >
+                              <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                              <Text style={styles.mentionName} numberOfLines={1}>
+                                @{item.handle}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </SafeAreaView>
+          </Animated.View>
         </View>
       </Modal>
+
     </View>
   );
 };

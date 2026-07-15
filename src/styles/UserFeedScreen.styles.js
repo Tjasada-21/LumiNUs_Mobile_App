@@ -51,6 +51,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 52,
     marginTop: 12, // Gap between search bar and create button
+    marginBottom: 7, // Gap between create button and feed
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -347,7 +348,17 @@ const styles = StyleSheet.create({
 
   // --- SLEEK NEW COMMENTS MODAL ---
   commentsModalBackdrop: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.4)", justifyContent: "flex-end" },
-  commentsSheet: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, height: "94%" },
+  commentsSheet: { 
+    backgroundColor: "#FFFFFF", 
+    borderTopLeftRadius: 28, 
+    borderTopRightRadius: 28, 
+    paddingHorizontal: 16, 
+    paddingTop: 4, 
+    paddingBottom: 24, 
+    height: "94%",
+    // Remove any fixed positioning
+    position: 'relative',
+  },
   commentsHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", minHeight: 40, marginBottom: 16, position: "relative" },
   commentsTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: "#1C1C1E" },
   commentsCloseButton: { position: "absolute", right: 0, top: 4, width: 34, height: 34, alignItems: "center", justifyContent: "center" },
@@ -388,7 +399,14 @@ const styles = StyleSheet.create({
   commentLikeCount: { marginTop: 1, fontSize: 11, fontFamily: "Poppins_600SemiBold", color: "#94A3B8" },
   
   // --- COMPOSER ---
-  commentComposerSafeArea: { marginTop: 1, backgroundColor: "#FFFFFF" },
+  commentComposerSafeArea: { 
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
   commentComposer: { flexDirection: "row", alignItems: "flex-end", gap: 0, paddingTop: 8, paddingBottom: Platform.OS === 'ios' ? 12 : 8 },
   commentComposerContent: { flex: 1 },
   
@@ -397,10 +415,46 @@ const styles = StyleSheet.create({
   commentReplyContextCancel: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
   
   // Pill-shaped input to match ConvoScreen
-  commentInputWrap: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#F1F5F9', borderRadius: 24, minHeight: 48, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
-  commentInput: { flex: 1, minHeight: 36, maxHeight: 100, fontSize: 15, color: '#1C1C1E', fontFamily: 'Poppins_400Regular', paddingTop: Platform.OS === 'ios' ? 8 : 4, paddingBottom: Platform.OS === 'ios' ? 8 : 4, marginRight: 8 },
-  commentSendButtonInside: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#31429B', alignItems: 'center', justifyContent: "center", marginBottom: 0 },
-  commentSendButtonDisabled: { opacity: 0.4 },
+  // Pill-shaped input to match ConvoScreen
+commentInputWrap: { 
+  flexDirection: 'row', 
+  alignItems: 'center', // 1. Changed from 'flex-end' to 'center' to vertically align the button
+  backgroundColor: '#F1F5F9', 
+  borderRadius: 24, 
+  minHeight: 48, 
+  paddingLeft: 16, 
+  paddingRight: 6, 
+  paddingVertical: 6,
+  marginBottom: 20
+},
+
+commentInput: { 
+  flex: 1, 
+  minHeight: 36, 
+  maxHeight: 100, 
+  fontSize: 15, 
+  color: '#1C1C1E', 
+  fontFamily: 'Poppins_400Regular', 
+  marginRight: 8,
+  // 2. Kept the padding clean so the cursor/text aligns nicely with the centered button
+  paddingTop: Platform.OS === 'ios' ? 8 : 4, 
+  paddingBottom: Platform.OS === 'ios' ? 8 : 4, 
+},
+
+commentSendButtonInside: { 
+  width: 36, 
+  height: 36, 
+  borderRadius: 18, 
+  backgroundColor: '#31429B', 
+  alignItems: 'center', 
+  justifyContent: "center", 
+  marginRight: 4 // 3. Added a small right margin to separate the button from the edge of the input
+},
+
+commentSendButtonDisabled: { 
+  opacity: 0.4 
+},
+
 });
 
 export default styles;

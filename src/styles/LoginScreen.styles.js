@@ -3,9 +3,15 @@ import { StyleSheet } from "react-native";
 const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,
+    backgroundColor: "#E5B80B",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#E5B80B",
     paddingVertical: 24,
   },
   cardContainer: {
@@ -14,6 +20,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     borderRadius: 26,
     padding: 28,
+    paddingBottom: 10,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.08)",
     elevation: 12,
@@ -30,7 +37,7 @@ const styles = StyleSheet.create({
   label: {
     color: "#F9FAFB",
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     marginBottom: 8,
   },
   input: {
@@ -41,6 +48,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     marginBottom: 20,
     color: "#333",
     minHeight: 50,
@@ -60,6 +68,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: "#333",
   },
   eyeIcon: {
@@ -92,6 +101,7 @@ const styles = StyleSheet.create({
   optionText: {
     color: "#F9FAFB",
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
   },
   button: {
     backgroundColor: "#F2C919",
@@ -109,21 +119,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#31429B",
     fontSize: 18,
-    fontWeight: "bold",
-  },
-  footerRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  footerText: {
-    color: "#E0E0E0",
-    fontSize: 13,
-  },
-  signUpText: {
-    color: "#F9FAFB",
-    fontSize: 13,
-    fontWeight: "bold",
+    fontFamily: "Poppins-Bold",
   },
 });
 

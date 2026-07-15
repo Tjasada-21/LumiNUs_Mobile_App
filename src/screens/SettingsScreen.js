@@ -12,6 +12,7 @@ import {
   Switch,
   TextInput,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CommonActions } from "@react-navigation/native";
@@ -40,9 +41,11 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   // --- PASSWORD STATES ---
-  const [passwords, setPasswords] = useState({ new: "", confirm: "" });
+  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const goTo = (screenName) => {
     navigation.navigate(screenName);
@@ -84,15 +87,59 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const handleSavePassword = () => {
-    // Implement your password save logic here
+  const handleSavePassword = async () => {
+    if (!passwords.current || !passwords.new || !passwords.confirm) {
+      Alert.alert("Error", "Please fill in your current password and new password.");
+      return;
+    }
+
+    if (passwords.new.length < 6) {
+      Alert.alert("Weak Password", "Your new password must be at least 6 characters long.");
+      return;
+    }
+
     if (passwords.new !== passwords.confirm) {
       Alert.alert("Error", "Passwords do not match!");
       return;
     }
-    Alert.alert("Success", "Password updated successfully!");
-    setShowPasswordModal(false);
-    setPasswords({ new: "", confirm: "" });
+
+    setSavingPassword(true);
+
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+
+      const email = userData?.user?.email;
+      if (!email) {
+        throw new Error("Could not determine the signed-in account email.");
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: passwords.current,
+      });
+
+      if (signInError) {
+        throw new Error("Current password is incorrect.");
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwords.new,
+      });
+
+      if (updateError) throw updateError;
+
+      Alert.alert("Success", "Password updated successfully!");
+      setShowPasswordModal(false);
+      setPasswords({ current: "", new: "", confirm: "" });
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    } catch (error) {
+      Alert.alert("Error", error.message || "Unable to update password.");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   const handleSaveNotifs = () => {
@@ -201,6 +248,21 @@ const SettingsScreen = ({ navigation }) => {
 
           <View style={styles.modalContent}>
             <View style={styles.inputWrap}>
+              <Text style={styles.inputLabel}>Current Password</Text>
+              <View style={styles.inputBoxContainer}>
+                <TextInput
+                  style={styles.inputBox}
+                  secureTextEntry={!showCurrentPassword}
+                  value={passwords.current}
+                  onChangeText={(val) => setPasswords((p) => ({ ...p, current: val }))}
+                />
+                <Pressable onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.eyeIcon} hitSlop={10}>
+                  <Ionicons name={showCurrentPassword ? "eye-outline" : "eye-off-outline"} size={22} color="#1C1C1E" />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.inputWrap}>
               <Text style={styles.inputLabel}>New Password</Text>
               <View style={styles.inputBoxContainer}>
                 <TextInput
@@ -232,8 +294,17 @@ const SettingsScreen = ({ navigation }) => {
           </View>
 
           <View style={[styles.modalBottomWrap, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-            <TouchableOpacity style={styles.modalPrimaryButton} onPress={handleSavePassword} activeOpacity={0.8}>
-              <Text style={styles.modalPrimaryButtonText}>Save New Password</Text>
+            <TouchableOpacity
+              style={[styles.modalPrimaryButton, savingPassword && styles.modalPrimaryButtonDisabled]}
+              onPress={handleSavePassword}
+              activeOpacity={0.8}
+              disabled={savingPassword}
+            >
+              {savingPassword ? (
+                <ActivityIndicator color="#FFD404" />
+              ) : (
+                <Text style={styles.modalPrimaryButtonText}>Save New Password</Text>
+              )}
             </TouchableOpacity>
           </View>
         </SafeAreaView>

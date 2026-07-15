@@ -100,14 +100,14 @@ const BrandedAlertHost = () => {
     alertState?.variant === "error"
       ? "#D92D20"
       : alertState?.variant === "success"
-        ? "#15803D"
-        : "#31429B";
+          ? "#15803D"
+          : "#24346F";
   const accentBackgroundColor =
     alertState?.variant === "error"
       ? "#FEE4E2"
       : alertState?.variant === "success"
         ? "#DCFCE7"
-        : "#31429B";
+          : "#31429B";
   const buttonBackgroundColor =
     alertState?.variant === "error"
       ? "#D92D20"
@@ -187,7 +187,7 @@ const BrandedAlertHost = () => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(16, 24, 48, 0.55)",
+    backgroundColor: "rgba(16, 24, 48, 0.58)",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -198,33 +198,35 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: "#F9FAFB",
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#DCE3F5",
     shadowColor: "#1F2937",
     shadowOpacity: 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    elevation: 10,
   },
   headerBar: {
-    height: 10,
+    height: 8,
     backgroundColor: "#31429B",
   },
   title: {
-    color: "#f02121",
-    fontSize: 20,
+    color: "#24346F",
+    fontSize: 18,
     fontFamily: "Poppins_700Bold",
     textAlign: "center",
     paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingTop: 16,
   },
   message: {
-    color: "#1F2937",
+    color: "#475569",
     fontSize: 14,
     fontFamily: "Poppins_400Regular",
     textAlign: "center",
     lineHeight: 21,
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 18,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   buttonRow: {
     flexDirection: "row",
@@ -241,7 +243,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#31429B",
   },
   secondaryButton: {
-    backgroundColor: "#F2C919",
+    backgroundColor: "#E2E8F0",
   },
   buttonText: {
     fontSize: 14,
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
     color: "#F9FAFB",
   },
   secondaryButtonText: {
-    color: "#31429B",
+    color: "#334155",
   },
 });
 

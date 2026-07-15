@@ -198,6 +198,9 @@ export default StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalPrimaryButtonDisabled: {
+    opacity: 0.75,
+  },
   modalPrimaryButtonText: {
     color: "#FFD404",
     fontSize: 18,

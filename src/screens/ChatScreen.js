@@ -29,7 +29,6 @@ import {
 } from "../services/messageQueries";
 import { getFollowers, getFollowing } from "../services/connectionQueries";
 import { getAvatarUri } from "../utils/imageUtils";
-import AvatarInitials from "../components/AvatarInitials";
 import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
 import { useUnreadMessages } from "../context/UnreadMessagesContext";
 import styles from "../styles/ChatScreen.styles";
@@ -149,7 +148,6 @@ const ChatScreen = ({ navigation }) => {
     navigation.navigate("NewMessage");
   };
 
-  // --- OPTIMISTICALLY UN-HIGHLIGHT DIRECT MESSAGES ---
   const openConversation = (contact) => {
     const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Alumni";
     const contactAvatar = getAvatarUri(contactName, contact?.alumni_photo);
@@ -161,7 +159,6 @@ const ChatScreen = ({ navigation }) => {
       [conversationId]: Date.now(),
     }));
 
-    // Optimistically clear the unread styling immediately on press
     setContacts((prevContacts) => 
       prevContacts.map((c) => 
         c.id === conversationId ? { ...c, unread_count: 0, is_read: true } : c
@@ -187,7 +184,6 @@ const ChatScreen = ({ navigation }) => {
     });
   };
 
-  // --- OPTIMISTICALLY UN-HIGHLIGHT GROUP MESSAGES ---
   const openGroupConversation = (groupChat) => {
     const groupName = groupChat?.name ?? "Group Chat";
     const groupAvatar = getAvatarUri(groupName, groupChat?.avatar_url);
@@ -199,7 +195,6 @@ const ChatScreen = ({ navigation }) => {
       [conversationId]: Date.now(),
     }));
 
-    // Optimistically clear the unread styling immediately on press
     setGroupChats((prevGroups) => 
       prevGroups.map((g) => 
         g.id === conversationId ? { ...g, unread_count: 0, is_read: true } : g
@@ -237,14 +232,19 @@ const ChatScreen = ({ navigation }) => {
       const groupChatsPromise = getUserGroupChats(supaUser.id).catch(() => []);
       const followingPromise = getFollowing(supaUser.id).catch(() => []);
       const followersPromise = getFollowers(supaUser.id).catch(() => []);
-      const favoritesPromise = supabase.from("favorite_chats").select("contact_id").eq("user_id", supaUser.id);
+      
+      // Fixed: Use currentUserProfile for accurate numeric DB fetching
+      const numericUserId = currentUserProfile?.id;
+      let favoritesRes = { data: [] };
+      if (numericUserId) {
+        favoritesRes = await supabase.from("favorite_chats").select("contact_id").eq("user_id", numericUserId);
+      }
 
-      const [conversations, groupChatsData, followingRows, followerRows, favoritesRes] = await Promise.all([
+      const [conversations, groupChatsData, followingRows, followerRows] = await Promise.all([
         conversationsPromise,
         groupChatsPromise,
         followingPromise,
         followersPromise,
-        favoritesPromise,
       ]);
 
       setUserData(supaUser);
@@ -254,8 +254,8 @@ const ChatScreen = ({ navigation }) => {
         const contact = row?.followed;
         if (!contact?.id) return;
         connectionsMap.set(`alumni_${contact.id}`, {
-          id: `alumni_${contact.id}`, // Composite ID
-          connection_id: contact.id, // Actual numeric ID
+          id: `alumni_${contact.id}`, 
+          connection_id: contact.id, 
           user_type: 'alumni',
           first_name: contact.first_name, 
           last_name: contact.last_name, 
@@ -273,8 +273,8 @@ const ChatScreen = ({ navigation }) => {
         const key = `alumni_${contact.id}`;
         if (connectionsMap.has(key)) return;
         connectionsMap.set(key, {
-          id: key, // Composite ID
-          connection_id: contact.id, // Actual numeric ID
+          id: key, 
+          connection_id: contact.id, 
           user_type: 'alumni',
           first_name: contact.first_name, 
           last_name: contact.last_name, 
@@ -289,12 +289,12 @@ const ChatScreen = ({ navigation }) => {
       const conversationsList = Array.isArray(conversations) ? conversations : [];
       conversationsList.forEach((conversation) => {
         if (!conversation?.id) return;
-        const key = conversation.id; // Already composite from getConversations
+        const key = conversation.id; 
         const baseContact = connectionsMap.get(key) || {};
         connectionsMap.set(key, {
           ...baseContact, 
           ...conversation, 
-          id: conversation.id, // Keep composite ID
+          id: conversation.id, 
           connection_id: conversation.connection_id ?? baseContact.connection_id,
           user_type: conversation.user_type || 'alumni',
           first_name: conversation.first_name ?? baseContact.first_name, 
@@ -309,7 +309,7 @@ const ChatScreen = ({ navigation }) => {
 
       try {
         const favoriteIds = (favoritesRes.data || []).map((row) => row.contact_id);
-        setFavoriteContactIds(new Set(favoriteIds));
+        setFavoriteContactIds(new Set(favoriteIds)); 
       } catch (e) {}
 
       const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
@@ -326,7 +326,7 @@ const ChatScreen = ({ navigation }) => {
       setIsLoadingChatData(false);
       setIsLoadingAdmins(false);
     }
-  }, []);
+  }, [currentUserProfile?.id]);
 
   const handleLoadMore = async () => {
     if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
@@ -342,7 +342,7 @@ const ChatScreen = ({ navigation }) => {
           const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
           newConversations.forEach((conversation) => {
             if (!conversation?.id) return;
-            const key = conversation.id; // Already composite
+            const key = conversation.id; 
             const baseContact = connectionsMap.get(key) || {};
             connectionsMap.set(key, {
               ...baseContact, 
@@ -400,13 +400,13 @@ const ChatScreen = ({ navigation }) => {
     }
     if (selectedTab === "favorites") {
       const favoriteChats = contacts
-        .filter((item) => favoriteContactIds.has(item?.id))
+        .filter((item) => favoriteContactIds.has(item?.connection_id)) 
         .map((contact) => ({ ...contact, __chatType: "contact", is_favorite: true }));
       return sortChatsByLatestMessage(favoriteChats);
     }
     const mergedChats = [
       ...groupChats.map((groupChat) => ({ ...groupChat, __chatType: "group" })),
-      ...contacts.map((contact) => ({ ...contact, __chatType: "contact", is_favorite: favoriteContactIds.has(contact?.id) })),
+      ...contacts.map((contact) => ({ ...contact, __chatType: "contact", is_favorite: favoriteContactIds.has(contact?.connection_id) })),
     ];
     return sortChatsByLatestMessage(mergedChats);
   }, [contacts, groupChats, selectedTab, favoriteContactIds, conversationViewTimestamps]);
@@ -465,7 +465,7 @@ const ChatScreen = ({ navigation }) => {
       item?.created_at;
     
     const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
-    const isFavorited = favoriteContactIds.has(item?.id);
+    const isFavorited = favoriteContactIds.has(item?.connection_id); 
 
     return (
       <Pressable
@@ -473,7 +473,7 @@ const ChatScreen = ({ navigation }) => {
         onPress={() => openConversation(item)}
         onLongPress={() => { setModalContact(item); setIsActionModalVisible(true); }}
       >
-        <AvatarInitials name={contactName} uri={contactAvatar} size={48} style={styles.chatAvatar} />
+        <Image source={{ uri: contactAvatar }} style={styles.chatAvatar} />
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{contactName}</Text>
@@ -498,19 +498,49 @@ const ChatScreen = ({ navigation }) => {
   const showContactActions = (contact) => { setModalContact(contact); setIsActionModalVisible(true); };
   const hideContactActions = () => { setIsActionModalVisible(false); setModalContact(null); };
 
+  // --- FIXED: Safe UPSERT handling to avoid DB constraint crashes using correct numeric ID ---
   const updateDMSettings = async (contactId, updates) => {
-    if (!userData?.id || !contactId) return;
+    const userId = currentUserProfile?.id;
+    if (!userId || !contactId) return;
     try {
-      const { error } = await supabase.from("dm_settings").upsert(
-        { user_id: userData.id, contact_id: contactId, ...updates },
-        { onConflict: "user_id, contact_id" },
-      );
-      if (error) throw error;
-    } catch (e) {}
+      const { data: existingData, error: fetchError } = await supabase
+        .from("dm_settings")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("contact_id", contactId)
+        .limit(1);
+
+      if (fetchError) throw fetchError;
+
+      if (existingData && existingData.length > 0) {
+        const { error: updateError } = await supabase
+          .from("dm_settings")
+          .update(updates)
+          .eq("id", existingData[0].id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from("dm_settings")
+          .insert({ user_id: userId, contact_id: contactId, ...updates });
+        if (insertError) throw insertError;
+      }
+    } catch (e) {
+      console.error("DM Setting Update Failed", e);
+    }
   };
 
-  const handleArchive = async () => { hideContactActions(); await updateDMSettings(modalContact?.id, { is_archived: true }); ThemedAlert.alert("Archived", "Conversation has been archived."); };
-  const handleMute = async () => { hideContactActions(); await updateDMSettings(modalContact?.id, { is_muted: true }); ThemedAlert.alert("Muted", "Notifications for this chat are now muted."); };
+  const handleArchive = async () => { 
+    hideContactActions(); 
+    await updateDMSettings(modalContact?.connection_id, { is_archived: true }); 
+    ThemedAlert.alert("Archived", "Conversation has been archived."); 
+  };
+  
+  const handleMute = async () => { 
+    hideContactActions(); 
+    await updateDMSettings(modalContact?.connection_id, { is_muted: true }); 
+    ThemedAlert.alert("Muted", "Notifications for this chat are now muted."); 
+  };
+
   const handleCreateGroup = async () => {
     hideContactActions();
     const connectionName = `${modalContact?.first_name ?? ""} ${modalContact?.last_name ?? ""}`.trim() || "Connection";
@@ -519,26 +549,54 @@ const ChatScreen = ({ navigation }) => {
     if (parentNavigator?.navigate) parentNavigator.navigate("CreateGroup", params);
     else navigation.navigate("CreateGroup", params);
   };
+
+  // --- FIXED: Marking unread must use numeric IDs
   const handleMarkUnread = async () => {
     hideContactActions();
     try {
-      const { data, error } = await supabase.from("messages").select("id").eq("sender_id", modalContact?.id).eq("receiver_id", userData?.id).order("created_at", { ascending: false }).limit(1);
+      const userId = currentUserProfile?.id;
+      if (!userId || !modalContact?.connection_id) return;
+
+      const { data, error } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("sender_id", modalContact.connection_id)
+        .eq("receiver_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+        
       if (error) throw error;
+      
       if (data && data.length > 0) {
         const { error: updateError } = await supabase.from("messages").update({ is_read: false }).eq("id", data[0].id);
         if (updateError) throw updateError;
         void loadChatData();
+      } else {
+        ThemedAlert.alert("Notice", "No messages found to mark as unread.");
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Failed to mark unread", e);
+    }
   };
-  const handleRestrict = async () => { hideContactActions(); await updateDMSettings(modalContact?.id, { is_restricted: true }); ThemedAlert.alert("Restricted", "This user has been restricted."); };
-  const handleBlock = async () => { hideContactActions(); await updateDMSettings(modalContact?.id, { is_blocked: true }); ThemedAlert.alert("Blocked", "This user has been blocked."); };
+
+  const handleRestrict = async () => { 
+    hideContactActions(); 
+    await updateDMSettings(modalContact?.connection_id, { is_restricted: true }); 
+    ThemedAlert.alert("Restricted", "This user has been restricted."); 
+  };
+  
+  const handleBlock = async () => { 
+    hideContactActions(); 
+    await updateDMSettings(modalContact?.connection_id, { is_blocked: true }); 
+    ThemedAlert.alert("Blocked", "This user has been blocked."); 
+  };
+  
   const handleDelete = async () => {
     ThemedAlert.alert("Delete conversation", "Are you sure you want to remove this conversation from your list?", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
           hideContactActions();
-          await updateDMSettings(modalContact?.id, { is_hidden: true });
+          await updateDMSettings(modalContact?.connection_id, { is_hidden: true });
           setContacts((prev) => prev.filter((c) => c.id !== modalContact?.id));
         },
       },
@@ -560,7 +618,7 @@ const ChatScreen = ({ navigation }) => {
         onPress={() => openGroupConversation(item)}
         onLongPress={() => { setModalGroup(item); setIsGroupActionModalVisible(true); }}
       >
-        <AvatarInitials name={groupName} uri={groupAvatar} size={48} style={styles.chatAvatar} />
+        <Image source={{ uri: groupAvatar }} style={styles.chatAvatar} />
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{groupName}</Text>
@@ -579,7 +637,13 @@ const ChatScreen = ({ navigation }) => {
     );
   };
 
-  const handleToggleFavorite = async (contactId) => {
+  // --- FIXED: toggling favorite securely with numeric ID
+  const handleToggleFavorite = async (contact) => {
+    if (!contact?.connection_id) return;
+    const contactId = contact.connection_id;
+    const userId = currentUserProfile?.id;
+    if (!userId) return;
+
     const isFavorited = favoriteContactIds.has(contactId);
     const nextState = !isFavorited;
     const prevSet = new Set(favoriteContactIds);
@@ -594,27 +658,27 @@ const ChatScreen = ({ navigation }) => {
     hideContactActions();
 
     try {
-      if (!userData?.id) throw new Error("Missing current user id");
       if (nextState) {
-        const { error } = await supabase.from("favorite_chats").insert({ user_id: userData.id, contact_id: contactId });
+        const { error } = await supabase.from("favorite_chats").insert({ user_id: userId, contact_id: contactId });
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("favorite_chats").delete().eq("user_id", userData.id).eq("contact_id", contactId);
+        const { error } = await supabase.from("favorite_chats").delete().eq("user_id", userId).eq("contact_id", contactId);
         if (error) throw error;
       }
     } catch (e) {
+      console.error("Favorite toggle failed:", e);
       setFavoriteContactIds(prevSet);
     }
   };
 
   const hideGroupActions = () => { setIsGroupActionModalVisible(false); setModalGroup(null); };
 
-  const handleArchiveGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ archived: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", userData?.id); } catch (e) {} };
-  const handleIgnoreGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ ignored: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", userData?.id); } catch (e) {} };
+  const handleArchiveGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ archived: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
+  const handleIgnoreGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ ignored: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
   const handleAddMembers = () => { hideGroupActions(); const parentNavigator = navigation.getParent?.(); const params = { groupId: modalGroup?.id, prefillName: modalGroup?.name }; if (parentNavigator?.navigate) parentNavigator.navigate("EditGroup", params); else navigation.navigate("EditGroup", params); };
-  const handleMuteGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ muted: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", userData?.id); } catch (e) {} };
-  const handleMarkGroupUnread = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ last_read_message_id: 0 }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", userData?.id); loadChatData(); } catch (e) {} };
-  const handleLeaveGroup = async () => { ThemedAlert.alert("Leave group", "Are you sure you want to leave this group?", [{ text: "Cancel", style: "cancel" }, { text: "Leave", style: "destructive", onPress: async () => { hideGroupActions(); try { await supabase.from("group_chat_members").delete().eq("group_chat_id", modalGroup?.id).eq("alumni_id", userData?.id); setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id)); } catch (e) {} } }]); };
+  const handleMuteGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ muted: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
+  const handleMarkGroupUnread = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ last_read_message_id: 0 }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); loadChatData(); } catch (e) {} };
+  const handleLeaveGroup = async () => { ThemedAlert.alert("Leave group", "Are you sure you want to leave this group?", [{ text: "Cancel", style: "cancel" }, { text: "Leave", style: "destructive", onPress: async () => { hideGroupActions(); try { await supabase.from("group_chat_members").delete().eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id)); } catch (e) {} } }]); };
   const handleDeleteGroup = async () => { ThemedAlert.alert("Delete group", "Are you sure you want to delete this group?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => { hideGroupActions(); try { await supabase.from("group_chats").delete().eq("id", modalGroup?.id); setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id)); } catch (e) {} } }]); };
 
   const getListEmptyComponent = useCallback(() => {
@@ -653,7 +717,7 @@ const ChatScreen = ({ navigation }) => {
               </TouchableOpacity>
              
               <TouchableOpacity style={styles.avatarButton}>
-                <AvatarInitials name={displayName} uri={avatarUri} size={36} style={styles.headerAvatar} />
+                <Image source={{ uri: avatarUri }} style={styles.headerAvatar} />
               </TouchableOpacity>
             </View>
           </View>
@@ -712,34 +776,49 @@ const ChatScreen = ({ navigation }) => {
               <Text style={styles.actionSheetTitle}>
                 {`${modalContact?.first_name ?? ""} ${modalContact?.last_name ?? ""}`.trim() || "Conversation"}
               </Text>
-              <Pressable style={styles.actionItem} onPress={() => handleToggleFavorite(modalContact?.id)}>
-                <Ionicons name="star-outline" size={20} color="#F2C919" style={styles.actionIcon} />
-                <Text style={[styles.actionText, { color: "#F2C919" }]}>Favorite</Text>
+              
+              <Pressable style={styles.actionItem} onPress={() => handleToggleFavorite(modalContact)}>
+                <Ionicons 
+                  name={favoriteContactIds.has(modalContact?.connection_id) ? "star" : "star-outline"} 
+                  size={20} 
+                  color="#F2C919" 
+                  style={styles.actionIcon} 
+                />
+                <Text style={[styles.actionText, { color: "#F2C919" }]}>
+                  {favoriteContactIds.has(modalContact?.connection_id) ? "Unfavorite" : "Favorite"}
+                </Text>
               </Pressable>
+
               <Pressable style={styles.actionItem} onPress={handleArchive}>
                 <Ionicons name="archive-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Archive</Text>
               </Pressable>
+              
               <Pressable style={styles.actionItem} onPress={handleMute}>
                 <Ionicons name="volume-mute-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Mute</Text>
               </Pressable>
+              
               <Pressable style={styles.actionItem} onPress={handleCreateGroup}>
                 <Ionicons name="people-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>{`Create group chat with '${modalContact?.first_name ?? ""}'`}</Text>
               </Pressable>
+              
               <Pressable style={styles.actionItem} onPress={handleMarkUnread}>
                 <Ionicons name="mail-unread-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Mark as unread</Text>
               </Pressable>
+              
               <Pressable style={styles.actionItem} onPress={handleRestrict}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Restrict</Text>
               </Pressable>
+              
               <Pressable style={styles.actionItem} onPress={handleBlock}>
                 <Ionicons name="close-circle-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Block</Text>
               </Pressable>
+              
               <Pressable style={[styles.actionItem, { borderBottomWidth: 0 }]} onPress={handleDelete}>
                 <Ionicons name="trash-outline" size={20} color="#DC2626" style={styles.actionIcon} />
                 <Text style={[styles.actionText, { color: "#DC2626" }]}>Delete</Text>

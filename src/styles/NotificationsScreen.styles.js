@@ -7,14 +7,14 @@ export default StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#F5F6FA", // Soft light gray background from image
+    backgroundColor: "#F5F6FA",
   },
   
   // HEADER
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end", // Aligns content to the right
+    justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
     paddingTop: 16,
@@ -34,18 +34,39 @@ export default StyleSheet.create({
     fontWeight: "900",
     color: "#2C3E50",
     fontFamily: "Poppins_700Bold",
-    marginRight: 12,
   },
   backButton: {
     top: 15,
     padding: 4,
+  },
+  // Refined Mark All As Read Button Style
+  markReadButton: {
+    top: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#E0E7FF",
+  },
+  markReadText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12,
+    color: "#4338CA",
+  },
+  markReadDisabled: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
+  },
+  markReadTextDisabled: {
+    color: "#9CA3AF",
   },
 
   // LIST & CARDS
   listContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 100, // Space for footer
+    paddingBottom: 100,
   },
   card: {
     flexDirection: "row",
@@ -95,19 +116,19 @@ export default StyleSheet.create({
     gap: 10,
   },
   acceptButton: {
-    backgroundColor: "#2C3B89", // Dark blue pill
+    backgroundColor: "#2C3B89",
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 999,
   },
   acceptButtonText: {
-    color: "#F2C919", // Yellow text
+    color: "#F2C919",
     fontSize: 12,
     fontWeight: "800",
     fontFamily: "Poppins_700Bold",
   },
   deleteButton: {
-    backgroundColor: "#D1D5DB", // Light gray pill
+    backgroundColor: "#D1D5DB",
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 999,
@@ -129,7 +150,7 @@ export default StyleSheet.create({
     backgroundColor: "#31429B",
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 15, // Lift for modern phone home bars
+    paddingBottom: 15,
   },
   footerLogo: {
     width: 160,

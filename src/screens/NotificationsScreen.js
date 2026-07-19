@@ -7,6 +7,9 @@ import {
   FlatList,
   ActivityIndicator,
   SafeAreaView,
+  Modal,
+  Pressable,
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import supabase from "../services/supabase";
@@ -21,6 +24,10 @@ export default function NotificationsScreen({ navigation }) {
   const { currentUserProfile } = useCurrentUserProfile();
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // --- Modal State ---
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedNotif, setSelectedNotif] = useState(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -46,8 +53,7 @@ export default function NotificationsScreen({ navigation }) {
       const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
       const notificationsFeed = [];
 
-      // Note: In a real app, you would also fetch Connection Requests here. 
-      // I have added a mock connection request to demonstrate the UI you requested!
+      // Mock connection request 
       notificationsFeed.push({
         id: 'mock-connection-1',
         type: 'connection',
@@ -109,6 +115,39 @@ export default function NotificationsScreen({ navigation }) {
     setNotifications((curr) => curr.filter((item) => item.id !== id));
   };
 
+  // --- Mark All As Read ---
+  const handleMarkAllAsRead = async () => {
+    if (notifications.length === 0) return;
+    const currentProfile = currentUserProfile ?? (await getCurrentUser().catch(() => null));
+    const idsToDismiss = notifications.map((n) => n.id);
+    
+    // Optimistically clear the UI instantly
+    setNotifications([]);
+
+    // Process removals in the background
+    if (currentProfile?.id) {
+      Promise.all(idsToDismiss.map((id) => dismissNotification(currentProfile.id, id).catch(() => {})));
+    }
+  };
+
+  // --- Modal Handlers ---
+  const openNotificationModal = (item) => {
+    setSelectedNotif(item);
+    setIsModalVisible(true);
+  };
+
+  const closeNotificationModal = () => {
+    setIsModalVisible(false);
+    setSelectedNotif(null);
+  };
+
+  const removeNotificationFromModal = () => {
+    if (selectedNotif) {
+      handleDismiss(selectedNotif.id);
+    }
+    closeNotificationModal();
+  };
+
   const formatNotificationTime = (value) => {
     if (!value) return "";
     const parsedDate = new Date(value);
@@ -121,13 +160,12 @@ export default function NotificationsScreen({ navigation }) {
     return `${elapsedDays}d`;
   };
 
-  const renderNotificationItem = ({ item }) => {
+  const getNotificationText = (item) => {
+    if (!item) return { name: "", actionText: "", time: "", isAnnouncement: false, avatarUri: "" };
+    
     const isAnnouncement = item.type === "announcement";
-    const isConnection = item.type === "connection";
     const name = `${item?.actor?.first_name ?? ""} ${item?.actor?.last_name ?? ""}`.trim();
     const time = formatNotificationTime(item.created_at);
-    
-    // Set avatars - use NU logo for announcements
     const avatarUri = isAnnouncement 
       ? Image.resolveAssetSource(require("../../assets/images/nulogo.png")).uri
       : getAvatarUri(name, item?.actor?.alumni_photo);
@@ -137,10 +175,21 @@ export default function NotificationsScreen({ navigation }) {
     else if (item.type === "comment") actionText = "commented on your post.";
     else if (item.type === "reaction") actionText = "liked your post.";
     else if (item.type === "repost") actionText = "reposted your post.";
-    else if (isConnection) actionText = "sent you a connection request.";
+    else if (item.type === "connection") actionText = "sent you a connection request.";
+
+    return { name, actionText, time, isAnnouncement, avatarUri };
+  };
+
+  const renderNotificationItem = ({ item }) => {
+    const isConnection = item.type === "connection";
+    const { name, actionText, time, isAnnouncement, avatarUri } = getNotificationText(item);
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity 
+        style={styles.card} 
+        onPress={() => openNotificationModal(item)}
+        activeOpacity={0.7}
+      >
         <Image 
           source={isAnnouncement ? require("../../assets/images/nulogo.png") : { uri: avatarUri }} 
           style={styles.avatar} 
@@ -163,7 +212,7 @@ export default function NotificationsScreen({ navigation }) {
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -171,8 +220,19 @@ export default function NotificationsScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={[styles.header, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+          <TouchableOpacity 
+            style={[styles.markReadButton, notifications.length === 0 && styles.markReadDisabled]}
+            onPress={handleMarkAllAsRead} 
+            disabled={notifications.length === 0} 
+            hitSlop={10}
+            activeOpacity={0.7}
+          >
+             <Text style={[styles.markReadText, notifications.length === 0 && styles.markReadTextDisabled]}>Mark all read</Text>
+          </TouchableOpacity>
+          
+          <Text style={[styles.headerTitle, { flex: 1, textAlign: "center" }]}>Notifications</Text>
+          
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-forward" size={28} color="#31429B" />
           </TouchableOpacity>
@@ -205,6 +265,44 @@ export default function NotificationsScreen({ navigation }) {
           />
         </View>
       </View>
+
+      {/* FLOATING MODAL */}
+      <Modal
+        visible={isModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeNotificationModal}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeNotificationModal} />
+          
+          {selectedNotif && (
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 24, padding: 24, width: "100%", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 10 }}>
+              <Image 
+                source={getNotificationText(selectedNotif).isAnnouncement ? require("../../assets/images/nulogo.png") : { uri: getNotificationText(selectedNotif).avatarUri }} 
+                style={{ width: 64, height: 64, borderRadius: 32, marginBottom: 16, backgroundColor: "#E5E7EB" }} 
+                resizeMode={getNotificationText(selectedNotif).isAnnouncement ? "contain" : "cover"}
+              />
+              <Text style={{ fontSize: 18, fontFamily: "Poppins_700Bold", color: "#1C1C1E", textAlign: "center", marginBottom: 4 }}>
+                {getNotificationText(selectedNotif).name}
+              </Text>
+              <Text style={{ fontSize: 14, fontFamily: "Poppins_400Regular", color: "#64748B", textAlign: "center", marginBottom: 24 }}>
+                {getNotificationText(selectedNotif).actionText} {getNotificationText(selectedNotif).time}
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center" }} onPress={closeNotificationModal}>
+                  <Text style={{ color: "#475569", fontSize: 14, fontFamily: "Poppins_600SemiBold" }}>Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: "#FEE2E2", alignItems: "center" }} onPress={removeNotificationFromModal}>
+                  <Text style={{ color: "#EF4444", fontSize: 14, fontFamily: "Poppins_600SemiBold" }}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

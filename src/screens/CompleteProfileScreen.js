@@ -124,6 +124,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
   const [dobSelectorTitle, setDobSelectorTitle] = useState("");
   const [dobSelectorOptions, setDobSelectorOptions] = useState([]);
   const [dobSelectorOnSelect, setDobSelectorOnSelect] = useState(null);
+  
   const sexOptions = useMemo(
     () => [
       { code: "male", name: "Male" },
@@ -131,6 +132,16 @@ const CompleteProfileScreen = ({ route, navigation }) => {
     ],
     [],
   );
+
+  // Added Address Type Options
+  const addressTypeOptions = useMemo(
+    () => [
+      { code: "residential", name: "Residential Address" },
+      { code: "business", name: "Business / Commercial Address" },
+    ],
+    [],
+  );
+
   const monthOptions = useMemo(
     () =>
       Array.from({ length: 12 }, (_, index) => ({
@@ -373,7 +384,8 @@ const CompleteProfileScreen = ({ route, navigation }) => {
       !selectedRegion ||
       !selectedProvince ||
       !selectedMunicipality ||
-      !selectedBarangay
+      !selectedBarangay ||
+      !addressType
     ) {
       ThemedAlert.alert("Missing Info", "Please fill out all required fields.");
       return;
@@ -489,7 +501,6 @@ const CompleteProfileScreen = ({ route, navigation }) => {
       }
 
       // 3. Save address to `addresses` table and attach to alumni
-      // 3. Save address to `addresses` table and attach to alumni
       // Notice we are passing the alumniId directly into this table!
       const { error: addressError } = await supabase.from("addresses").insert([
         {
@@ -573,12 +584,19 @@ const CompleteProfileScreen = ({ route, navigation }) => {
 
           {/* Address Info */}
           <Text style={styles.sectionHeader}>Address Details</Text>
-          <Text style={styles.fieldLabel}>Address Type</Text>
-          <SmartTextInput
-            style={styles.input}
-            placeholder="Home, Work, etc."
+          <DropdownField
+            label="Address Type"
             value={addressType}
-            onChangeText={setAddressType}
+            placeholder="Select address type"
+            onPress={() =>
+              openPicker({
+                title: "Select Address Type",
+                options: addressTypeOptions,
+                onSelect: (item) => setAddressType(item.name),
+              })
+            }
+            disabled={loading}
+            loading={false}
           />
           <DropdownField
             label="Region"
@@ -718,7 +736,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
                   contentContainerStyle={styles.optionList}
                   ListEmptyComponent={
                     <Text style={styles.emptyStateText}>
-                      No locations found.
+                      No options found.
                     </Text>
                   }
                   renderItem={({ item }) => (

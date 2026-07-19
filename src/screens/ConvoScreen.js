@@ -48,7 +48,6 @@ import {
   subscribeToGroupMessages,
 } from "../services/realtimeMessageService";
 import { getAvatarUri } from "../utils/imageUtils";
-import AvatarInitials from "../components/AvatarInitials";
 import CustomKeyboardView from "../components/CustomKeyboardView";
 import styles from "../styles/ConvoScreen.styles";
 import ChatHeader from "../components/ChatHeader";
@@ -207,10 +206,9 @@ export default function ConvoScreen() {
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  const typingDebounceRef = useRef(null);
   const typingChannelRef = useRef(null);
   const typingTimeoutsRef = useRef(new Map());
-  const isLoadingMoreRef = useRef(false); // debounce for loadMore
+  const isLoadingMoreRef = useRef(false);
 
   const hasConversation = Boolean(contactId || groupId);
   const messagesRef = useRef(messages);
@@ -378,7 +376,6 @@ export default function ConvoScreen() {
         (parent?.navigate ?? navigation.navigate)("ProfileView", { userId: matchedLocal.id });
         return;
       }
-      // fallback to Supabase lookup (omitted for brevity, but keep existing logic)
     },
     [allowMentions, mentionableUsers, navigation],
   );
@@ -394,7 +391,6 @@ export default function ConvoScreen() {
         return;
       }
 
-      // Show full loader only when there are no messages yet
       if (!silent && messages.length === 0) {
         setIsLoading(true);
       } else {
@@ -419,7 +415,6 @@ export default function ConvoScreen() {
         setHasMoreMessages(hasMore);
         setPageOffset(0);
 
-        // deduplicate by ID
         const unique = Array.from(
           messageList.reduce((map, msg) => {
             map.set(String(msg.id), msg);
@@ -462,7 +457,7 @@ export default function ConvoScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadMessages(true); // silent refresh on focus
+      loadMessages(true); 
       loadTypingStatus();
       return () => updateTypingStatus(false);
     }, [loadMessages, loadTypingStatus, updateTypingStatus]),
@@ -519,7 +514,6 @@ export default function ConvoScreen() {
       if (event === "insert") {
         setMessages((prev) => {
           if (prev.some((m) => String(m.id) === String(newMessage.id))) return prev;
-          // replace temp message if exists
           const hasTemp = prev.some(
             (m) =>
               String(m.id).startsWith("temp-") &&
@@ -537,7 +531,6 @@ export default function ConvoScreen() {
           }
           return [newMessage, ...prev];
         });
-        // load attachments asynchronously
         setTimeout(() => {
           getMessageAttachments(newMessage.id)
             .then((atts) => {
@@ -771,7 +764,6 @@ export default function ConvoScreen() {
       } else {
         await sendDirectMessage(currentUserId, contactId, trimmed, attachments, senderType, receiverType);
       }
-      // success -> mark sent (real message will come via realtime)
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, localStatus: "sent" } : m)),
       );
@@ -807,7 +799,6 @@ export default function ConvoScreen() {
         .single();
       if (error) throw error;
 
-      // send push notification
       try {
         const { data: receiver } = await supabase
           .from("alumnis")

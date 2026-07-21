@@ -2,6 +2,7 @@ import { StyleSheet, Platform } from "react-native";
 
 const styles = StyleSheet.create({
   safeArea: {
+    marginTop: 25,
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#E0E0E0", 
+    backgroundColor: "#32418c", 
   },
   nameText: {
     marginLeft: 16,

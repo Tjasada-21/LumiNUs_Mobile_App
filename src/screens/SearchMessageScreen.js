@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { getAvatarUri } from "../utils/imageUtils";
+import AvatarInitials from "../components/AvatarInitials"; // Add this import
 import styles from "../styles/SearchMessageScreen.styles";
 
 export default function SearchMessageScreen({ navigation }) {
@@ -121,31 +122,44 @@ export default function SearchMessageScreen({ navigation }) {
     }
   };
 
-const renderItem = ({ item }) => {
-    const avatarUrl = getAvatarUri(item.displayName, item.alumni_photo);
-    const isAdmin = item.user_type === 'admin';
+  const renderItem = ({ item }) => {
+      const avatarUrl = getAvatarUri(item.displayName, item.alumni_photo);
+      const isAdmin = item.user_type === 'admin';
+      
+      // Check if the original photo exists
+      const hasPhoto = item?.alumni_photo && 
+                      typeof item.alumni_photo === "string" && 
+                      item.alumni_photo.trim() !== "" && 
+                      !item.alumni_photo.includes("undefined") && 
+                      !item.alumni_photo.includes("null");
 
-    return (
-      <TouchableOpacity 
-        style={styles.listItem} 
-        activeOpacity={0.7} 
-        onPress={() => openChat(item)}
-      >
-        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-        <View style={styles.userInfo}>
-          <View style={styles.nameRow}>
-            <Text style={styles.nameText} numberOfLines={1}>{item.displayName}</Text>
-            {isAdmin && item.admin_role && (
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminBadgeText}>{item.admin_role}</Text>
-              </View>
-            )}
+      return (
+        <TouchableOpacity 
+          style={styles.listItem} 
+          activeOpacity={0.7} 
+          onPress={() => openChat(item)}
+        >
+          {hasPhoto ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <AvatarInitials name={item.displayName} size={50} style={styles.avatar} />
+          )}
+          <View style={styles.userInfo}>
+            <View style={styles.nameRow}>
+              <Text style={styles.nameText} numberOfLines={1}>{item.displayName}</Text>
+              {isAdmin && item.admin_role && (
+                <View style={styles.adminBadge}>
+                  <Text style={styles.adminBadgeText} numberOfLines={2}>
+                    {item.admin_role.toUpperCase()}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
-        <Ionicons name="chatbubble-ellipses-outline" size={20} color="#31429B" />
-      </TouchableOpacity>
-    );
-  };
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color="#31429B" />
+        </TouchableOpacity>
+      );
+    };
 
   return (
     <SafeAreaView style={styles.safeArea}>

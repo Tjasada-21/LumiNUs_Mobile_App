@@ -20,8 +20,10 @@ import { getCurrentUser } from "../services/supabaseAuth";
 import { createGroupChat } from "../services/messageQueries";
 import AvatarInitials from "../components/AvatarInitials";
 import styles from "../styles/NewMessageScreen.styles";
+import { useRoute } from "@react-navigation/native";
 
 export default function NewMessageScreen({ navigation }) {
+  const route = useRoute();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +32,18 @@ export default function NewMessageScreen({ navigation }) {
   const [groupName, setGroupName] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  // ===== NEW: Handle prefill params from ChatScreen =====
+  useEffect(() => {
+    const prefillMembers = route?.params?.prefillMembers;
+    const prefillName = route?.params?.prefillName;
+    
+    if (prefillMembers && prefillMembers.length > 0) {
+      setSelectedMemberIds(prefillMembers);
+      setGroupName(prefillName || "");
+      setIsGroupModalVisible(true);
+    }
+  }, [route?.params]);
 
   useEffect(() => {
     fetchUsers();

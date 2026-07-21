@@ -2,6 +2,7 @@ import { StyleSheet, Platform } from "react-native";
 
 const styles = StyleSheet.create({
   safeArea: {
+    marginTop: 25,
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
@@ -22,8 +23,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     color: "#2C313A",
-    fontWeight: "900",
-    fontFamily: "Poppins_700Bold", 
+    fontFamily: "Poppins_700Bold",
   },
   searchContainer: {
     paddingHorizontal: 20,
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333333",
     fontFamily: "Poppins_400Regular",
-    paddingVertical: 0, 
+    paddingVertical: 0,
   },
   listContent: {
     paddingHorizontal: 20,
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#E0E0E0", 
+    backgroundColor: "#32418C",
   },
   userInfo: {
     flex: 1,
@@ -75,26 +75,24 @@ const styles = StyleSheet.create({
   nameText: {
     fontSize: 16,
     color: "#4A4A4A",
-    fontWeight: "700",
     fontFamily: "Poppins_600SemiBold",
     flexShrink: 1,
   },
-adminBadge: {
+  adminBadge: {
     backgroundColor: "#FBD117",
     borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     marginLeft: 8,
     alignSelf: "center",
-    maxWidth: 150, // Prevent badge from getting too wide
+
   },
   adminBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#32418C",
-    fontWeight: "700",
-    fontFamily: "Poppins_600SemiBold",
-    letterSpacing: 0.3,
-    numberOfLines: 1, // Keep text on one line
+    fontFamily: "Poppins_700Bold",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   roleText: {
     fontSize: 12,
@@ -103,11 +101,11 @@ adminBadge: {
     fontFamily: "Poppins_400Regular",
   },
   footer: {
-    backgroundColor: "#31429B", 
+    backgroundColor: "#31429B",
     height: 90,
     justifyContent: "center",
     alignItems: "center",
-    paddingBottom: Platform.OS === "ios" ? 20 : 0, 
+    paddingBottom: Platform.OS === "ios" ? 20 : 0,
   },
   footerLogo: {
     width: 160,

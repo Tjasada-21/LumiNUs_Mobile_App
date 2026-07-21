@@ -51,25 +51,12 @@ export default StyleSheet.create({
     marginTop: 18, // Pushes avatar down so it sits perfectly in the background center
   },
   avatarCircular: {
-    width: 84, // Reduced to match sleek standard sizes
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 16,
-  },
-  avatarSquareWrap: {
-    width: 84, // Reduced to match sleek standard sizes
-    height: 84,
-    borderRadius: 24,
-    backgroundColor: "#31429B", 
-    alignItems: "center",
-    justifyContent: "center",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#32418c",
     marginBottom: 16,
     overflow: "hidden",
-  },
-  avatarSquare: {
-    width: "100%",
-    height: "100%",
   },
   profileName: {
     fontSize: 24,
@@ -275,4 +262,39 @@ export default StyleSheet.create({
     fontWeight: "bold",
     fontSize: 13,
   },
+  // --- GROUP AVATAR PICKER ---
+  avatarPickerWrap: {
+    alignSelf: "center",
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    backgroundColor: "#F3F4F6",
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  avatarPreview: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#31429B",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+
 });

@@ -1,63 +1,58 @@
-import React, { useMemo } from "react";
-import { Image, Text, View, StyleSheet } from "react-native";
-import { getAvatarInitials, normalizeLuminusImageUri } from "../utils/imageUtils";
+// components/AvatarInitials.js
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 
-const AvatarInitials = ({
-  name,
-  uri,
-  size = 44,
-  backgroundColor = "#31429B",
-  foregroundColor = "#FFFFFF",
-  style,
-  imageStyle,
-  textStyle,
-}) => {
-  const normalizedUri = useMemo(() => {
-    if (!uri) return "";
-    const uriString = String(uri);
-    if (
-      /^https?:\/\//i.test(uriString) ||
-      /^file:/i.test(uriString) ||
-      /^content:/i.test(uriString) ||
-      /^data:/i.test(uriString)
-    ) {
-      return uriString;
-    }
-    return normalizeLuminusImageUri(uriString);
-  }, [uri]);
-
-  const initials = useMemo(() => getAvatarInitials(name), [name]);
-  const borderRadius = size / 2;
-
-  if (normalizedUri) {
-    return (
-      <Image
-        source={{ uri: normalizedUri }}
-        style={[
-          styles.image,
-          { width: size, height: size, borderRadius, backgroundColor },
-          imageStyle,
-          style,
-        ]}
-      />
-    );
+const AvatarInitials = ({ name, uri, size = 44, style }) => {
+  // If there's a valid URI, show nothing (the parent should handle image display)
+  if (uri && typeof uri === "string" && uri.trim() !== "" && !uri.includes("undefined") && !uri.includes("null")) {
+    return null;
   }
+
+  // Get initials from name
+  const getInitials = (fullName) => {
+    if (!fullName || typeof fullName !== "string") return "?";
+    
+    const parts = fullName.trim().split(/\s+/);
+    
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) {
+      // Single name: return first letter
+      return parts[0].charAt(0).toUpperCase();
+    }
+    
+    // Multiple names: return first letter of first name + first letter of last name
+    const firstInitial = parts[0].charAt(0).toUpperCase();
+    const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+    
+    return `${firstInitial}${lastInitial}`;
+  };
+
+  const initials = getInitials(name);
+  
+  // Calculate font size based on avatar size
+  const fontSize = size * 0.4;
 
   return (
     <View
       style={[
-        styles.fallback,
-        { width: size, height: size, borderRadius, backgroundColor },
+        styles.container,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        },
         style,
       ]}
     >
       <Text
         style={[
-          styles.initials,
-          { color: foregroundColor, fontSize: Math.max(12, Math.round(size * 0.38)) },
-          textStyle,
+          styles.text,
+          {
+            fontSize: fontSize,
+          },
         ]}
         numberOfLines={1}
+        adjustsFontSizeToFit
       >
         {initials}
       </Text>
@@ -66,17 +61,15 @@ const AvatarInitials = ({
 };
 
 const styles = StyleSheet.create({
-  image: {
-    overflow: "hidden",
-  },
-  fallback: {
+  container: {
+    backgroundColor: "#32418C",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
   },
-  initials: {
+  text: {
+    color: "#FBD117",
     fontFamily: "Poppins_700Bold",
-    fontWeight: "800",
+    fontWeight: "700",
     textAlign: "center",
   },
 });

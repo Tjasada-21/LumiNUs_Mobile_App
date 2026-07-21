@@ -624,44 +624,73 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
     const userProfiles = await getUserProfiles(userInfos);
 
     // Format conversations for ChatScreen
-    const formattedConversations = Array.from(conversationMap.entries())
-      .map(([key, conversation]) => {
-        const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
-        const partner = userProfiles.get(partnerKey) || {};
-        const latestMsg = conversation.messages[0]; // Most recent message
-        
-        return {
-          // Use composite ID to differentiate between alumni and admin with same numeric ID
-          id: `${conversation.partnerType}_${conversation.partnerId}`,
-          connection_id: conversation.partnerId,
-          user_type: conversation.partnerType || 'alumni',
-          first_name: partner.first_name || 'Unknown',
-          last_name: partner.last_name || '',
-          email: partner.email || '',
-          alumni_photo: partner.alumni_photo || null,
-          program: partner.program || (conversation.partnerType === 'admin' ? 'Admin Staff' : ''),
-          unread_count: conversation.unreadCount,
-          latest_message: {
-            id: latestMsg?.id,
-            content: decryptMessage(latestMsg?.content || ''),
+        let formattedConversations = Array.from(conversationMap.entries())
+        .map(([key, conversation]) => {
+          const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
+          const partner = userProfiles.get(partnerKey) || {};
+          const latestMsg = conversation.messages[0];
+          
+          return {
+            id: `${conversation.partnerType}_${conversation.partnerId}`,
+            connection_id: conversation.partnerId,
+            user_type: conversation.partnerType || 'alumni',
+            first_name: partner.first_name || 'Unknown',
+            last_name: partner.last_name || '',
+            email: partner.email || '',
+            alumni_photo: partner.alumni_photo || null,
+            program: partner.program || (conversation.partnerType === 'admin' ? 'Admin Staff' : ''),
+            unread_count: conversation.unreadCount,
+            latest_message: {
+              id: latestMsg?.id,
+              content: decryptMessage(latestMsg?.content || ''),
+              created_at: latestMsg?.created_at,
+              message: decryptMessage(latestMsg?.content || ''),
+              text: decryptMessage(latestMsg?.content || ''),
+            },
+            last_message: decryptMessage(latestMsg?.content || ''),
+            last_message_at: latestMsg?.created_at,
+            updated_at: latestMsg?.created_at,
             created_at: latestMsg?.created_at,
-            message: decryptMessage(latestMsg?.content || ''),
-            text: decryptMessage(latestMsg?.content || ''),
-          },
-          last_message: decryptMessage(latestMsg?.content || ''),
-          last_message_at: latestMsg?.created_at,
-          updated_at: latestMsg?.created_at,
-          created_at: latestMsg?.created_at,
-        };
-      })
-      .sort((a, b) => {
+          };
+        });
+
+      // ===== NEW: Filter out archived and hidden conversations =====
+      // Only filter for alumni contacts (not admins)
+      const alumniContactIds = formattedConversations
+        .filter(c => c.user_type === 'alumni')
+        .map(c => c.connection_id);
+
+      if (alumniContactIds.length > 0) {
+        const { data: dmSettings } = await supabase
+          .from('dm_settings')
+          .select('contact_id, is_archived, is_hidden')
+          .eq('user_id', userId)
+          .in('contact_id', alumniContactIds);
+
+        const hiddenOrArchivedIds = new Set(
+          (dmSettings || [])
+            .filter(s => s.is_archived === true || s.is_hidden === true)
+            .map(s => s.contact_id)
+        );
+
+        formattedConversations = formattedConversations.filter(c => {
+          // Keep admin conversations and non-hidden/non-archived alumni conversations
+          if (c.user_type === 'admin') return true;
+          return !hiddenOrArchivedIds.has(c.connection_id);
+        });
+      }
+      // ===== END NEW =====
+
+      // Sort by latest message time
+      formattedConversations.sort((a, b) => {
         const aTime = new Date(a.latest_message?.created_at || 0).getTime();
         const bTime = new Date(b.latest_message?.created_at || 0).getTime();
         return bTime - aTime;
-      })
-      .slice(offset, offset + limit);
+      });
 
-    return formattedConversations;
+      // Apply pagination
+      return formattedConversations.slice(offset, offset + limit);
+
   } catch (error) {
     console.error('[messages] Get conversations error:', error.message);
     return [];
@@ -1034,6 +1063,7 @@ export const getUserGroupChats = async (alumniId) => {
         lastMessage:group_messages(id, content, created_at, sender_id)
       `)
       .eq('members.alumni_id', alumniId)
+      .eq('members.ignored', false)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -1094,5 +1124,257 @@ export const getUserGroupChats = async (alumniId) => {
   } catch (error) {
     console.error('[group_chats] Get user chats error:', error.message);
     throw error;
+  }
+};
+
+// ===== DM SETTINGS FUNCTIONS =====
+
+/**
+ * Get DM settings for a specific user-contact pair. Creates the row if it doesn't exist.
+ */
+export const getOrCreateDMSettings = async (userId, contactId) => {
+  try {
+    // Try to find existing settings
+    const { data: existing, error: fetchError } = await supabase
+      .from('dm_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    
+    if (existing) return existing;
+
+    // Create new row with defaults
+    const { data: created, error: insertError } = await supabase
+      .from('dm_settings')
+      .insert({
+        user_id: userId,
+        contact_id: contactId,
+        is_archived: false,
+        is_muted: false,
+        is_restricted: false,
+        is_blocked: false,
+        is_hidden: false,
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    return created;
+  } catch (error) {
+    console.error('[dm_settings] getOrCreateDMSettings error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Update DM settings for a user-contact pair. Creates the row first if needed.
+ */
+export const updateDMSettings = async (userId, contactId, updates) => {
+  try {
+    // Ensure the row exists
+    await getOrCreateDMSettings(userId, contactId);
+
+    const { data, error } = await supabase
+      .from('dm_settings')
+      .update(updates)
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[dm_settings] updateDMSettings error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Archive a DM conversation
+ */
+export const archiveConversation = async (userId, contactId) => {
+  return updateDMSettings(userId, contactId, { 
+    is_archived: true,
+    is_hidden: false,
+  });
+};
+
+/**
+ * Unarchive a DM conversation (restore)
+ */
+export const unarchiveConversation = async (userId, contactId) => {
+  return updateDMSettings(userId, contactId, { 
+    is_archived: false,
+    is_hidden: false,
+  });
+};
+
+/**
+ * Delete (hide) a DM conversation
+ */
+export const deleteConversation = async (userId, contactId) => {
+  return updateDMSettings(userId, contactId, { 
+    is_hidden: true,
+    is_archived: false,
+  });
+};
+
+/**
+ * Restore a deleted DM conversation
+ */
+export const restoreConversation = async (userId, contactId) => {
+  return updateDMSettings(userId, contactId, { 
+    is_hidden: false,
+    is_archived: false,
+  });
+};
+
+/**
+ * Get archived conversations for a user
+ */
+export const getArchivedConversations = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('dm_settings')
+      .select(`
+        id,
+        contact_id,
+        is_archived,
+        is_hidden,
+        created_at
+      `)
+      .eq('user_id', userId)
+      .eq('is_archived', true)
+      .eq('is_hidden', false)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) return [];
+
+    // Fetch alumni details
+    const contactIds = data.map(d => d.contact_id);
+    const { data: alumniData } = await supabase
+      .from('alumnis')
+      .select('id, first_name, last_name, alumni_photo, email')
+      .in('id', contactIds);
+
+    const alumniMap = new Map();
+    (alumniData || []).forEach(a => alumniMap.set(a.id, a));
+
+    return data.map(dm => {
+      const alumni = alumniMap.get(dm.contact_id) || {};
+      return {
+        id: `dm_${dm.id}`,
+        type: 'dm',
+        contact_id: dm.contact_id,
+        archivedAt: dm.created_at,
+        name: `${alumni.first_name || ''} ${alumni.last_name || ''}`.trim() || 'Alumni',
+        photo: alumni.alumni_photo || null,
+        email: alumni.email || '',
+        dmSettingId: dm.id,
+      };
+    });
+  } catch (error) {
+    console.error('[dm_settings] getArchivedConversations error:', error.message);
+    return [];
+  }
+};
+
+/**
+ * Get deleted (hidden) conversations for a user
+ */
+export const getDeletedConversations = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('dm_settings')
+      .select(`
+        id,
+        contact_id,
+        is_hidden,
+        created_at
+      `)
+      .eq('user_id', userId)
+      .eq('is_hidden', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) return [];
+
+    // Fetch alumni details
+    const contactIds = data.map(d => d.contact_id);
+    const { data: alumniData } = await supabase
+      .from('alumnis')
+      .select('id, first_name, last_name, alumni_photo, email')
+      .in('id', contactIds);
+
+    const alumniMap = new Map();
+    (alumniData || []).forEach(a => alumniMap.set(a.id, a));
+
+    return data.map(dm => {
+      const alumni = alumniMap.get(dm.contact_id) || {};
+      return {
+        id: `deleted_${dm.id}`,
+        type: 'dm',
+        contact_id: dm.contact_id,
+        deletedAt: dm.created_at,
+        name: `${alumni.first_name || ''} ${alumni.last_name || ''}`.trim() || 'Alumni',
+        photo: alumni.alumni_photo || null,
+        email: alumni.email || '',
+        dmSettingId: dm.id,
+      };
+    });
+  } catch (error) {
+    console.error('[dm_settings] getDeletedConversations error:', error.message);
+    return [];
+  }
+};
+
+/**
+ * Get archived group chats for a user
+ */
+export const getArchivedGroupChats = async (alumniId) => {
+  try {
+    const { data, error } = await supabase
+      .from('group_chat_members')
+      .select(`
+        id,
+        group_chat_id,
+        alumni_id,
+        archived,
+        updated_at,
+        group_chats:group_chat_id (
+          id,
+          name,
+          avatar_url,
+          updated_at
+        )
+      `)
+      .eq('alumni_id', alumniId)
+      .eq('archived', true)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(gm => {
+      const group = gm.group_chats || {};
+      return {
+        id: `group_${gm.id}`,
+        type: 'group',
+        group_chat_id: gm.group_chat_id,
+        archivedAt: gm.updated_at || group.updated_at,
+        name: group.name || 'Group Chat',
+        photo: group.avatar_url || null,
+        memberId: gm.id,
+      };
+    });
+  } catch (error) {
+    console.error('[group_chats] getArchivedGroupChats error:', error.message);
+    return [];
   }
 };

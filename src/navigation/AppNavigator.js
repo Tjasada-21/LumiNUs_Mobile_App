@@ -28,6 +28,7 @@ import CallScreenEntry from "../screens/CallScreen";
 import AddSkillsScreen from "../screens/AddSkillsScreen";
 import WorkExperienceScreen from "../screens/WorkExperienceScreen";
 import WorkExperienceFormScreen from "../screens/WorkExperienceFormScreen";
+import ArchivedChatsScreen from "../screens/ArchivedChatsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -71,6 +72,7 @@ const AppNavigator = () => {
       <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="CallScreen" component={CallScreenEntry} options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="NotificationsScreen" component={require('../screens/NotificationsScreen').default} />
+      <Stack.Screen name="ArchivedChats" component={ArchivedChatsScreen} />
       
       <Stack.Screen name="AddSkillsScreen" component={AddSkillsScreen} />
       <Stack.Screen name="WorkExperienceScreen" component={WorkExperienceScreen} />

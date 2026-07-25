@@ -32,10 +32,10 @@ import styles from "../styles/ChatDetailsScreen.styles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Helper for media URIs (chat attachments - uses public URL)
+// Helper for media URIs (chat attachments - supports local and public URLs)
 const getMediaUri = (raw) => {
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw) || /^file:\/\//i.test(raw)) return raw; 
   
   const cleanPath = String(raw).replace(/^\/+/, "");
   const { data } = supabase.storage
@@ -638,7 +638,14 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               const { error } = await supabase.from("group_chat_members").delete().eq("group_chat_id", routeGroupId).eq("alumni_id", currentUser.id);
               if (error) throw error;
               ThemedAlert.alert("Left Group", "You have left the group chat.");
-              navigation.goBack();
+              
+              // Redirect immediately to the Chat Screen instead of the Convo Screen
+              const parentNavigator = navigation.getParent?.();
+              if (parentNavigator?.navigate) {
+                parentNavigator.navigate("ChatScreen");
+              } else {
+                navigation.navigate("ChatScreen");
+              }
             } catch (e) {
               ThemedAlert.alert("Error", "Could not leave the group at this time.");
             }

@@ -132,10 +132,10 @@ const getUserProfiles = async (userInfos) => {
   const adminIds = [];
   
   userInfos.forEach(({ id, type }) => {
-    if (type === 'alumni') {
-      alumniIds.push(id);
-    } else if (type === 'admin') {
+    if (type === 'admin') {
       adminIds.push(id);
+    } else {
+      alumniIds.push(id);
     }
   });
   
@@ -213,8 +213,6 @@ export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0
   if (!userId1 || !userId2) return [];
   
   try {
-    // Get messages without joins because of polymorphic relationship
-    // Include receiver_type in the query to avoid mixing admin/alumni messages
     const { data: messagesData, error } = await supabase
       .from('messages')
       .select('*')
@@ -231,7 +229,6 @@ export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0
       return [];
     }
 
-    // Collect unique user IDs with their types
     const uniqueUsers = new Map();
     messagesData.forEach(msg => {
       if (msg.sender_id && msg.sender_type) {
@@ -248,10 +245,8 @@ export const getDirectMessages = async (userId1, userId2, limit = 50, offset = 0
       }
     });
 
-    // Fetch all user profiles
     const userProfiles = await getUserProfiles(Array.from(uniqueUsers.values()));
 
-    // Map users to messages and load attachments
     const messagesWithAttachments = await Promise.all(
       messagesData.map(async (msg) => {
         const decryptedMsg = toDecryptedMessage(msg);
@@ -299,14 +294,12 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
 
     if (error) throw error;
 
-    // Upload attachments if provided
     if (attachments.length > 0) {
       await Promise.all(
         attachments.map(att => uploadMessageAttachment(data.id, att))
       );
     }
 
-    // Handle mentions
     try {
       const handles = extractMentionHandles(content);
       if (handles.length > 0) {
@@ -355,22 +348,32 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
     // Send push notification to receiver (only for alumni receivers)
     if (receiverType === 'alumni') {
       try {
-        const { data: receiverRow, error: receiverError } = await supabase
-          .from('alumnis')
-          .select('push_token, first_name, last_name')
-          .eq('id', receiverId)
-          .eq('is_online', true)
+        // --- NEW MUTE CHECK ---
+        const { data: muteData } = await supabase
+          .from('dm_settings')
+          .select('is_muted')
+          .eq('user_id', receiverId)
+          .eq('contact_id', senderId)
           .maybeSingle();
 
-        if (!receiverError && receiverRow && receiverRow.push_token) {
-          const senderName = await getSenderName(senderId, senderType);
+        if (!muteData?.is_muted) {
+          const { data: receiverRow, error: receiverError } = await supabase
+            .from('alumnis')
+            .select('push_token, first_name, last_name')
+            .eq('id', receiverId)
+            .eq('is_online', true)
+            .maybeSingle();
 
-          await sendPushNotificationWithRetry(
-            [receiverRow.push_token],
-            'New Message',
-            `${senderName} sent you a message.`,
-            { type: 'message', messageId: data.id }
-          );
+          if (!receiverError && receiverRow && receiverRow.push_token) {
+            const senderName = await getSenderName(senderId, senderType);
+
+            await sendPushNotificationWithRetry(
+              [receiverRow.push_token],
+              'New Message',
+              `${senderName} sent you a message.`,
+              { type: 'message', messageId: data.id }
+            );
+          }
         }
       } catch (notifErr) {
         console.error('[messages] Failed to send push notification:', notifErr?.message || notifErr);
@@ -475,7 +478,6 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
   try {
     let fileUri = attachmentUri;
 
-    // 1. If not a local file:// URI, copy the asset to a temporary file
     if (!/^file:\/\//i.test(fileUri)) {
       const extension = (fileUri.split('.').pop() || 'jpg').toLowerCase();
       const localPath = `${FileSystem.cacheDirectory}att_${messageId}_${Date.now()}.${extension}`;
@@ -483,34 +485,28 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
       fileUri = localPath;
     }
 
-    // 2. Read file as base64
     const base64 = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
 
-    // 3. Convert to Uint8Array
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // 4. Determine content type
     const ext = fileUri.split('.').pop()?.toLowerCase();
     const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
     const contentType = mimeMap[ext] || 'image/jpeg';
 
-    // 5. Build unique path
     const bucketPath = `messages_attachments/${messageId}-${Date.now()}.${ext || 'jpg'}`;
 
-    // 6. Upload
     const { data, error } = await supabase.storage
       .from('luminus_assets')
       .upload(bucketPath, bytes, { contentType });
 
     if (error) throw error;
 
-    // 7. Insert record
     await supabase.from('messages_attachments').insert([
       {
         message_id: messageId,
@@ -519,7 +515,6 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
       },
     ]);
 
-    // 8. Clean up temp file
     await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
 
     return bucketPath;
@@ -560,7 +555,6 @@ export const getMessageAttachments = async (messageId) => {
  */
 export const getConversations = async (userId, userType = 'alumni', offset = 0, limit = 50) => {
   try {
-    // Get all messages involving this user
     const { data: messagesData, error } = await supabase
       .from('messages')
       .select(`
@@ -583,7 +577,6 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
       return [];
     }
 
-    // Group by conversation partner (including their type)
     const conversationMap = new Map();
 
     messagesData.forEach(msg => {
@@ -615,7 +608,6 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
       }
     });
 
-    // Fetch partner profiles based on their types
     const userInfos = Array.from(conversationMap.values()).map(conv => ({
       id: conv.partnerId,
       type: conv.partnerType || 'alumni'
@@ -623,7 +615,6 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
     
     const userProfiles = await getUserProfiles(userInfos);
 
-    // Format conversations for ChatScreen
         let formattedConversations = Array.from(conversationMap.entries())
         .map(([key, conversation]) => {
           const partnerKey = `${conversation.partnerType}_${conversation.partnerId}`;
@@ -654,8 +645,6 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
           };
         });
 
-      // ===== NEW: Filter out archived and hidden conversations =====
-      // Only filter for alumni contacts (not admins)
       const alumniContactIds = formattedConversations
         .filter(c => c.user_type === 'alumni')
         .map(c => c.connection_id);
@@ -674,21 +663,17 @@ export const getConversations = async (userId, userType = 'alumni', offset = 0, 
         );
 
         formattedConversations = formattedConversations.filter(c => {
-          // Keep admin conversations and non-hidden/non-archived alumni conversations
           if (c.user_type === 'admin') return true;
           return !hiddenOrArchivedIds.has(c.connection_id);
         });
       }
-      // ===== END NEW =====
 
-      // Sort by latest message time
       formattedConversations.sort((a, b) => {
         const aTime = new Date(a.latest_message?.created_at || 0).getTime();
         const bTime = new Date(b.latest_message?.created_at || 0).getTime();
         return bTime - aTime;
       });
 
-      // Apply pagination
       return formattedConversations.slice(offset, offset + limit);
 
   } catch (error) {
@@ -733,7 +718,6 @@ export const createGroupChat = async (createdBy, chatName, memberIds = []) => {
 
     if (error) throw error;
 
-    // Add members with proper roles
     const members = [{ group_chat_id: data.id, alumni_id: createdBy, role: 'admin' }];
     memberIds.forEach(id => {
       if (id !== createdBy) {
@@ -781,7 +765,6 @@ export const getGroupChat = async (groupChatId) => {
  */
 export const getGroupMessages = async (groupChatId, userId, limit = 50, offset = 0) => {
   try {
-    // Get messages without joins
     const { data: messagesData, error } = await supabase
       .from('group_messages')
       .select('*')
@@ -796,13 +779,11 @@ export const getGroupMessages = async (groupChatId, userId, limit = 50, offset =
       return [];
     }
 
-    // Get unique sender IDs
     const senderIds = new Set();
     messagesData.forEach(msg => {
       if (msg.sender_id) senderIds.add(msg.sender_id);
     });
 
-    // Fetch sender profiles (assuming all group chat senders are alumni)
     const { data: senders } = await supabase
       .from('alumnis')
       .select('id, first_name, last_name, alumni_photo')
@@ -811,7 +792,6 @@ export const getGroupMessages = async (groupChatId, userId, limit = 50, offset =
     const senderMap = new Map();
     (senders || []).forEach(sender => senderMap.set(sender.id, sender));
 
-    // Enrich messages with sender data and load attachments
     const messagesWithAttachments = await Promise.all(
       messagesData.map(async (msg) => {
         const decryptedMsg = toDecryptedMessage(msg);
@@ -851,14 +831,12 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
 
     if (error) throw error;
 
-    // Upload attachments if provided
     if (attachments.length > 0) {
       await Promise.all(
         attachments.map((att) => uploadMessageAttachment(data.id, att))
       );
     }
 
-    // Handle mentions
     try {
       const handles = extractMentionHandles(content);
       if (handles.length > 0) {
@@ -909,11 +887,14 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
     try {
       const { data: membersData, error: membersError } = await supabase
         .from('group_chat_members')
-        .select('alumni_id')
+        .select('alumni_id, muted') // Added 'muted' to the query
         .eq('group_chat_id', groupChatId);
 
       if (!membersError && Array.isArray(membersData) && membersData.length > 0) {
+        
+        // Filter out the sender AND anyone who has the chat muted
         const memberIds = membersData
+          .filter((member) => !member.muted)
           .map((member) => member.alumni_id)
           .filter((id) => id && id !== senderId);
 
@@ -944,7 +925,6 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
       console.error('[group_messages] Failed to send group notification:', notifErr?.message || notifErr);
     }
 
-    // Fetch sender info for the returned message
     const { data: senderData } = await supabase
       .from('alumnis')
       .select('id, first_name, last_name, alumni_photo')
@@ -1071,7 +1051,6 @@ export const getUserGroupChats = async (alumniId) => {
     const groupChats = data || [];
     const groupIds = groupChats.map((groupChat) => groupChat?.id).filter(Boolean);
 
-    // Get messages for unread count calculation
     const { data: messagesData, error: messagesError } = groupIds.length > 0
       ? await supabase
           .from('group_messages')
@@ -1106,7 +1085,6 @@ export const getUserGroupChats = async (alumniId) => {
           Number(message?.id) > lastReadMessageId;
       }).length;
 
-      // Format last message for ChatScreen compatibility
       const lastMessageArray = Array.isArray(groupChat?.lastMessage) ? groupChat.lastMessage : [];
       const latestGroupMessage = lastMessageArray[lastMessageArray.length - 1] || null;
      
@@ -1129,12 +1107,8 @@ export const getUserGroupChats = async (alumniId) => {
 
 // ===== DM SETTINGS FUNCTIONS =====
 
-/**
- * Get DM settings for a specific user-contact pair. Creates the row if it doesn't exist.
- */
 export const getOrCreateDMSettings = async (userId, contactId) => {
   try {
-    // Try to find existing settings
     const { data: existing, error: fetchError } = await supabase
       .from('dm_settings')
       .select('*')
@@ -1146,7 +1120,6 @@ export const getOrCreateDMSettings = async (userId, contactId) => {
     
     if (existing) return existing;
 
-    // Create new row with defaults
     const { data: created, error: insertError } = await supabase
       .from('dm_settings')
       .insert({
@@ -1169,12 +1142,8 @@ export const getOrCreateDMSettings = async (userId, contactId) => {
   }
 };
 
-/**
- * Update DM settings for a user-contact pair. Creates the row first if needed.
- */
 export const updateDMSettings = async (userId, contactId, updates) => {
   try {
-    // Ensure the row exists
     await getOrCreateDMSettings(userId, contactId);
 
     const { data, error } = await supabase
@@ -1193,9 +1162,6 @@ export const updateDMSettings = async (userId, contactId, updates) => {
   }
 };
 
-/**
- * Archive a DM conversation
- */
 export const archiveConversation = async (userId, contactId) => {
   return updateDMSettings(userId, contactId, { 
     is_archived: true,
@@ -1203,9 +1169,6 @@ export const archiveConversation = async (userId, contactId) => {
   });
 };
 
-/**
- * Unarchive a DM conversation (restore)
- */
 export const unarchiveConversation = async (userId, contactId) => {
   return updateDMSettings(userId, contactId, { 
     is_archived: false,
@@ -1213,9 +1176,6 @@ export const unarchiveConversation = async (userId, contactId) => {
   });
 };
 
-/**
- * Delete (hide) a DM conversation
- */
 export const deleteConversation = async (userId, contactId) => {
   return updateDMSettings(userId, contactId, { 
     is_hidden: true,
@@ -1223,9 +1183,6 @@ export const deleteConversation = async (userId, contactId) => {
   });
 };
 
-/**
- * Restore a deleted DM conversation
- */
 export const restoreConversation = async (userId, contactId) => {
   return updateDMSettings(userId, contactId, { 
     is_hidden: false,
@@ -1234,7 +1191,7 @@ export const restoreConversation = async (userId, contactId) => {
 };
 
 /**
- * Get archived conversations for a user
+ * Get archived conversations for a user - Brute-force search both tables
  */
 export const getArchivedConversations = async (userId) => {
   try {
@@ -1243,6 +1200,7 @@ export const getArchivedConversations = async (userId) => {
       .select(`
         id,
         contact_id,
+        contact_type,
         is_archived,
         is_hidden,
         created_at
@@ -1253,30 +1211,50 @@ export const getArchivedConversations = async (userId) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
     if (!data || data.length === 0) return [];
 
-    // Fetch alumni details
     const contactIds = data.map(d => d.contact_id);
-    const { data: alumniData } = await supabase
-      .from('alumnis')
-      .select('id, first_name, last_name, alumni_photo, email')
-      .in('id', contactIds);
 
-    const alumniMap = new Map();
-    (alumniData || []).forEach(a => alumniMap.set(a.id, a));
+    // Search BOTH tables simultaneously, regardless of contact_type
+    const [{ data: alumniData }, { data: adminData }] = await Promise.all([
+      supabase.from('alumnis').select('id, first_name, last_name, alumni_photo, email').in('id', contactIds),
+      supabase.from('admins').select('id, admin_first_name, admin_last_name, photo, admin_email').in('id', contactIds)
+    ]);
+
+    const profileMap = new Map();
+
+    (alumniData || []).forEach(a => profileMap.set(String(a.id), {
+      first_name: a.first_name,
+      last_name: a.last_name,
+      photo: a.alumni_photo,
+      email: a.email,
+      inferred_type: 'alumni'
+    }));
+
+    (adminData || []).forEach(a => profileMap.set(String(a.id), {
+      first_name: a.admin_first_name,
+      last_name: a.admin_last_name,
+      photo: a.photo,
+      email: a.admin_email,
+      inferred_type: 'admin'
+    }));
 
     return data.map(dm => {
-      const alumni = alumniMap.get(dm.contact_id) || {};
+      // Grab whichever profile matched the ID
+      const profile = profileMap.get(String(dm.contact_id)) || {};
+      
       return {
         id: `dm_${dm.id}`,
         type: 'dm',
         contact_id: dm.contact_id,
+        contact_type: profile.inferred_type || dm.contact_type || 'alumni',
         archivedAt: dm.created_at,
-        name: `${alumni.first_name || ''} ${alumni.last_name || ''}`.trim() || 'Alumni',
-        photo: alumni.alumni_photo || null,
-        email: alumni.email || '',
+        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Alumni',
+        photo: profile.photo || null,
+        email: profile.email || '',
         dmSettingId: dm.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name
       };
     });
   } catch (error) {
@@ -1286,7 +1264,7 @@ export const getArchivedConversations = async (userId) => {
 };
 
 /**
- * Get deleted (hidden) conversations for a user
+ * Get deleted (hidden) conversations for a user - Brute-force search both tables
  */
 export const getDeletedConversations = async (userId) => {
   try {
@@ -1295,6 +1273,7 @@ export const getDeletedConversations = async (userId) => {
       .select(`
         id,
         contact_id,
+        contact_type,
         is_hidden,
         created_at
       `)
@@ -1303,30 +1282,50 @@ export const getDeletedConversations = async (userId) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
     if (!data || data.length === 0) return [];
 
-    // Fetch alumni details
     const contactIds = data.map(d => d.contact_id);
-    const { data: alumniData } = await supabase
-      .from('alumnis')
-      .select('id, first_name, last_name, alumni_photo, email')
-      .in('id', contactIds);
 
-    const alumniMap = new Map();
-    (alumniData || []).forEach(a => alumniMap.set(a.id, a));
+    // Search BOTH tables simultaneously, regardless of contact_type
+    const [{ data: alumniData }, { data: adminData }] = await Promise.all([
+      supabase.from('alumnis').select('id, first_name, last_name, alumni_photo, email').in('id', contactIds),
+      supabase.from('admins').select('id, admin_first_name, admin_last_name, photo, admin_email').in('id', contactIds)
+    ]);
+
+    const profileMap = new Map();
+
+    (alumniData || []).forEach(a => profileMap.set(String(a.id), {
+      first_name: a.first_name,
+      last_name: a.last_name,
+      photo: a.alumni_photo,
+      email: a.email,
+      inferred_type: 'alumni'
+    }));
+
+    (adminData || []).forEach(a => profileMap.set(String(a.id), {
+      first_name: a.admin_first_name,
+      last_name: a.admin_last_name,
+      photo: a.photo,
+      email: a.admin_email,
+      inferred_type: 'admin'
+    }));
 
     return data.map(dm => {
-      const alumni = alumniMap.get(dm.contact_id) || {};
+      // Grab whichever profile matched the ID
+      const profile = profileMap.get(String(dm.contact_id)) || {};
+
       return {
         id: `deleted_${dm.id}`,
         type: 'dm',
         contact_id: dm.contact_id,
+        contact_type: profile.inferred_type || dm.contact_type || 'alumni',
         deletedAt: dm.created_at,
-        name: `${alumni.first_name || ''} ${alumni.last_name || ''}`.trim() || 'Alumni',
-        photo: alumni.alumni_photo || null,
-        email: alumni.email || '',
+        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Alumni',
+        photo: profile.photo || null,
+        email: profile.email || '',
         dmSettingId: dm.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name
       };
     });
   } catch (error) {

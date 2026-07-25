@@ -11,19 +11,21 @@ import {
   FlatList,
   Image,
   Keyboard,
+  Platform,
+  KeyboardAvoidingView,
   LogBox,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
   NativeModules,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   useFocusEffect,
   useNavigation,
@@ -48,7 +50,6 @@ import {
   subscribeToGroupMessages,
 } from "../services/realtimeMessageService";
 import { getAvatarUri } from "../utils/imageUtils";
-import CustomKeyboardView from "../components/CustomKeyboardView";
 import styles from "../styles/ConvoScreen.styles";
 import ChatHeader from "../components/ChatHeader";
 import MessageBubble from "../components/MessageBubble";
@@ -69,29 +70,29 @@ LogBox.ignoreLogs([
 const toMentionHandle = (firstName, lastName) => {
   const normalizedHandle = `${firstName ?? ""}_${lastName ?? ""}`
     .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_.-]/g, "")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9_.-]/g, " ")
+    .replace(/ +/g, " ")
+    .replace(/^ +|_+$/g, " ");
   return normalizedHandle || "alumni";
 };
 
 const normalizeMentionLookup = (value) =>
-  String(value ?? "")
+  String(value ?? " ")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/[\u0300-\u036f]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/ +/g, " ")
+    .replace(/^ +|_+$/g, " ");
 
 const normalizeMentionName = (firstName, lastName) => {
   const first = normalizeMentionLookup(firstName);
   const last = normalizeMentionLookup(lastName).replace(
-    /_(jr|sr|ii|iii|iv|v|junior|senior)$/g,
+    /(jr|sr|ii|iii|iv|v|junior|senior)$/g,
     "",
   );
-  return [first, last].filter(Boolean).join("_");
+  return [first, last].filter(Boolean).join("");
 };
 
 const extractMentionQuery = (value) => {
@@ -150,11 +151,11 @@ const sortMessagesDescending = (messageList) => {
 
 // ---------- main component ----------
 export default function ConvoScreen() {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const navigation = useNavigation();
   const flatListRef = useRef(null);
   const { refreshUnreadMessages } = useUnreadMessages();
-
   const params = route?.params ?? {};
   const contactId =
     params.contactId ??
@@ -164,7 +165,6 @@ export default function ConvoScreen() {
     null;
   const groupId = params.groupId ?? params.group?.id ?? null;
   const isGroup = Boolean(groupId && !contactId);
-
   const conversationName =
     params.contactName ??
     params.userName ??
@@ -185,8 +185,8 @@ export default function ConvoScreen() {
   const groupMembers = Array.isArray(params.groupMembers)
     ? params.groupMembers
     : Array.isArray(params.group?.members)
-      ? params.group.members
-      : [];
+    ? params.group.members
+    : [];
 
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -205,6 +205,7 @@ export default function ConvoScreen() {
   const [pageOffset, setPageOffset] = useState(0);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const typingChannelRef = useRef(null);
   const typingTimeoutsRef = useRef(new Map());
@@ -212,9 +213,17 @@ export default function ConvoScreen() {
 
   const hasConversation = Boolean(contactId || groupId);
   const messagesRef = useRef(messages);
+
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Track keyboard state strictly for seamless padding adjustment
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? "keyboardWillShow" : "keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? "keyboardWillHide" : "keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const typingChannelKey = useMemo(() => {
     if (!hasConversation || !currentUserId) return null;
@@ -228,6 +237,7 @@ export default function ConvoScreen() {
   }, [contactId, currentUserId, groupId, hasConversation, isGroup]);
 
   const allowMentions = true;
+
   const headerSubtitle = isGroup
     ? groupMembers
         .map((m) => m?.name)
@@ -277,7 +287,7 @@ export default function ConvoScreen() {
   }, [allowMentions, mentionableUsers, mentionContext]);
 
   const typingLabel = useMemo(() => {
-    if (!typingUsers.length) return "";
+    if (!typingUsers.length) return " ";
     const names = typingUsers
       .map((u) => `${u?.first_name ?? ""} ${u?.last_name ?? ""}`.trim())
       .filter(Boolean);
@@ -290,7 +300,6 @@ export default function ConvoScreen() {
     return `${names[0]} is typing...`;
   }, [conversationName, isGroup, typingUsers]);
 
-  // ---------- load current user ----------
   const loadCurrentUser = useCallback(async () => {
     try {
       const supaUser = await getCurrentUser();
@@ -312,7 +321,6 @@ export default function ConvoScreen() {
     }
   }, []);
 
-  // ---------- typing indicator ----------
   const updateTypingStatus = useCallback(
     async (isTyping) => {
       if (!hasConversation || !typingChannelRef.current || !currentUserId) return;
@@ -327,15 +335,15 @@ export default function ConvoScreen() {
           event: "typing",
           payload: {
             userId: currentUserId,
-            first_name: currentUserProfile?.first_name ?? "",
-            last_name: currentUserProfile?.last_name ?? "",
+            first_name: currentUserProfile?.first_name ?? " ",
+            last_name: currentUserProfile?.last_name ?? " ",
             alumni_photo: currentUserProfile?.alumni_photo ?? null,
             isTyping: Boolean(isTyping),
             timestamp: Date.now(),
           },
         });
       } catch (error) {
-        console.warn("[Convo] Failed to broadcast typing status:", error?.message || error);
+        console.warn("[Convo] Failed to broadcast typing status: ", error?.message || error);
       }
     },
     [currentUserId, currentUserProfile, hasConversation],
@@ -349,7 +357,6 @@ export default function ConvoScreen() {
     setTypingUsers([]);
   }, [hasConversation]);
 
-  // ---------- mentions ----------
   const handleMentionPick = useCallback(
     (handle) => {
       if (!allowMentions || !mentionContext) return;
@@ -380,7 +387,6 @@ export default function ConvoScreen() {
     [allowMentions, mentionableUsers, navigation],
   );
 
-  // ---------- load messages (silent refresh) ----------
   const loadMessages = useCallback(
     async (silent = false) => {
       if (!hasConversation) {
@@ -457,13 +463,12 @@ export default function ConvoScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadMessages(true); 
+      loadMessages(true);
       loadTypingStatus();
       return () => updateTypingStatus(false);
     }, [loadMessages, loadTypingStatus, updateTypingStatus]),
   );
 
-  // ---------- load more (pagination with debounce) ----------
   const loadMoreMessages = useCallback(async () => {
     if (isFetchingMore || !hasMoreMessages || isRefreshing || isLoadingMoreRef.current) return;
     isLoadingMoreRef.current = true;
@@ -478,6 +483,7 @@ export default function ConvoScreen() {
         if (!currentUserId) return;
         newBatch = await getDirectMessages(currentUserId, contactId, MESSAGE_LIMIT, nextOffset, receiverType).catch(() => []);
       }
+
       if (newBatch.length < MESSAGE_LIMIT) setHasMoreMessages(false);
       if (newBatch.length > 0) {
         setMessages((prev) => {
@@ -499,10 +505,10 @@ export default function ConvoScreen() {
     isFetchingMore, isGroup, isRefreshing, pageOffset, params.receiverType,
   ]);
 
-  // ---------- realtime subscriptions ----------
   useEffect(() => {
     if (!hasConversation) return;
     let unsubscribe = () => {};
+
     const handleMessageEvent = (event, newMessage) => {
       if (!newMessage) return;
       const isRelevant =
@@ -560,12 +566,12 @@ export default function ConvoScreen() {
     } else if (currentUserId && contactId) {
       unsubscribe = subscribeToDirectMessages(currentUserId, contactId, handleMessageEvent);
     }
+
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [hasConversation, isGroup, contactId, groupId, currentUserId]);
 
-  // ---------- typing channel ----------
   useEffect(() => {
     if (!typingChannelKey || !currentUserId) {
       typingChannelRef.current = null;
@@ -578,8 +584,8 @@ export default function ConvoScreen() {
       if (!senderId || String(senderId) === String(currentUserId)) return;
       const user = {
         id: senderId,
-        first_name: payload?.first_name ?? "",
-        last_name: payload?.last_name ?? "",
+        first_name: payload?.first_name ?? " ",
+        last_name: payload?.last_name ?? " ",
         alumni_photo: payload?.alumni_photo ?? null,
         isTyping: Boolean(payload?.isTyping),
       };
@@ -613,7 +619,6 @@ export default function ConvoScreen() {
     };
   }, [currentUserId, typingChannelKey]);
 
-  // ---------- message actions ----------
   const openMessageActions = useCallback((message) => {
     setActionMessage(message);
     setShowActions(true);
@@ -644,14 +649,14 @@ export default function ConvoScreen() {
                     .eq("id", actionMessage.id);
                 }
               } catch (err) {
-                console.warn("Reaction persist error:", err);
+                console.warn("Reaction persist error: ", err);
               }
             })();
             return { ...msg, reactions: nextReactions };
           }),
         );
       } catch (error) {
-        console.error("Reaction failed:", error);
+        console.error("Reaction failed: ", error);
         ThemedAlert.alert("Error", "Could not add reaction.");
       } finally {
         setShowReactionPicker(false);
@@ -725,7 +730,7 @@ export default function ConvoScreen() {
         setSelectedAttachmentUri(result.assets[0].uri);
       }
     } catch (error) {
-      console.error("Image picker error:", error);
+      console.error("Image picker error: ", error);
       ThemedAlert.alert("Error", "Could not open image library.");
     }
   }, []);
@@ -733,12 +738,18 @@ export default function ConvoScreen() {
   const handleSend = useCallback(async () => {
     const trimmed = draft.trim();
     if ((!trimmed && !selectedAttachmentUri) || isSending || !hasConversation) return;
+    
+    setIsSending(true);
+    setDraft("");
+    const currentAttachmentUri = selectedAttachmentUri;
+    setSelectedAttachmentUri(null);
+    setReplyTo(null);
+    updateTypingStatus(false);
 
-    const attachments = selectedAttachmentUri ? [selectedAttachmentUri] : [];
     const receiverType = params.receiverType || 'alumni';
     const senderType = 'alumni';
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
+    
     const optimistic = {
       id: tempId,
       content: trimmed,
@@ -748,21 +759,50 @@ export default function ConvoScreen() {
       localStatus: "sending",
       sender_type: senderType,
       receiver_type: receiverType,
-      attachments: attachments.map((uri) => ({ attachment_path: uri, isLocal: true })),
+      attachments: currentAttachmentUri ? [{ attachment_path: currentAttachmentUri, isLocal: true }] : [],
     };
-
+    
     setMessages((prev) => [optimistic, ...prev]);
-    setDraft("");
-    setSelectedAttachmentUri(null);
-    setReplyTo(null);
-    setIsSending(true);
-    updateTypingStatus(false);
+
+    // 1. Upload the image directly to Supabase storage
+    let uploadedAttachments = [];
+    if (currentAttachmentUri) {
+      try {
+        const extension = (currentAttachmentUri.split('.').pop() || 'jpg').toLowerCase();
+        const fileName = `chat_media/${currentUserId}_${Date.now()}.${extension}`;
+        
+        // Read file directly into Base64 format to bypass React Native fetch blob issues
+        const base64 = await FileSystem.readAsStringAsync(currentAttachmentUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        // Convert to ArrayBuffer
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+        const contentType = mimeMap[extension] || 'image/jpeg';
+        
+        const { data, error } = await supabase.storage
+          .from('luminus_messages_attachments')
+          .upload(fileName, bytes, { contentType, upsert: true });
+          
+        if (error) throw error;
+        uploadedAttachments.push(data.path || fileName);
+      } catch (err) {
+        console.error("Upload error:", err);
+        ThemedAlert.alert("Upload Failed", "Could not upload image. Sending text only.");
+      }
+    }
 
     try {
       if (isGroup) {
-        await sendGroupMessage(groupId, currentUserId, trimmed, attachments);
+        await sendGroupMessage(groupId, currentUserId, trimmed, uploadedAttachments);
       } else {
-        await sendDirectMessage(currentUserId, contactId, trimmed, attachments, senderType, receiverType);
+        await sendDirectMessage(currentUserId, contactId, trimmed, uploadedAttachments, senderType, receiverType);
       }
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, localStatus: "sent" } : m)),
@@ -831,7 +871,6 @@ export default function ConvoScreen() {
     }
   };
 
-  // ---------- render helpers ----------
   const renderMessageItem = useCallback(
     ({ item, index }) => {
       const senderId = item?.sender_id ?? item?.user_id ?? item?.sender?.id ?? null;
@@ -900,7 +939,7 @@ export default function ConvoScreen() {
   if (!hasConversation) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-        <View style={styles.container}>
+        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
           <View style={styles.chatHeader}>
             <Pressable style={styles.headerIconButton} onPress={() => navigation.goBack()} hitSlop={8}>
               <Ionicons name="arrow-back" size={22} color="#31429B" />
@@ -924,200 +963,179 @@ export default function ConvoScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <CustomKeyboardView
-        footer={
-          <View style={styles.composerFooterWrap}>
-            {mentionContext && mentionSuggestions.length > 0 ? (
-              <View style={styles.mentionPanel}>
-                {mentionSuggestions.map((item, idx) => (
-                  <Pressable
-                    key={`${item.id ?? item.name}-${idx}`}
-                    style={styles.mentionItem}
-                    onPress={() => handleMentionPick(item.handle)}
-                  >
-                    <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                    <Text style={styles.mentionName} numberOfLines={1}>@{item.handle}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
-            {typingLabel ? (
-              <View style={styles.typingIndicatorRow}>
-                <View style={styles.typingBubble}>
-                  <Text style={styles.typingText} numberOfLines={1}>{typingLabel}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            {selectedAttachmentUri ? (
-              <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: "row" }}>
-                <View style={{ position: "relative" }}>
-                  <Image
-                    source={{ uri: selectedAttachmentUri }}
-                    style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: "#E5E7EB" }}
-                  />
-                  <TouchableOpacity
-                    style={{ position: "absolute", top: -8, right: -8, backgroundColor: "#FFF", borderRadius: 12 }}
-                    onPress={() => setSelectedAttachmentUri(null)}
-                  >
-                    <Ionicons name="close-circle" size={24} color="#DC2626" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null}
-
-            <MessageInputBar
-              value={draft}
-              onChangeText={setDraft}
-              onSend={handleSend}
-              onAttach={handleAttach}
-              onEmoji={() => setDraft((prev) => `${prev} 😊`)}
-              disabled={isSending}
-              isReplying={Boolean(replyTo)}
-              onCancelReply={() => setReplyTo(null)}
-              replyTo={replyTo}
-              hasAttachment={Boolean(selectedAttachmentUri)}
-            />
-          </View>
-        }
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: "#FFFFFF" }]} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.container}>
-            <ChatHeader
-              title={conversationName}
-              subtitle={headerSubtitle}
-              avatarUri={getAvatarUri(conversationName, conversationAvatar)}
-              avatarName={isGroup ? (groupMembers.map((member) => member?.name).filter(Boolean).join(" ") || conversationName) : conversationName}
-              onBackPress={() => navigation.goBack()}
-              onProfilePress={() => {}}
-              onCallPress={() => initiateCall("audio")}
-              onVideoPress={() => initiateCall("video")}
-              onInfoPress={() => {
-                if (isGroup) {
-                  navigation.navigate("ChatDetailsScreen", {
-                    group: { id: groupId, name: conversationName, avatar: getAvatarUri(conversationName, conversationAvatar), members: groupMembers, media: [] },
-                  });
-                  return;
-                }
+        <View style={[styles.container, { flex: 1 }]}>
+          <ChatHeader
+            title={conversationName}
+            subtitle={headerSubtitle}
+            avatarUri={getAvatarUri(conversationName, conversationAvatar)}
+            avatarName={isGroup ? (groupMembers.map((member) => member?.name).filter(Boolean).join(" ") || conversationName) : conversationName}
+            onBackPress={() => navigation.goBack()}
+            onProfilePress={() => {}}
+            onCallPress={() => initiateCall("audio")}
+            onVideoPress={() => initiateCall("video")}
+            onInfoPress={() => {
+              if (isGroup) {
                 navigation.navigate("ChatDetailsScreen", {
-                  contact: {
-                    id: contactId,
-                    name: conversationName,
-                    first_name: params.contactFirstName ?? params.contact?.first_name ?? "",
-                    last_name: params.contactLastName ?? params.contact?.last_name ?? "",
-                    username: params.contactUsername ?? params.contact?.username ?? null,
-                    avatar: conversationAvatar,
-                    alumni_photo: params.contactPhoto ?? params.contact?.alumni_photo ?? null,
-                  },
+                  group: { id: groupId, name: conversationName, avatar: getAvatarUri(conversationName, conversationAvatar), members: groupMembers, media: [] },
                 });
-              }}
-            />
-
-            {/* silent refresh indicator */}
-            {isRefreshing && (
-              <ActivityIndicator
-                size="small"
-                color="#31429B"
-                style={{ position: "absolute", top: 12, left: "50%", marginLeft: -12, zIndex: 10 }}
-              />
-            )}
-
-            <FlatList
-              ref={flatListRef}
-              inverted={true}
-              data={messages}
-              renderItem={renderMessageItem}
-              keyExtractor={(item, index) => {
-                const uniqueId = item?.id ?? item?.tempId ?? item?.localId ?? `msg-${index}`;
-                return `${uniqueId}-${index}`;
-              }}
-              initialNumToRender={14}
-              maxToRenderPerBatch={10}
-              updateCellsBatchingPeriod={50}
-              windowSize={6}
-              removeClippedSubviews
-              contentContainerStyle={
-                messages.length > 0
-                  ? styles.messagesContent
-                  : [styles.messagesContent, { flexGrow: 1 }]
+                return;
               }
-              ListEmptyComponent={renderEmptyState}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              style={styles.chatBody}
-              onEndReached={() => loadMoreMessages()}
-              onEndReachedThreshold={0.5}
-              ListFooterComponent={
-                isFetchingMore ? (
-                  <ActivityIndicator size="small" color="#31429B" style={{ marginVertical: 12 }} />
-                ) : null
-              }
-            />
+              navigation.navigate("ChatDetailsScreen", {
+                contact: {
+                  id: contactId,
+                  name: conversationName,
+                  first_name: params.contactFirstName ?? params.contact?.first_name ?? " ",
+                  last_name: params.contactLastName ?? params.contact?.last_name ?? " ",
+                  username: params.contactUsername ?? params.contact?.username ?? null,
+                  avatar: conversationAvatar,
+                  alumni_photo: params.contactPhoto ?? params.contact?.alumni_photo ?? null,
+                },
+              });
+            }}
+          />
 
-            {/* Modals */}
-            <Modal visible={showActions} transparent animationType="fade" onRequestClose={closeMessageActions}>
-              <View style={styles.reactionPickerOverlay}>
-                <View style={styles.reactionPickerContent}>
-                  <Text style={styles.reactionPickerTitle}>Message actions</Text>
-                  <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleReply}>
-                    <Text style={styles.reactionPickerEmojiText}>Reply</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionPickerEmoji} onPress={() => setShowReactionPicker(true)}>
-                    <Text style={styles.reactionPickerEmojiText}>React</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleDeleteMessage}>
-                    <Text style={styles.reactionPickerEmojiText}>Delete</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.reactionPickerClose} onPress={closeMessageActions}>
-                    <Text style={styles.reactionPickerCloseText}>Cancel</Text>
-                  </TouchableOpacity>
+          {isRefreshing && (
+            <ActivityIndicator
+              size="small"
+              color="#31429B"
+              style={{ position: "absolute", top: 12, left: "50%", marginLeft: -12, zIndex: 10 }}
+            />
+          )}
+
+          <FlatList
+            ref={flatListRef}
+            inverted={true}
+            data={messages}
+            renderItem={renderMessageItem}
+            keyExtractor={(item, index) => {
+              const uniqueId = item?.id ?? item?.tempId ?? item?.localId ?? `msg-${index}`;
+              return `${uniqueId}-${index}`;
+            }}
+            initialNumToRender={14}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            windowSize={6}
+            removeClippedSubviews
+            contentContainerStyle={
+              messages.length > 0
+                ? styles.messagesContent
+                : [styles.messagesContent, { flexGrow: 1 }]
+            }
+            ListEmptyComponent={renderEmptyState}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator={false}
+            style={styles.chatBody}
+            onEndReached={() => loadMoreMessages()}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isFetchingMore ? (
+                <ActivityIndicator size="small" color="#31429B" style={{ marginVertical: 12 }} />
+              ) : null
+            }
+          />
+
+          <View style={{ backgroundColor: "#FFFFFF", paddingBottom: isKeyboardVisible ? 12 : Math.max(insets.bottom, 12) }}>
+            <View style={styles.composerFooterWrap}>
+              {mentionContext && mentionSuggestions.length > 0 ? (
+                <View style={styles.mentionPanel}>
+                  {mentionSuggestions.map((item, idx) => (
+                    <Pressable
+                      key={`${item.id ?? item.name}-${idx}`}
+                      style={styles.mentionItem}
+                      onPress={() => handleMentionPick(item.handle)}
+                    >
+                      <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                      <Text style={styles.mentionName} numberOfLines={1}>@{item.handle}</Text>
+                    </Pressable>
+                  ))}
                 </View>
-              </View>
-            </Modal>
+              ) : null}
 
-            <Modal visible={showReactionPicker} transparent animationType="fade" onRequestClose={() => setShowReactionPicker(false)}>
-              <View style={styles.reactionPickerOverlay}>
-                <View style={styles.reactionPickerContent}>
-                  <Text style={styles.reactionPickerTitle}>React to message</Text>
-                  <View style={styles.reactionPickerRow}>
-                    {REACTIONS.map((emoji) => (
-                      <TouchableOpacity key={emoji} style={styles.reactionPickerEmoji} onPress={() => handleReact(emoji)}>
-                        <Text style={styles.reactionPickerEmojiText}>{emoji}</Text>
-                      </TouchableOpacity>
-                    ))}
+              {typingLabel && typingLabel !== " " ? (
+                <View style={styles.typingIndicatorRow}>
+                  <View style={styles.typingBubble}>
+                    <Text style={styles.typingText} numberOfLines={1}>{typingLabel}</Text>
                   </View>
-                  <TouchableOpacity style={styles.reactionPickerClose} onPress={() => setShowReactionPicker(false)}>
-                    <Text style={styles.reactionPickerCloseText}>Cancel</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
-            </Modal>
+              ) : null}
+
+              {selectedAttachmentUri ? (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: "row" }}>
+                  <View style={{ position: "relative" }}>
+                    <Image
+                      source={{ uri: selectedAttachmentUri }}
+                      style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: "#E5E7EB" }}
+                    />
+                    <TouchableOpacity
+                      style={{ position: "absolute", top: -8, right: -8, backgroundColor: "#FFF", borderRadius: 12 }}
+                      onPress={() => setSelectedAttachmentUri(null)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+
+              <MessageInputBar
+                value={draft}
+                onChangeText={setDraft}
+                onSend={handleSend}
+                onAttach={handleAttach}
+                onEmoji={() => setDraft((prev) => `${prev} 😊`)}
+                disabled={isSending}
+                isReplying={Boolean(replyTo)}
+                onCancelReply={() => setReplyTo(null)}
+                replyTo={replyTo}
+                hasAttachment={Boolean(selectedAttachmentUri)}
+              />
+            </View>
           </View>
-        </TouchableWithoutFeedback>
-      </CustomKeyboardView>
+        </View>
+      </KeyboardAvoidingView>
+
+      <Modal visible={showActions} transparent animationType="fade" onRequestClose={closeMessageActions}>
+        <View style={styles.reactionPickerOverlay}>
+          <View style={styles.reactionPickerContent}>
+            <Text style={styles.reactionPickerTitle}>Message actions</Text>
+            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleReply}>
+              <Text style={styles.reactionPickerEmojiText}>Reply</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={() => setShowReactionPicker(true)}>
+              <Text style={styles.reactionPickerEmojiText}>React</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleDeleteMessage}>
+              <Text style={styles.reactionPickerEmojiText}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reactionPickerClose} onPress={closeMessageActions}>
+              <Text style={styles.reactionPickerCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showReactionPicker} transparent animationType="fade" onRequestClose={() => setShowReactionPicker(false)}>
+        <View style={styles.reactionPickerOverlay}>
+          <View style={styles.reactionPickerContent}>
+            <Text style={styles.reactionPickerTitle}>React to message</Text>
+            <View style={styles.reactionPickerRow}>
+              {REACTIONS.map((emoji) => (
+                <TouchableOpacity key={emoji} style={styles.reactionPickerEmoji} onPress={() => handleReact(emoji)}>
+                  <Text style={styles.reactionPickerEmojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.reactionPickerClose} onPress={() => setShowReactionPicker(false)}>
+              <Text style={styles.reactionPickerCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
-
-const localStyles = StyleSheet.create({
-  attachmentImage: {
-    width: Math.min(SCREEN_WIDTH * 0.72, 280),
-    height: Math.min(SCREEN_WIDTH * 0.72, 280),
-    borderRadius: 14,
-    marginBottom: 8,
-    backgroundColor: "#E5E7EB",
-  },
-  messageAvatarSpacer: { width: 24, height: 24, marginRight: 8 },
-  messageColumn: { flexShrink: 1, maxWidth: "76%" },
-  bottomSafeArea: { backgroundColor: "transparent" },
-  seenText: {
-    marginLeft: 8,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "600",
-    fontFamily: "Poppins_400Regular",
-    color: "#94A3B8",
-  },
-});

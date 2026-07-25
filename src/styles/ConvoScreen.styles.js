@@ -1,10 +1,8 @@
 import { StyleSheet, Dimensions } from "react-native";
-
 const { width } = Dimensions.get("window");
-
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject, // Forces the SafeAreaView to cover the entire screen
     backgroundColor: "#FFFFFF",
   },
   container: {
@@ -15,7 +13,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  
   // -- HEADER --
   chatHeader: {
     flexDirection: "row",
@@ -67,7 +64,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-
   // -- BODY --
   chatBody: {
     flex: 1,
@@ -91,7 +87,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
   },
-
   // -- EMPTY STATE --
   emptyConversationState: {
     flex: 1,
@@ -100,14 +95,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-emptyConversationFlipped: {
+  emptyConversationFlipped: {
     transform: [{ scale: -1 }],
     alignItems: "center",
     justifyContent: "center",
-    // Add these:
     width: "100%",
     paddingVertical: 20,
-},
+  },
   emptyConversationLoadingButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -146,7 +140,6 @@ emptyConversationFlipped: {
     color: "#EF4444",
     fontFamily: "Poppins_400Regular",
   },
-
   // -- CHAT BUBBLES (iMessage Style Teardrops) --
   messageRow: {
     flexDirection: "row",
@@ -178,7 +171,7 @@ emptyConversationFlipped: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 4, 
+    borderBottomRightRadius: 4,
   },
   // Sharp bottom-left corner for receiver
   messageBubbleIncoming: {
@@ -211,7 +204,6 @@ emptyConversationFlipped: {
     color: "#94A3B8",
     fontFamily: "Poppins_400Regular",
   },
-
   // -- REACTIONS --
   reactionsRow: {
     flexDirection: "row",
@@ -229,7 +221,6 @@ emptyConversationFlipped: {
   reactionText: {
     fontSize: 13,
   },
-
   // -- COMPOSER / INPUT --
   composerWrap: {
     backgroundColor: "#FFFFFF",
@@ -255,7 +246,7 @@ emptyConversationFlipped: {
   composerInputWrap: {
     flex: 1,
     marginHorizontal: 8,
-    backgroundColor: "#F1F5F9", 
+    backgroundColor: "#F1F5F9",
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -290,7 +281,6 @@ emptyConversationFlipped: {
     gap: 8,
     backgroundColor: "#FFFFFF",
   },
-
   // -- ATTACHMENTS --
   attachmentPreview: {
     flexDirection: "row",
@@ -316,7 +306,6 @@ emptyConversationFlipped: {
   attachmentPreviewRemove: {
     marginLeft: "auto",
   },
-
   // -- TYPING / MENTIONS --
   typingIndicatorRow: {
     flexDirection: "row",
@@ -365,7 +354,6 @@ emptyConversationFlipped: {
     fontWeight: "700",
     fontFamily: "Poppins_600SemiBold",
   },
-
   // -- MODALS (Reactions & Actions) --
   reactionPickerOverlay: {
     flex: 1,
@@ -422,5 +410,4 @@ emptyConversationFlipped: {
     fontFamily: "Poppins_600SemiBold",
   },
 });
-
 export default styles;

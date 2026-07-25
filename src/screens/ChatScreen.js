@@ -84,21 +84,17 @@ const formatChatTimestamp = (value) => {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
-// IMPROVED: Helper function to get group avatar URL with multiple fallback methods
 const getGroupAvatarUrl = async (avatarPath) => {
   if (!avatarPath || typeof avatarPath !== "string" || avatarPath.trim() === "") {
     return null;
   }
   
-  // If it's already a full URL, use it directly
   if (/^https?:\/\//i.test(avatarPath)) {
     return avatarPath;
   }
   
   try {
     const cleanPath = String(avatarPath).replace(/^\/+/, "");
-    
-    // Try to get a signed URL for better reliability
     const { data, error } = await supabase.storage
       .from('luminus_messages_attachments')
       .createSignedUrl(cleanPath, 60 * 60);
@@ -106,11 +102,8 @@ const getGroupAvatarUrl = async (avatarPath) => {
     if (!error && data?.signedUrl) {
       return data.signedUrl;
     }
-  } catch (err) {
-    // Silently fail and try public URL
-  }
+  } catch (err) {}
   
-  // Fallback to public URL
   const cleanPath = String(avatarPath).replace(/^\/+/, "");
   return `https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_messages_attachments/${cleanPath}`;
 };
@@ -137,8 +130,12 @@ const ChatScreen = ({ navigation }) => {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [hasMoreChats, setHasMoreChats] = useState(true);
   const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
-  // NEW: State for storing group avatar URLs
   const [groupAvatarUrls, setGroupAvatarUrls] = useState({});
+  const [hiddenContactIds, setHiddenContactIds] = useState(new Set());
+  
+  // Track muted chats
+  const [mutedContactIds, setMutedContactIds] = useState(new Set());
+  const [mutedGroupIds, setMutedGroupIds] = useState(new Set());
 
   const CHAT_LIMIT = 50;
   const tabContentAnimation = useRef(new Animated.Value(1)).current;
@@ -275,9 +272,31 @@ const ChatScreen = ({ navigation }) => {
       
       const numericUserId = currentUserProfile?.id;
       let favoritesRes = { data: [] };
+      let dmSettingsRes = { data: [] };
+      let archivedGroupsRes = { data: [] };
+
+      // Ensure we filter out archived and hidden chats directly from the active lists, and extract muted status
       if (numericUserId) {
         favoritesRes = await supabase.from("favorite_chats").select("contact_id").eq("user_id", numericUserId);
+        
+        dmSettingsRes = await supabase.from("dm_settings")
+          .select("contact_id, is_archived, is_hidden, is_muted")
+          .eq("user_id", numericUserId);
+
+        archivedGroupsRes = await supabase.from("group_chat_members")
+          .select("group_chat_id, archived, muted")
+          .eq("alumni_id", numericUserId);
       }
+
+      const excludedContactIds = new Set((dmSettingsRes.data || []).filter(r => r.is_archived || r.is_hidden).map(row => String(row.contact_id)));
+      const excludedGroupIds = new Set((archivedGroupsRes.data || []).filter(r => r.archived).map(row => String(row.group_chat_id)));
+      
+      const mutedCIds = new Set((dmSettingsRes.data || []).filter(r => r.is_muted).map(row => String(row.contact_id)));
+      const mutedGIds = new Set((archivedGroupsRes.data || []).filter(r => r.muted).map(row => String(row.group_chat_id)));
+
+      setHiddenContactIds(excludedContactIds);
+      setMutedContactIds(mutedCIds);
+      setMutedGroupIds(mutedGIds);
 
       const [conversations, groupChatsData, followingRows, followerRows] = await Promise.all([
         conversationsPromise,
@@ -291,7 +310,7 @@ const ChatScreen = ({ navigation }) => {
 
       (followingRows || []).forEach((row) => {
         const contact = row?.followed;
-        if (!contact?.id) return;
+        if (!contact?.id || excludedContactIds.has(String(contact.id))) return;
         connectionsMap.set(`alumni_${contact.id}`, {
           id: `alumni_${contact.id}`, 
           connection_id: contact.id, 
@@ -308,7 +327,7 @@ const ChatScreen = ({ navigation }) => {
 
       (followerRows || []).forEach((row) => {
         const contact = row?.follower;
-        if (!contact?.id) return;
+        if (!contact?.id || excludedContactIds.has(String(contact.id))) return;
         const key = `alumni_${contact.id}`;
         if (connectionsMap.has(key)) return;
         connectionsMap.set(key, {
@@ -328,6 +347,9 @@ const ChatScreen = ({ navigation }) => {
       const conversationsList = Array.isArray(conversations) ? conversations : [];
       conversationsList.forEach((conversation) => {
         if (!conversation?.id) return;
+        const connId = String(conversation.connection_id || conversation.id.replace('alumni_', ''));
+        if (excludedContactIds.has(connId)) return;
+
         const key = conversation.id; 
         const baseContact = connectionsMap.get(key) || {};
         connectionsMap.set(key, {
@@ -351,13 +373,13 @@ const ChatScreen = ({ navigation }) => {
         setFavoriteContactIds(new Set(favoriteIds)); 
       } catch (e) {}
 
-      // Set group chats
-      const nextGroupChats = Array.isArray(groupChatsData) ? groupChatsData : [];
-      setGroupChats(nextGroupChats);
+      const filteredGroupChats = (Array.isArray(groupChatsData) ? groupChatsData : [])
+        .filter(g => !excludedGroupIds.has(String(g.id)));
+
+      setGroupChats(filteredGroupChats);
       
-      // NEW: Load avatar URLs for all groups
       const avatarUrls = {};
-      for (const group of nextGroupChats) {
+      for (const group of filteredGroupChats) {
         if (group?.id && (group?.avatar_url || group?.avatar)) {
           const url = await getGroupAvatarUrl(group.avatar_url || group.avatar);
           if (url) {
@@ -396,6 +418,9 @@ const ChatScreen = ({ navigation }) => {
           const connectionsMap = new Map(prevContacts.map((c) => [c.id, c]));
           newConversations.forEach((conversation) => {
             if (!conversation?.id) return;
+            const connId = String(conversation.connection_id || conversation.id.replace('alumni_', ''));
+            if (hiddenContactIds.has(connId)) return;
+
             const key = conversation.id; 
             const baseContact = connectionsMap.get(key) || {};
             connectionsMap.set(key, {
@@ -522,6 +547,7 @@ const ChatScreen = ({ navigation }) => {
     
     const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
     const isFavorited = favoriteContactIds.has(item?.connection_id);
+    const isMuted = mutedContactIds.has(String(item?.connection_id));
     
     const hasPhoto = item?.alumni_photo && 
                      typeof item.alumni_photo === "string" && 
@@ -543,7 +569,8 @@ const ChatScreen = ({ navigation }) => {
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{contactName}</Text>
-            {isFavorited && <Ionicons name="star" size={14} color="#FBD117" style={styles.starIcon} />}
+            {isMuted && <Ionicons name="volume-mute" size={14} color="#94A3B8" style={{ marginLeft: 4 }} />}
+            {isFavorited && <Ionicons name="star" size={14} color="#FBD117" style={[styles.starIcon, { marginLeft: 4 }]} />}
           </View>
           <View style={styles.chatSubRow}>
             <Text style={[styles.chatMessage, unreadCount > 0 && styles.chatMessageUnread]} numberOfLines={1}>
@@ -577,6 +604,7 @@ const ChatScreen = ({ navigation }) => {
     try {
       await archiveConversation(userId, contactId);
       setContacts((prev) => prev.filter((c) => c.connection_id !== contactId));
+      setHiddenContactIds(prev => new Set(prev).add(String(contactId)));
       ThemedAlert.alert("Archived", "Conversation has been archived.");
     } catch (e) {
       ThemedAlert.alert("Error", "Failed to archive conversation.");
@@ -590,11 +618,27 @@ const ChatScreen = ({ navigation }) => {
 
     if (!userId || !contactId) return;
 
+    const isCurrentlyMuted = mutedContactIds.has(String(contactId));
+    const nextMuteState = !isCurrentlyMuted;
+
+    setMutedContactIds(prev => {
+      const next = new Set(prev);
+      if (nextMuteState) next.add(String(contactId));
+      else next.delete(String(contactId));
+      return next;
+    });
+
     try {
-      await updateDMSettings(userId, contactId, { is_muted: true });
-      ThemedAlert.alert("Muted", "Notifications for this chat are now muted.");
+      await updateDMSettings(userId, contactId, { is_muted: nextMuteState });
+      ThemedAlert.alert(nextMuteState ? "Muted" : "Unmuted", `Notifications for this chat are now ${nextMuteState ? 'muted' : 'unmuted'}.`);
     } catch (e) {
-      ThemedAlert.alert("Error", "Failed to mute conversation.");
+      setMutedContactIds(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyMuted) next.add(String(contactId));
+        else next.delete(String(contactId));
+        return next;
+      });
+      ThemedAlert.alert("Error", "Failed to update mute settings.");
     }
   };
 
@@ -687,6 +731,7 @@ const ChatScreen = ({ navigation }) => {
             try {
               await deleteConversation(userId, contactId);
               setContacts((prev) => prev.filter((c) => c.connection_id !== contactId));
+              setHiddenContactIds(prev => new Set(prev).add(String(contactId)));
               ThemedAlert.alert("Deleted", "Conversation has been deleted.");
             } catch (e) {}
           },
@@ -695,7 +740,6 @@ const ChatScreen = ({ navigation }) => {
     );
   };
 
-  // UPDATED: Group chat item with proper image rendering using avatar URLs from state
   const renderGroupChatItem = ({ item }) => {
     const groupName = item?.name ?? "Group Chat";
     const groupAvatar = groupAvatarUrls[item?.id] || null;
@@ -703,6 +747,7 @@ const ChatScreen = ({ navigation }) => {
     const unreadCount = Number(item?.unread_count ?? 0);
     const latestMessageTime = item?.latest_message?.created_at || item?.updated_at || item?.created_at;
     const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
+    const isMuted = mutedGroupIds.has(String(item?.id));
 
     return (
       <Pressable
@@ -732,6 +777,7 @@ const ChatScreen = ({ navigation }) => {
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>{groupName}</Text>
+            {isMuted && <Ionicons name="volume-mute" size={14} color="#94A3B8" style={{ marginLeft: 4 }} />}
           </View>
           <View style={styles.chatSubRow}>
             <Text style={[styles.chatMessage, unreadCount > 0 && styles.chatMessageUnread]} numberOfLines={1}>{latestMessage}</Text>
@@ -801,10 +847,46 @@ const ChatScreen = ({ navigation }) => {
 
   const hideGroupActions = () => { setIsGroupActionModalVisible(false); setModalGroup(null); };
 
-  const handleArchiveGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ archived: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
+  const handleArchiveGroup = async () => { 
+    hideGroupActions(); 
+    try { 
+      await supabase.from("group_chat_members").update({ archived: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); 
+      setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id));
+    } catch (e) {} 
+  };
   const handleIgnoreGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ ignored: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
   const handleAddMembers = () => { hideGroupActions(); const parentNavigator = navigation.getParent?.(); const params = { groupId: modalGroup?.id, prefillName: modalGroup?.name }; if (parentNavigator?.navigate) parentNavigator.navigate("EditGroup", params); else navigation.navigate("EditGroup", params); };
-  const handleMuteGroup = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ muted: true }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); } catch (e) {} };
+
+  const handleMuteGroup = async () => { 
+    hideGroupActions(); 
+    const groupId = modalGroup?.id;
+    const userId = currentUserProfile?.id;
+    if (!userId || !groupId) return;
+
+    const isCurrentlyMuted = mutedGroupIds.has(String(groupId));
+    const nextMuteState = !isCurrentlyMuted;
+
+    setMutedGroupIds(prev => {
+      const next = new Set(prev);
+      if (nextMuteState) next.add(String(groupId));
+      else next.delete(String(groupId));
+      return next;
+    });
+
+    try { 
+      await supabase.from("group_chat_members").update({ muted: nextMuteState }).eq("group_chat_id", groupId).eq("alumni_id", userId); 
+      ThemedAlert.alert(nextMuteState ? "Muted" : "Unmuted", `Notifications for this group are now ${nextMuteState ? 'muted' : 'unmuted'}.`);
+    } catch (e) { 
+      setMutedGroupIds(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyMuted) next.add(String(groupId));
+        else next.delete(String(groupId));
+        return next;
+      });
+      ThemedAlert.alert("Error", "Failed to update mute settings.");
+    } 
+  };
+
   const handleMarkGroupUnread = async () => { hideGroupActions(); try { await supabase.from("group_chat_members").update({ last_read_message_id: 0 }).eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); loadChatData(); } catch (e) {} };
   const handleLeaveGroup = async () => { ThemedAlert.alert("Leave group", "Are you sure you want to leave this group?", [{ text: "Cancel", style: "cancel" }, { text: "Leave", style: "destructive", onPress: async () => { hideGroupActions(); try { await supabase.from("group_chat_members").delete().eq("group_chat_id", modalGroup?.id).eq("alumni_id", currentUserProfile?.id); setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id)); } catch (e) {} } }]); };
   const handleDeleteGroup = async () => { ThemedAlert.alert("Delete group", "Are you sure you want to delete this group?", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => { hideGroupActions(); try { await supabase.from("group_chats").delete().eq("id", modalGroup?.id); setGroupChats((prev) => prev.filter((g) => g.id !== modalGroup?.id)); } catch (e) {} } }]); };
@@ -990,8 +1072,8 @@ const ChatScreen = ({ navigation }) => {
                 <Text style={styles.actionText}>Archive</Text>
               </Pressable>
               <Pressable style={styles.actionItem} onPress={handleMute}>
-                <Ionicons name="volume-mute-outline" size={20} color="#31429B" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Mute</Text>
+                <Ionicons name={mutedContactIds.has(String(modalContact?.connection_id)) ? "volume-high-outline" : "volume-mute-outline"} size={20} color="#31429B" style={styles.actionIcon} />
+                <Text style={styles.actionText}>{mutedContactIds.has(String(modalContact?.connection_id)) ? "Unmute" : "Mute"}</Text>
               </Pressable>
               <Pressable style={styles.actionItem} onPress={handleCreateGroup}>
                 <Ionicons name="people-outline" size={20} color="#31429B" style={styles.actionIcon} />
@@ -1037,8 +1119,8 @@ const ChatScreen = ({ navigation }) => {
                 <Text style={styles.actionText}>Add members</Text>
               </Pressable>
               <Pressable style={styles.actionItem} onPress={handleMuteGroup}>
-                <Ionicons name="volume-mute-outline" size={20} color="#31429B" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Mute</Text>
+                <Ionicons name={mutedGroupIds.has(String(modalGroup?.id)) ? "volume-high-outline" : "volume-mute-outline"} size={20} color="#31429B" style={styles.actionIcon} />
+                <Text style={styles.actionText}>{mutedGroupIds.has(String(modalGroup?.id)) ? "Unmute" : "Mute"}</Text>
               </Pressable>
               <Pressable style={styles.actionItem} onPress={handleMarkGroupUnread}>
                 <Ionicons name="mail-unread-outline" size={20} color="#31429B" style={styles.actionIcon} />

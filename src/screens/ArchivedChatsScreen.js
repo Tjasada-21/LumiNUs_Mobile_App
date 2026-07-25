@@ -33,7 +33,6 @@ const TABS = [
   { key: "deleted", label: "Deleted" },
 ];
 
-// 3 minutes for testing (change to 30 * 24 * 60 * 60 * 1000 for 30 days)
 const DELETE_RETENTION_MS = 3 * 60 * 1000;
 
 const formatChatTimestamp = (value) => {
@@ -128,11 +127,9 @@ const ArchivedChatsScreen = () => {
     }).start();
   }, [selectedTab, tabContentAnimation]);
 
-  // Timer to refresh countdown on "Deleted" tab
   useEffect(() => {
     if (selectedTab !== "deleted" || deletedChats.length === 0) return;
     const interval = setInterval(() => {
-      // Force re-render to update countdown
       setDeletedChats((prev) => [...prev]);
     }, 1000);
     return () => clearInterval(interval);
@@ -144,23 +141,99 @@ const ArchivedChatsScreen = () => {
       const userId = currentUserProfile?.id;
       if (!userId) return;
 
-      // Fetch all three in parallel using the new query functions
       const [archivedDMs, deletedDMs, archivedGroups] = await Promise.all([
-        getArchivedConversations(userId),
-        getDeletedConversations(userId),
-        getArchivedGroupChats(userId),
+        getArchivedConversations(userId).catch(() => []),
+        getDeletedConversations(userId).catch(() => []),
+        getArchivedGroupChats(userId).catch(() => []),
       ]);
 
-      // Merge archived DMs and groups, sort by archivedAt
-      const formattedArchived = archivedDMs
+      // --- MANUAL PROFILE RESOLVER ---
+      // Scans for IDs missing names and fetches them directly from the database
+      const missingAlumniIds = new Set();
+      const missingAdminIds = new Set();
+
+      const checkMissing = (chat) => {
+        if (chat.type === 'group') return;
+        
+        const profile = chat.alumnis || chat.alumni || chat.contact || chat.user || chat.users || chat;
+        const fName = profile.first_name || profile.admin_first_name || chat.first_name;
+        
+        if (!fName && chat.contact_id) {
+          if (chat.contact_type === 'admin') {
+            missingAdminIds.add(chat.contact_id);
+          } else {
+            missingAlumniIds.add(chat.contact_id);
+          }
+        }
+      };
+
+      archivedDMs.forEach(checkMissing);
+      deletedDMs.forEach(checkMissing);
+
+      const fetchedProfiles = {};
+
+      if (missingAlumniIds.size > 0) {
+        const { data } = await supabase
+          .from('alumnis')
+          .select('id, first_name, last_name, alumni_photo, email')
+          .in('id', Array.from(missingAlumniIds));
+        
+        (data || []).forEach(p => {
+          fetchedProfiles[`alumni_${p.id}`] = p;
+        });
+      }
+
+      if (missingAdminIds.size > 0) {
+        const { data } = await supabase
+          .from('admins')
+          .select('id, admin_first_name, admin_last_name, photo, admin_email')
+          .in('id', Array.from(missingAdminIds));
+        
+        (data || []).forEach(p => {
+          fetchedProfiles[`admin_${p.id}`] = {
+            first_name: p.admin_first_name,
+            last_name: p.admin_last_name,
+            alumni_photo: p.photo,
+            email: p.admin_email
+          };
+        });
+      }
+
+      const enrichChat = (chat) => {
+        if (chat.type === 'group') return chat;
+        
+        const profile = chat.alumnis || chat.alumni || chat.contact || chat.user || chat.users || chat;
+        const fName = profile.first_name || profile.admin_first_name || chat.first_name;
+        
+        // If the name is missing but we fetched it, inject it into the chat object
+        if (!fName && chat.contact_id) {
+          const type = chat.contact_type || 'alumni';
+          const found = fetchedProfiles[`${type}_${chat.contact_id}`];
+          if (found) {
+            return {
+              ...chat,
+              first_name: found.first_name,
+              last_name: found.last_name,
+              alumni_photo: found.alumni_photo,
+              email: found.email
+            };
+          }
+        }
+        return chat;
+      };
+
+      const enrichedArchivedDMs = archivedDMs.map(enrichChat);
+      const enrichedDeletedDMs = deletedDMs.map(enrichChat);
+      // ---------------------------------
+
+      const formattedArchived = enrichedArchivedDMs
         .concat(archivedGroups)
-        .sort((a, b) => new Date(b.archivedAt).getTime() - new Date(a.archivedAt).getTime());
+        .sort((a, b) => new Date(b.archivedAt || 0).getTime() - new Date(a.archivedAt || 0).getTime());
 
       setArchivedChats(formattedArchived);
 
-      // Filter out expired deleted chats
       const now = Date.now();
-      const validDeleted = deletedDMs.filter((chat) => {
+      const validDeleted = enrichedDeletedDMs.filter((chat) => {
         const deletedTime = new Date(chat.deletedAt).getTime();
         return (now - deletedTime) < DELETE_RETENTION_MS;
       });
@@ -200,7 +273,6 @@ const ArchivedChatsScreen = () => {
         }
       }
 
-      // Remove from whichever list it was in
       setArchivedChats((prev) => prev.filter((c) => c.id !== chat.id));
       setDeletedChats((prev) => prev.filter((c) => c.id !== chat.id));
 
@@ -214,14 +286,23 @@ const ArchivedChatsScreen = () => {
   };
 
   const renderChatItem = ({ item }) => {
-    const contactName = item.name;
-    const contactAvatar = getAvatarUri(contactName, item.photo);
+    const profile = item.alumnis || item.alumni || item.contact || item.user || item.users || item;
+
+    const fName = profile.first_name || profile.admin_first_name || item.first_name || "";
+    const lName = profile.last_name || profile.admin_last_name || item.last_name || "";
+    const emailStr = profile.email || profile.admin_email || item.email || "Direct message";
+
+    const resolvedName = item.name || `${fName} ${lName}`.trim() || "Alumni";
+    const resolvedPhoto = profile.alumni_photo || profile.photo || profile.avatar_url || item.alumni_photo || item.photo;
+    
+    const contactAvatar = getAvatarUri(resolvedName, resolvedPhoto);
     const hasPhoto =
-      item.photo &&
-      typeof item.photo === "string" &&
-      item.photo.trim() !== "" &&
-      !item.photo.includes("undefined") &&
-      !item.photo.includes("null");
+      resolvedPhoto &&
+      typeof resolvedPhoto === "string" &&
+      resolvedPhoto.trim() !== "" &&
+      !resolvedPhoto.includes("undefined") &&
+      !resolvedPhoto.includes("null");
+
     const isGroup = item.type === "group";
     const isRestoring = restoringId === item.id;
     const isDeleted = selectedTab === "deleted";
@@ -232,13 +313,13 @@ const ArchivedChatsScreen = () => {
         {hasPhoto ? (
           <Image source={{ uri: contactAvatar }} style={styles.chatAvatar} />
         ) : (
-          <AvatarInitials name={contactName} size={56} style={styles.chatAvatar} />
+          <AvatarInitials name={resolvedName} size={56} style={styles.chatAvatar} />
         )}
 
         <View style={styles.chatInfo}>
           <View style={styles.chatHeaderRow}>
             <Text style={styles.chatName} numberOfLines={1}>
-              {contactName}
+              {resolvedName}
             </Text>
             {isGroup && (
               <View style={styles.groupBadge}>
@@ -247,7 +328,7 @@ const ArchivedChatsScreen = () => {
             )}
           </View>
           <Text style={styles.chatSubText} numberOfLines={1}>
-            {isGroup ? "Group conversation" : item.email || "Direct message"}
+            {isGroup ? "Group conversation" : emailStr}
           </Text>
           {isDeleted ? (
             <Text
@@ -356,7 +437,6 @@ const ArchivedChatsScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
-        {/* BLUE HEADER SECTION */}
         <View style={styles.blueHeaderSection}>
           <Image
             source={require("../../assets/images/Space_HeaderBG_White 2.png")}
@@ -373,11 +453,9 @@ const ArchivedChatsScreen = () => {
               <Ionicons name="arrow-back" size={22} color="#31429B" />
             </TouchableOpacity>
             <Text style={styles.headerTitleWhite}>Chats</Text>
-            {/* Spacer to balance the back button */}
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Tabs: Archived | Deleted */}
           <View style={styles.tabContainer}>
             {TABS.map((tab) => {
               const isActive = selectedTab === tab.key;
@@ -399,9 +477,7 @@ const ArchivedChatsScreen = () => {
           </View>
         </View>
 
-        {/* WHITE BODY */}
         <View style={styles.whiteBodyContainer}>
-          {/* DELETED WARNING BANNER */}
           {selectedTab === "deleted" && (
             <View style={styles.deletedBanner}>
               <Ionicons

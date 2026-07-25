@@ -4,7 +4,7 @@
     "slug": "LumiNUsMobile_App",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/LumiNUs_Load.png",
+    "icon": "./assets/images/LUMINUS_ICON.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#31429B",
     "splash": {
@@ -23,7 +23,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/LumiNUs_Load.png",
+        "foregroundImage": "./assets/images/LUMINUS_ICON.png",
         "backgroundColor": "#31429B"
       },
       "package": "com.timothyjohn.luminus",

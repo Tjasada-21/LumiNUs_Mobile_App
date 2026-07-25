@@ -25,7 +25,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   useFocusEffect,
   useNavigation,
@@ -108,7 +107,32 @@ const formatMessageTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  const now = new Date();
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  
+  const sameDay =
+    now.getFullYear() === date.getFullYear() &&
+    now.getMonth() === date.getMonth() &&
+    now.getDate() === date.getDate();
+
+  if (sameDay) {
+    return `Today at ${timeStr}`;
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    yesterday.getFullYear() === date.getFullYear() &&
+    yesterday.getMonth() === date.getMonth() &&
+    yesterday.getDate() === date.getDate();
+
+  if (isYesterday) {
+    return `Yesterday at ${timeStr}`;
+  }
+
+  const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return `${dateStr} at ${timeStr}`;
 };
 
 const getMessageDate = (message) => {
@@ -116,17 +140,6 @@ const getMessageDate = (message) => {
   if (!rawValue) return null;
   const date = new Date(rawValue);
   return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const isSameMinute = (firstDate, secondDate) => {
-  if (!firstDate || !secondDate) return false;
-  return (
-    firstDate.getFullYear() === secondDate.getFullYear() &&
-    firstDate.getMonth() === secondDate.getMonth() &&
-    firstDate.getDate() === secondDate.getDate() &&
-    firstDate.getHours() === secondDate.getHours() &&
-    firstDate.getMinutes() === secondDate.getMinutes()
-  );
 };
 
 const sortMessagesDescending = (messageList) => {
@@ -518,25 +531,17 @@ export default function ConvoScreen() {
       if (!isRelevant) return;
 
       if (event === "insert") {
+        // We completely ignore the 'insert' event for our OWN messages now. 
+        // handleSend() will seamlessly insert the message with the fully loaded image attachment itself.
+        if (String(newMessage.sender_id) === String(currentUserId)) {
+          return;
+        }
+
         setMessages((prev) => {
           if (prev.some((m) => String(m.id) === String(newMessage.id))) return prev;
-          const hasTemp = prev.some(
-            (m) =>
-              String(m.id).startsWith("temp-") &&
-              m.sender_id === newMessage.sender_id &&
-              m.content === newMessage.content,
-          );
-          if (hasTemp) {
-            return prev.map((m) =>
-              String(m.id).startsWith("temp-") &&
-              m.sender_id === newMessage.sender_id &&
-              m.content === newMessage.content
-                ? newMessage
-                : m,
-            );
-          }
           return [newMessage, ...prev];
         });
+
         setTimeout(() => {
           getMessageAttachments(newMessage.id)
             .then((atts) => {
@@ -764,48 +769,24 @@ export default function ConvoScreen() {
     
     setMessages((prev) => [optimistic, ...prev]);
 
-    // 1. Upload the image directly to Supabase storage
-    let uploadedAttachments = [];
-    if (currentAttachmentUri) {
-      try {
-        const extension = (currentAttachmentUri.split('.').pop() || 'jpg').toLowerCase();
-        const fileName = `chat_media/${currentUserId}_${Date.now()}.${extension}`;
-        
-        // Read file directly into Base64 format to bypass React Native fetch blob issues
-        const base64 = await FileSystem.readAsStringAsync(currentAttachmentUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Convert to ArrayBuffer
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
-        const contentType = mimeMap[extension] || 'image/jpeg';
-        
-        const { data, error } = await supabase.storage
-          .from('luminus_messages_attachments')
-          .upload(fileName, bytes, { contentType, upsert: true });
-          
-        if (error) throw error;
-        uploadedAttachments.push(data.path || fileName);
-      } catch (err) {
-        console.error("Upload error:", err);
-        ThemedAlert.alert("Upload Failed", "Could not upload image. Sending text only.");
-      }
-    }
+    // Give messageQueries.js the raw file path, it will upload it itself!
+    const attachmentsArray = currentAttachmentUri ? [currentAttachmentUri] : [];
 
     try {
+      let sentMessage;
       if (isGroup) {
-        await sendGroupMessage(groupId, currentUserId, trimmed, uploadedAttachments);
+        sentMessage = await sendGroupMessage(groupId, currentUserId, trimmed, attachmentsArray);
       } else {
-        await sendDirectMessage(currentUserId, contactId, trimmed, uploadedAttachments, senderType, receiverType);
+        sentMessage = await sendDirectMessage(currentUserId, contactId, trimmed, attachmentsArray, senderType, receiverType);
       }
+
+      // Now that the backend upload is 100% finished, fetch the real public cloud URLs
+      const finalAttachments = await getMessageAttachments(sentMessage.id);
+      sentMessage.attachments = finalAttachments;
+
+      // Swap the optimistic temp message out for the real fully-loaded one
       setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, localStatus: "sent" } : m)),
+        prev.map((m) => (m.id === tempId || m.id === sentMessage.id ? { ...sentMessage, localStatus: "sent" } : m)),
       );
     } catch (error) {
       console.error("Send failed:", error);
@@ -884,9 +865,7 @@ export default function ConvoScreen() {
         item?.sender?.alumni_photo ?? item?.sender_avatar ?? conversationAvatar,
       );
       const currentDate = getMessageDate(item);
-      const prevDate = getMessageDate(messagesRef.current[index - 1]);
-      const showTime = !isSameMinute(currentDate, prevDate);
-      const messageTime = showTime ? formatMessageTime(currentDate) : null;
+      const messageTime = formatMessageTime(currentDate);
 
       return (
         <MessageBubble
@@ -963,11 +942,12 @@ export default function ConvoScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: "#FFFFFF" }]} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: "transparent", flex: 1 }]} edges={["top"]}>
         <View style={[styles.container, { flex: 1 }]}>
           <ChatHeader
             title={conversationName}
@@ -1097,45 +1077,45 @@ export default function ConvoScreen() {
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
 
-      <Modal visible={showActions} transparent animationType="fade" onRequestClose={closeMessageActions}>
-        <View style={styles.reactionPickerOverlay}>
-          <View style={styles.reactionPickerContent}>
-            <Text style={styles.reactionPickerTitle}>Message actions</Text>
-            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleReply}>
-              <Text style={styles.reactionPickerEmojiText}>Reply</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={() => setShowReactionPicker(true)}>
-              <Text style={styles.reactionPickerEmojiText}>React</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleDeleteMessage}>
-              <Text style={styles.reactionPickerEmojiText}>Delete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.reactionPickerClose} onPress={closeMessageActions}>
-              <Text style={styles.reactionPickerCloseText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showReactionPicker} transparent animationType="fade" onRequestClose={() => setShowReactionPicker(false)}>
-        <View style={styles.reactionPickerOverlay}>
-          <View style={styles.reactionPickerContent}>
-            <Text style={styles.reactionPickerTitle}>React to message</Text>
-            <View style={styles.reactionPickerRow}>
-              {REACTIONS.map((emoji) => (
-                <TouchableOpacity key={emoji} style={styles.reactionPickerEmoji} onPress={() => handleReact(emoji)}>
-                  <Text style={styles.reactionPickerEmojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
+        <Modal visible={showActions} transparent animationType="fade" onRequestClose={closeMessageActions}>
+          <View style={styles.reactionPickerOverlay}>
+            <View style={styles.reactionPickerContent}>
+              <Text style={styles.reactionPickerTitle}>Message actions</Text>
+              <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleReply}>
+                <Text style={styles.reactionPickerEmojiText}>Reply</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.reactionPickerEmoji} onPress={() => setShowReactionPicker(true)}>
+                <Text style={styles.reactionPickerEmojiText}>React</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.reactionPickerEmoji} onPress={handleDeleteMessage}>
+                <Text style={styles.reactionPickerEmojiText}>Delete</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.reactionPickerClose} onPress={closeMessageActions}>
+                <Text style={styles.reactionPickerCloseText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.reactionPickerClose} onPress={() => setShowReactionPicker(false)}>
-              <Text style={styles.reactionPickerCloseText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+        </Modal>
+
+        <Modal visible={showReactionPicker} transparent animationType="fade" onRequestClose={() => setShowReactionPicker(false)}>
+          <View style={styles.reactionPickerOverlay}>
+            <View style={styles.reactionPickerContent}>
+              <Text style={styles.reactionPickerTitle}>React to message</Text>
+              <View style={styles.reactionPickerRow}>
+                {REACTIONS.map((emoji) => (
+                  <TouchableOpacity key={emoji} style={styles.reactionPickerEmoji} onPress={() => handleReact(emoji)}>
+                    <Text style={styles.reactionPickerEmojiText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.reactionPickerClose} onPress={() => setShowReactionPicker(false)}>
+                <Text style={styles.reactionPickerCloseText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }

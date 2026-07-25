@@ -1,6 +1,5 @@
 import supabase from './supabase';
 import { decryptMessage, encryptMessage } from '../utils/cryptoUtils';
-import * as FileSystem from 'expo-file-system';
 import { sendPushNotification } from './NotificationSender';
 
 /**
@@ -345,10 +344,8 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
       console.error('[messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
     }
 
-    // Send push notification to receiver (only for alumni receivers)
     if (receiverType === 'alumni') {
       try {
-        // --- NEW MUTE CHECK ---
         const { data: muteData } = await supabase
           .from('dm_settings')
           .select('is_muted')
@@ -472,38 +469,25 @@ export const deleteMessage = async (messageId, userId) => {
 };
 
 /**
- * Upload message attachment (robust – works with any URI scheme)
+ * Upload message attachment using standard FormData to bypass FileSystem bugs
  */
 export const uploadMessageAttachment = async (messageId, attachmentUri) => {
   try {
-    let fileUri = attachmentUri;
-
-    if (!/^file:\/\//i.test(fileUri)) {
-      const extension = (fileUri.split('.').pop() || 'jpg').toLowerCase();
-      const localPath = `${FileSystem.cacheDirectory}att_${messageId}_${Date.now()}.${extension}`;
-      await FileSystem.copyAsync({ from: fileUri, to: localPath });
-      fileUri = localPath;
-    }
-
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const ext = fileUri.split('.').pop()?.toLowerCase();
+    const ext = attachmentUri.split('.').pop()?.toLowerCase() || 'jpg';
     const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
     const contentType = mimeMap[ext] || 'image/jpeg';
+    const bucketPath = `chat_media/${messageId}-${Date.now()}.${ext}`;
 
-    const bucketPath = `messages_attachments/${messageId}-${Date.now()}.${ext || 'jpg'}`;
+    const formData = new FormData();
+    formData.append('file', {
+      uri: attachmentUri,
+      name: `upload.${ext}`,
+      type: contentType,
+    });
 
     const { data, error } = await supabase.storage
-      .from('luminus_assets')
-      .upload(bucketPath, bytes, { contentType });
+      .from('luminus_messages_attachments')
+      .upload(bucketPath, formData);
 
     if (error) throw error;
 
@@ -514,8 +498,6 @@ export const uploadMessageAttachment = async (messageId, attachmentUri) => {
         attachment_path: bucketPath,
       },
     ]);
-
-    await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
 
     return bucketPath;
   } catch (error) {
@@ -536,7 +518,7 @@ export const getMessageAttachments = async (messageId) => {
 
     if (error) throw error;
 
-    const publicBase = 'https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_assets/';
+    const publicBase = 'https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_messages_attachments/';
 
     return (data || []).map((att) => ({
       ...att,
@@ -883,7 +865,6 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
       console.error('[group_messages] Failed to record/notify mentions:', mentionErr?.message || mentionErr);
     }
 
-    // Notify group members
     try {
       const { data: membersData, error: membersError } = await supabase
         .from('group_chat_members')
@@ -1262,6 +1243,7 @@ export const getArchivedConversations = async (userId) => {
     return [];
   }
 };
+
 
 /**
  * Get deleted (hidden) conversations for a user - Brute-force search both tables

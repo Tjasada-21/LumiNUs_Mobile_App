@@ -330,6 +330,10 @@ const EventsScreen = ({ navigation }) => {
 
   const renderEventCard = (event) => {
     const imageSource = event.cover_image_url ? { uri: event.cover_image_url } : require("../../assets/icons/Group.png");
+    
+    // Check if the current event ID exists in the user's registrations
+    const isRegistered = registeredEvents.some((reg) => Number(reg.event?.id) === Number(event.id));
+
     return (
       <Pressable
         key={`event-${event.id}`}
@@ -348,7 +352,9 @@ const EventsScreen = ({ navigation }) => {
             <Text numberOfLines={1} style={styles.cardMetaText}>{getEventLocationLabel(event)}</Text>
           </View>
           <TouchableOpacity style={styles.preRegisterBtn} onPress={() => openEvent(event)} activeOpacity={0.85}>
-            <Text style={styles.preRegisterBtnText}>Pre-Register Now!</Text>
+            <Text style={styles.preRegisterBtnText}>
+              {isRegistered ? "Registered" : "Pre-Register Now!"}
+            </Text>
           </TouchableOpacity>
         </View>
       </Pressable>

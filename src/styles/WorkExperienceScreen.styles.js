@@ -1,9 +1,9 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 
 export default StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#32418C', // Clean top notch color
+    backgroundColor: '#32418C', 
   },
   container: {
     flex: 1,
@@ -34,32 +34,32 @@ export default StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Pushes title to the left, buttons to the right
+    justifyContent: 'space-between', 
     alignItems: 'center',
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16, // Scaled down to fit smaller screens
+    fontSize: 16, 
     fontWeight: 'bold',
     color: '#1F2937',
   },
   actionButtonsRow: {
-    flexDirection: 'row', // Places the two buttons side-by-side
+    flexDirection: 'row', 
     alignItems: 'center',
-    gap: 4, // Tightened spacing
+    gap: 4, 
   },
   addNewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5, // Reduced padding
-    paddingHorizontal: 8, // Reduced padding
+    paddingVertical: 5, 
+    paddingHorizontal: 8, 
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#9CA3AF',
     backgroundColor: '#FFFFFF',
   },
   addNewText: {
-    fontSize: 11, // Scaled down
+    fontSize: 11, 
     color: '#1F2937',
     marginLeft: 4,
     fontWeight: '600',
@@ -67,13 +67,13 @@ export default StyleSheet.create({
   reorderButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5, // Reduced padding
-    paddingHorizontal: 8, // Reduced padding
+    paddingVertical: 5, 
+    paddingHorizontal: 8, 
     borderRadius: 20,
     backgroundColor: '#31429B',
   },
   reorderText: {
-    fontSize: 11, // Scaled down
+    fontSize: 11, 
     color: '#FFFFFF',
     marginLeft: 4,
     fontWeight: '600',
@@ -128,4 +128,102 @@ export default StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
   },
+  
+  /* --- Modal & Form Styles --- */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    maxHeight: '90%', 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  formRow: {
+    marginBottom: 16,
+  },
+  rowSplit: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingRight: 4,
+  },
+  inputLabel: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  inputField: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  saveBtn: {
+    flex: 1,
+    backgroundColor: '#31429B',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  deleteBtn: {
+    backgroundColor: '#FEE2E2',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  }
 });

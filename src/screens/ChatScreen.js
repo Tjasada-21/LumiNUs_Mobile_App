@@ -682,32 +682,6 @@ const ChatScreen = ({ navigation }) => {
       }
     } catch (e) {}
   };
-
-  const handleRestrict = async () => {
-    const contactId = modalContact?.connection_id;
-    const userId = currentUserProfile?.id;
-    hideContactActions();
-
-    if (!userId || !contactId) return;
-
-    try {
-      await updateDMSettings(userId, contactId, { is_restricted: true });
-      ThemedAlert.alert("Restricted", "This user has been restricted.");
-    } catch (e) {}
-  };
-  
-  const handleBlock = async () => {
-    const contactId = modalContact?.connection_id;
-    const userId = currentUserProfile?.id;
-    hideContactActions();
-
-    if (!userId || !contactId) return;
-
-    try {
-      await updateDMSettings(userId, contactId, { is_blocked: true });
-      ThemedAlert.alert("Blocked", "This user has been blocked.");
-    } catch (e) {}
-  };
   
   const handleDelete = async () => {
     ThemedAlert.alert(
@@ -1082,14 +1056,6 @@ const ChatScreen = ({ navigation }) => {
               <Pressable style={styles.actionItem} onPress={handleMarkUnread}>
                 <Ionicons name="mail-unread-outline" size={20} color="#31429B" style={styles.actionIcon} />
                 <Text style={styles.actionText}>Mark as unread</Text>
-              </Pressable>
-              <Pressable style={styles.actionItem} onPress={handleRestrict}>
-                <Ionicons name="shield-checkmark-outline" size={20} color="#31429B" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Restrict</Text>
-              </Pressable>
-              <Pressable style={styles.actionItem} onPress={handleBlock}>
-                <Ionicons name="close-circle-outline" size={20} color="#31429B" style={styles.actionIcon} />
-                <Text style={styles.actionText}>Block</Text>
               </Pressable>
               <Pressable style={[styles.actionItem, { borderBottomWidth: 0 }]} onPress={handleDelete}>
                 <Ionicons name="trash-outline" size={20} color="#DC2626" style={styles.actionIcon} />

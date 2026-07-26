@@ -114,7 +114,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#1C1C1E",
     fontFamily: "Poppins_700Bold",
-    marginBottom: 12,
   },
   aboutItem: {
     flexDirection: "row",

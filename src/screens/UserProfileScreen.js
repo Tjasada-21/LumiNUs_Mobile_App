@@ -78,13 +78,6 @@ const UserProfileScreen = ({ navigation }) => {
   const [resolvedConnectionsCount, setResolvedConnectionsCount] = useState(0);
   const [isBioModalVisible, setIsBioModalVisible] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
-  const [postActionPost, setPostActionPost] = useState(null);
-  const [isPostActionModalVisible, setIsPostActionModalVisible] = useState(false);
-  const [isPostActionSaving, setIsPostActionSaving] = useState(false);
-  const [isWorkModalVisible, setIsWorkModalVisible] = useState(false);
-  const [workDraft, setWorkDraft] = useState({ id: null, title: "", subtitle: "", startYear: null, endYear: null, location: "", description: "" });
-  const [isWorkSaving, setIsWorkSaving] = useState(false);
-  const [yearDropdownType, setYearDropdownType] = useState(null); 
 
   const profileName = useMemo(() => {
     if (!userData) return "Dela Cruz, Juan Miguel";
@@ -100,8 +93,6 @@ const UserProfileScreen = ({ navigation }) => {
   const repostsCount = useMemo(() => profilePosts.filter((post) => post?.feed_type === "repost").length, [profilePosts]);
 
   const profileSummary = useMemo(() => ({
-      headlineText: userData?.headline || "Software Engineer at Microsoft",
-      locationText: userData?.location || "Lipa City, Batangas",
       classTag: userData?.year_graduated ? `Class of ${String(userData.year_graduated).match(/\d{4}/)?.[0] ?? String(userData.year_graduated).slice(0, 4)}` : "Class of 2023",
       sectionTag: userData?.program || "BSIT",
       connectionsCount: Number.isFinite(Number(userData?.connections_count)) ? Number(userData.connections_count) : resolvedConnectionsCount,
@@ -112,6 +103,9 @@ const UserProfileScreen = ({ navigation }) => {
   const workExperiences = useMemo(() => {
     if (Array.isArray(userData?.work_experiences) && userData.work_experiences.length > 0) {
       return [...userData.work_experiences].sort((a, b) => {
+          if (typeof a.display_order === 'number' && typeof b.display_order === 'number') {
+            return a.display_order - b.display_order;
+          }
           const getStartYear = (item) => Number(String(item?.start_date ?? item?.startYear ?? item?.period ?? "").match(/\d{4}/)?.[0] ?? Number.MAX_SAFE_INTEGER);
           return getStartYear(a) - getStartYear(b);
         });
@@ -145,7 +139,6 @@ const UserProfileScreen = ({ navigation }) => {
         getFollowers(supaUser.id).catch(() => []),
       ]);
 
-      // ----- Ensure every post has its images by fetching missing ones -----
       const enrichedPosts = Array.isArray(posts) ? posts : [];
       const postIdsWithoutImages = enrichedPosts
         .filter(p => !Array.isArray(p.images) || p.images.length === 0)
@@ -158,7 +151,6 @@ const UserProfileScreen = ({ navigation }) => {
           .in('post_id', postIdsWithoutImages);
 
         if (!imgError && imageRows) {
-          // group by post_id
           const imagesByPostId = {};
           imageRows.forEach(row => {
             if (!imagesByPostId[row.post_id]) imagesByPostId[row.post_id] = [];
@@ -171,7 +163,6 @@ const UserProfileScreen = ({ navigation }) => {
           });
         }
       }
-      // ----------------------------------------------------------------
 
       const connectionIds = new Set();
       (followingRows || []).forEach((row) => { if (row?.followed?.id) connectionIds.add(row.followed.id); });
@@ -183,11 +174,10 @@ const UserProfileScreen = ({ navigation }) => {
     } catch (error) {
       setErrorMessage("Unable to load profile right now.");
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
   };
 
-  /* ------------- fetch skills on focus ------------- */
   useFocusEffect(
     useCallback(() => {
       const fetchSkills = async () => {
@@ -212,7 +202,12 @@ const UserProfileScreen = ({ navigation }) => {
   );
 
   const handleRefresh = async () => { setIsRefreshing(true); await loadProfile({ showLoading: false }); setIsRefreshing(false); };
-  useEffect(() => { loadProfile(); }, []);
+  
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile({ showLoading: false });
+    }, [])
+  );
 
   /* ------------- biography ------------- */
   const openBioModal = () => {
@@ -354,7 +349,7 @@ const UserProfileScreen = ({ navigation }) => {
     );
   };
 
-  /* ------------- main render (unchanged UI) ------------- */
+  /* ------------- main render ------------- */
   return (
     <View style={styles.container}>
       <HomeHeader />
@@ -370,7 +365,7 @@ const UserProfileScreen = ({ navigation }) => {
         ) : errorMessage ? (
           <View style={styles.stateWrap}>
             <Text style={styles.errorText}>{errorMessage}</Text>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("SettingsScreen")}>
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("AccountSettings")}>
               <Text style={styles.actionButtonText}>Open Account Settings</Text>
             </TouchableOpacity>
           </View>
@@ -391,7 +386,7 @@ const UserProfileScreen = ({ navigation }) => {
                     <Text style={styles.statText}><Text style={styles.statNumber}>{profileSummary.postsCount}</Text> Posts</Text>
                   </View>
                   <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("SettingsScreen")}>
+                    <TouchableOpacity style={styles.editProfileButton} onPress={() => navigation.navigate("AccountSettings")}>
                       <Ionicons name="create-outline" size={16} color="#1C1C1E" />
                       <Text style={styles.editProfileText}>Edit Profile</Text>
                     </TouchableOpacity>
@@ -405,14 +400,6 @@ const UserProfileScreen = ({ navigation }) => {
               {/* ABOUT ME */}
               <View style={styles.aboutSection}>
                 <Text style={styles.sectionHeadingBlack}>About Me</Text>
-                <View style={styles.aboutItem}>
-                  <Ionicons name="briefcase" size={18} color="#31429B" style={styles.aboutIcon} />
-                  <Text style={styles.aboutText}>{profileSummary.headlineText}</Text>
-                </View>
-                <View style={styles.aboutItem}>
-                  <Ionicons name="location-sharp" size={18} color="#31429B" style={styles.aboutIcon} />
-                  <Text style={styles.aboutText}>{profileSummary.locationText}</Text>
-                </View>
               </View>
             </View>
 
@@ -444,10 +431,16 @@ const UserProfileScreen = ({ navigation }) => {
                   <View key={emp.id ?? index} style={styles.workCard}>
                     <Ionicons name="ellipsis-horizontal" size={20} color="#31429B" style={styles.workMenuIcon} />
                     <Ionicons name="briefcase" size={28} color="#31429B" style={styles.workBriefcase} />
-                    <Text style={styles.workTitle}>{emp.title}</Text>
-                    <Text style={styles.workSubtitle}>{emp.subtitle}</Text>
-                    <Text style={styles.workPeriod}>{emp.period}</Text>
-                    <Text style={styles.workDescription}>{emp.description}</Text>
+                    <Text style={styles.workTitle}>{emp.title || emp.job_title}</Text>
+                    <Text style={styles.workSubtitle}>{emp.subtitle || emp.company}</Text>
+                    <Text style={styles.workPeriod}>
+                      {emp.period || (() => {
+                        const start = new Date(emp.start_date);
+                        const end = emp.end_date ? new Date(emp.end_date) : null;
+                        return `${start.toLocaleDateString('en-US', {month: 'short', year: 'numeric'})} - ${end ? end.toLocaleDateString('en-US', {month: 'short', year: 'numeric'}) : 'Present'}`;
+                      })()}
+                    </Text>
+                    <Text style={styles.workDescription}>{emp.description || emp.career_description}</Text>
                   </View>
                 ))}
               </ScrollView>
@@ -476,7 +469,7 @@ const UserProfileScreen = ({ navigation }) => {
                   </Text>
                 )}
               </View>
-              {userSkills.length > 0 && (
+              {userSkills.length >= 5 && (
                 <TouchableOpacity style={styles.viewAllButton}>
                   <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
                 </TouchableOpacity>

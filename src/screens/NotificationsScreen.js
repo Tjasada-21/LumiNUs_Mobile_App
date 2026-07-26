@@ -10,6 +10,9 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  LayoutAnimation,
+  UIManager,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import supabase from "../services/supabase";
@@ -19,6 +22,11 @@ import { getDismissedNotifications, dismissNotification } from "../services/util
 import { getAvatarUri } from "../utils/imageUtils";
 import styles from "../styles/NotificationsScreen.styles";
 import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function NotificationsScreen({ navigation }) {
   const { currentUserProfile } = useCurrentUserProfile();
@@ -107,11 +115,26 @@ export default function NotificationsScreen({ navigation }) {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  // Define the disappearing animation
+  const triggerLayoutAnimation = () => {
+    LayoutAnimation.configureNext({
+      duration: 300,
+      update: { type: LayoutAnimation.Types.easeInEaseOut },
+      delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+    });
+  };
+
   const handleDismiss = async (id) => {
     const currentProfile = currentUserProfile ?? (await getCurrentUser().catch(() => null));
     if (currentProfile?.id) {
       await dismissNotification(currentProfile.id, id).catch(() => {});
     }
+    
+    // Trigger animation right before state update
+    triggerLayoutAnimation();
     setNotifications((curr) => curr.filter((item) => item.id !== id));
   };
 
@@ -121,7 +144,8 @@ export default function NotificationsScreen({ navigation }) {
     const currentProfile = currentUserProfile ?? (await getCurrentUser().catch(() => null));
     const idsToDismiss = notifications.map((n) => n.id);
     
-    // Optimistically clear the UI instantly
+    // Trigger animation right before clearing list
+    triggerLayoutAnimation();
     setNotifications([]);
 
     // Process removals in the background

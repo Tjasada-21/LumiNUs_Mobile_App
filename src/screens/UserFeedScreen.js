@@ -1149,7 +1149,11 @@ const closeCommentsModal = () => {
   const handleSubmitComment = () => {
     const trimmedComment = commentDraft.trim();
     if (!trimmedComment || !activeCommentPost) return;
-    const target = resolveFeedInteractionTarget(activeCommentPost);
+    
+    // Make sure we pass the correct ID depending on whether it's an announcement or post
+    const isAnnouncement = activeCommentPost.feed_type === 'announcement';
+    const targetPostId = isAnnouncement ? null : activeCommentPost.id;
+    const targetAnnouncementId = isAnnouncement ? activeCommentPost.id : null;
 
     if (editingComment?.id) {
       const prevText = editingComment.comment ?? editingComment.body ?? editingComment.text ?? '';
@@ -1189,6 +1193,8 @@ const closeCommentsModal = () => {
       },
     };
     setComments((curr) => [pendingComment, ...curr]);
+    
+    // Optimistically update the UI count
     setPosts((curr) =>
       curr.map((p) =>
         p.id === activeCommentPost.id ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p
@@ -1206,22 +1212,20 @@ const closeCommentsModal = () => {
 
     resolveActiveAlumniId()
       .then((alumniId) =>
-        addComment(target.postId, alumniId, trimmedComment, pendingComment.parent_id, target.announcementId)
+        // Notice we explicitly pass targetAnnouncementId here now!
+        addComment(targetPostId, alumniId, trimmedComment, pendingComment.parent_id, targetAnnouncementId)
       )
       .then((saved) => {
         if (!saved) return;
         setComments((curr) => curr.map((c) => (c.id === pendingId ? saved : c)));
+        
+        // Ensure count is correct from database
         setPosts((curr) =>
           curr.map((p) =>
-            String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
+            p.id === activeCommentPost.id
               ? { ...p, comment_count: saved.comment_count ?? p.comment_count ?? 0 }
               : p
           )
-        );
-        setViewerPost((curr) =>
-          String(resolveFeedInteractionTarget(curr).postId) === String(target.postId)
-            ? { ...curr, comment_count: saved.comment_count ?? curr.comment_count ?? 0 }
-            : curr
         );
       })
       .catch((e) => {
@@ -1229,15 +1233,10 @@ const closeCommentsModal = () => {
         setComments((curr) => curr.filter((c) => c.id !== pendingId));
         setPosts((curr) =>
           curr.map((p) =>
-            String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
+            p.id === activeCommentPost.id
               ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) }
               : p
           )
-        );
-        setViewerPost((curr) =>
-          String(resolveFeedInteractionTarget(curr).postId) === String(target.postId)
-            ? { ...curr, comment_count: Math.max(0, (curr.comment_count ?? 1) - 1) }
-            : curr
         );
         showThemedAlert({ title: 'Comments', message: 'Unable to post your comment right now.' });
       });

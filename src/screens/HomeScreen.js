@@ -314,7 +314,7 @@ const HomeScreen = ({ navigation }) => {
   ];
 
   const serviceItems = [
-    { key: "view-all", label: "View All", icon: require("../../assets/images/nulogo.png"), onPress: () => navigation.navigate("Explore") },
+    { key: "view-all", label: "View All", icon: require("../../assets/images/nulogo.png"), onPress: () => navigation.navigate("CompleteProfile") },
     { key: "events", label: "Events", icon: require("../../assets/images/view-events-icon.png"), onPress: openEventsScreen },
     { key: "perks", label: "Perks", icon: require("../../assets/images/view-perks-icon-in-blue-1.png"), onPress: openPerksScreen },
     { key: "yearbook", label: "Yearbook", icon: require("../../assets/images/view-yearbook-icon.png"), onPress: openViewYearbook },

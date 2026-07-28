@@ -98,7 +98,7 @@ const toUint8Array = (arrayBuffer) => new Uint8Array(arrayBuffer);
 
 const imageSourceToBytes = async (imageSource) => {
   if (imageSource?.base64) {
-    const binaryString = global.atob(imageSource.base64);
+    const binaryString = global.atob ? global.atob(imageSource.base64) : '';
     const bytes = new Uint8Array(binaryString.length);
     for (let index = 0; index < binaryString.length; index += 1) {
       bytes[index] = binaryString.charCodeAt(index);
@@ -130,7 +130,7 @@ const AccountSettingsScreen = ({ navigation }) => {
     date_of_birth: "",
     sex: "",
     alumni_photo: "",
-    biography: "",
+    alumni_bio: "", 
     country: "",
     city: "",
   });
@@ -161,14 +161,48 @@ const AccountSettingsScreen = ({ navigation }) => {
         return;
       }
 
+      // Fetch basic alumni profile data
       const data = await getAlumniByEmail(userEmail).catch(() => null);
+      
+      // Fetch the detailed address from the addresses table
+      // FIX: Removed "country" from the select to prevent DB crash
+      let addressData = null;
+      if (data?.id) {
+        const { data: addr, error: addrError } = await supabase
+          .from('addresses')
+          .select('region, province, municipality')
+          .eq('alumni_id', data.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (!addrError) {
+          addressData = addr;
+        }
+      }
+
       const livePhotoUrl = data?.id ? await getAlumniPhotoFromStorage(data.id).catch(() => null) : null;
       const basePhotoUrl = stripCacheBuster(livePhotoUrl ?? data?.alumni_photo ?? "");
       const photoVersion = data?.updated_at ? new Date(data.updated_at).getTime() : Date.now();
       const resolvedPhoto = basePhotoUrl ? toDisplayPhotoUrl(basePhotoUrl, photoVersion) : "";
 
-      setOriginalUserData(data ? { ...data, alumni_photo: basePhotoUrl } : data);
-      setUserData(data ? { ...data, alumni_photo: basePhotoUrl } : data);
+      // Map address table data to form fields, falling back to alumni table data if missing
+      const fetchedRegion = data?.country || addressData?.region || "Philippines";
+      const fetchedCityProv = data?.city || (addressData?.municipality && addressData?.province 
+        ? `${addressData.municipality}, ${addressData.province}` 
+        : addressData?.province || addressData?.municipality || "");
+
+      // Enrich original user data so we don't trigger false saves if nothing changed
+      const enrichedData = data ? { 
+        ...data, 
+        alumni_photo: basePhotoUrl,
+        country: fetchedRegion,
+        city: fetchedCityProv 
+      } : null;
+
+      setOriginalUserData(enrichedData);
+      setUserData(enrichedData);
+      
       setFormData({
         first_name: data?.first_name || "",
         middle_name: data?.middle_name || "",
@@ -178,9 +212,9 @@ const AccountSettingsScreen = ({ navigation }) => {
         date_of_birth: normalizeDateOnly(data?.date_of_birth),
         sex: data?.sex || "",
         alumni_photo: resolvedPhoto,
-        biography: data?.biography || "",
-        country: data?.country || "",
-        city: data?.city || "",
+        alumni_bio: data?.alumni_bio || "",
+        country: fetchedRegion,
+        city: fetchedCityProv,
       });
 
       const updatedAtMs = data?.updated_at ? new Date(data.updated_at).getTime() : 0;
@@ -221,11 +255,9 @@ const AccountSettingsScreen = ({ navigation }) => {
 
   // ---------- REPLACE PROFILE PHOTO ----------
   const replaceProfilePhoto = async (imageSource, alumniId) => {
-    // 1. Find the exact path of the old photo currently assigned to the user
     const oldUrl = formData.alumni_photo || userData?.alumni_photo || "";
     const oldPath = extractStoragePath(oldUrl);
 
-    // 2. Delete the specific old photo (and a legacy 'profile.jpg' fallback just in case)
     const pathsToDelete = [];
     if (oldPath) pathsToDelete.push(oldPath);
     
@@ -236,7 +268,6 @@ const AccountSettingsScreen = ({ navigation }) => {
       await supabase.storage.from("luminus_assets").remove(pathsToDelete);
     }
 
-    // 3. Upload the new profile picture as a fresh INSERT
     const fileName = `profile-${Date.now()}.jpg`;
     const objectPath = `alumni_photos/${alumniId}/${fileName}`;
     const imageBytes = await imageSourceToBytes(imageSource);
@@ -327,7 +358,7 @@ const AccountSettingsScreen = ({ navigation }) => {
     const fields = [
       "first_name", "middle_name", "last_name", "phone_number",
       "email", "date_of_birth", "sex", "alumni_photo",
-      "biography", "country", "city"
+      "alumni_bio", "country", "city"
     ];
 
     const getChangedPayload = () => {
@@ -367,8 +398,15 @@ const AccountSettingsScreen = ({ navigation }) => {
         const photoVersion = data.updated_at ? new Date(data.updated_at).getTime() : Date.now();
         const displayPhotoUrl = basePhotoUrl ? toDisplayPhotoUrl(basePhotoUrl, photoVersion) : "";
 
-        setUserData({ ...data, alumni_photo: basePhotoUrl });
-        setOriginalUserData({ ...data, alumni_photo: basePhotoUrl });
+        const refreshedEnrichedData = {
+          ...data,
+          alumni_photo: basePhotoUrl,
+          country: formData.country,
+          city: formData.city,
+        };
+
+        setUserData(refreshedEnrichedData);
+        setOriginalUserData(refreshedEnrichedData);
         setCurrentUserProfile((current) => ({ ...(current || data || {}), ...data, alumni_photo: displayPhotoUrl }));
         setFormData({
           first_name: data.first_name || "",
@@ -379,9 +417,9 @@ const AccountSettingsScreen = ({ navigation }) => {
           date_of_birth: normalizeDateOnly(data.date_of_birth),
           sex: data.sex || "",
           alumni_photo: displayPhotoUrl,
-          biography: data.biography || "",
-          country: data.country || "",
-          city: data.city || "",
+          alumni_bio: data.alumni_bio || "",
+          country: formData.country || "",
+          city: formData.city || "",
         });
       }
       ThemedAlert.alert("Success", "Your profile has been updated successfully.");
@@ -620,9 +658,9 @@ const AccountSettingsScreen = ({ navigation }) => {
 
               <Text style={styles.inputLabel}>Biography</Text>
               <SmartTextInput
-                value={formData.biography}
+                value={formData.alumni_bio}
                 onChangeText={(val) => {
-                  if (val.length <= 500) updateField("biography", val);
+                  if (val.length <= 500) updateField("alumni_bio", val);
                 }}
                 style={styles.textArea}
                 multiline

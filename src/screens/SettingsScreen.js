@@ -157,7 +157,7 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
             <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#31429B" />
+              <Ionicons name="arrow-back" size={20} color="#32418C" />
             </Pressable>
             <Text style={styles.headerTitle}>Account Settings</Text>
           </View>
@@ -169,34 +169,49 @@ const SettingsScreen = ({ navigation }) => {
         >
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionTitle}>Account & Security</Text>
-            <View style={styles.menuCard}>
-              <MenuRow label="Account" onPress={() => goTo("AccountSettings")} />
-              <MenuRow 
-                label="Change Password" 
-                icon="lock-closed-outline" 
-                onPress={() => setShowPasswordModal(true)} 
-              />
+              <View style={styles.menuCard}>
+                <MenuRow 
+                  label="Edit Profile" 
+                  icon="person-outline"
+                  onPress={() => goTo("AccountSettings")} 
+                  showBorder
+                />
+                <MenuRow 
+                  label="Change Password" 
+                  icon="lock-closed-outline" 
+                  onPress={() => setShowPasswordModal(true)} 
+                />
+              </View>
             </View>
-          </View>
 
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionTitle}>Notification</Text>
-            <View style={styles.menuCard}>
-              <MenuRow 
-                label="Notifications" 
-                icon="notifications-outline" 
-                onPress={() => setShowNotifModal(true)} 
-              />
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Preferences</Text>
+              <View style={styles.menuCard}>
+                <MenuRow 
+                  label="Notification Settings" 
+                  icon="notifications-outline" 
+                  onPress={() => setShowNotifModal(true)} 
+                />
+              </View>
             </View>
-          </View>
 
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionTitle}>More</Text>
-            <View style={styles.menuCard}>
-              <MenuRow label="Contact Us" icon="help-circle-outline" onPress={handleContactUs} />
-              <MenuRow label="Logout" icon="log-out-outline" onPress={handleLogout} />
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Support</Text>
+              <View style={styles.menuCard}>
+                <MenuRow 
+                  label="Contact Us" 
+                  icon="help-circle-outline" 
+                  onPress={handleContactUs} 
+                  showBorder
+                />
+                <MenuRow 
+                  label="Logout" 
+                  icon="log-out-outline" 
+                  onPress={handleLogout} 
+                  textColor="#E74C3C"
+                />
+              </View>
             </View>
-          </View>
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 0) }]}> 
@@ -314,32 +329,84 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
-// Sub-components
-const MenuRow = ({ label, icon, onPress }) => {
+// Replace the entire MenuRow component with this:
+const MenuRow = ({ label, icon, onPress, showBorder, textColor }) => {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
-      <View style={styles.rowLeft}>
+    <Pressable 
+      onPress={onPress} 
+      style={({ pressed }) => [
+        {
+          minHeight: 54,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          paddingVertical: 4,
+          backgroundColor: pressed ? "rgba(50, 65, 140, 0.04)" : "transparent",
+          borderBottomWidth: showBorder ? 1 : 0,
+          borderBottomColor: "#E8EAFF",
+        }
+      ]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
         {icon ? (
-          <Ionicons name={icon} size={22} color="#1C1C1E" style={styles.rowIcon} />
+          <Ionicons 
+            name={icon} 
+            size={20} 
+            color={textColor || "#32418C"} 
+            style={{ marginRight: 14 }} 
+          />
         ) : (
-          <View style={styles.iconSpacer} />
+          <View style={{ width: 20, marginRight: 14 }} />
         )}
-        <Text style={styles.rowLabel}>{label}</Text>
+        <Text 
+          style={{
+            fontSize: 15,
+            fontFamily: "Poppins_400Regular",
+            fontWeight: "500",
+            color: textColor || "#1A1A2E",
+            includeFontPadding: false,
+            textAlignVertical: "center",
+          }}
+          allowFontScaling={false}
+        >
+          {label}
+        </Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#1C1C1E" />
+      <Ionicons name="chevron-forward" size={18} color="#A0AABF" />
     </Pressable>
   );
 };
 
-const NotifToggle = ({ label, value, onValueChange }) => {
+const NotifToggle = ({ label, value, onValueChange, isLast }) => {
   return (
-    <View style={styles.notifRow}>
-      <Text style={styles.notifLabel}>{label}</Text>
+    <View style={{
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      borderBottomWidth: isLast ? 0 : 1,
+      borderBottomColor: "#E8EAFF",
+    }}>
+      <Text 
+        style={{
+          fontSize: 15,
+          fontFamily: "Poppins_400Regular",
+          fontWeight: "500",
+          color: "#1A1A2E",
+          flex: 1,
+          paddingRight: 10,
+        }}
+        allowFontScaling={false}
+      >
+        {label}
+      </Text>
       <Switch 
         value={value} 
         onValueChange={onValueChange} 
-        trackColor={{ false: "#E2E8F0", true: "#1C1C1E" }}
-        thumbColor={"#FFFFFF"}
+        trackColor={{ false: "#E2E8F0", true: "#32418C" }}
+        thumbColor="#FFFFFF"
         ios_backgroundColor="#E2E8F0"
       />
     </View>

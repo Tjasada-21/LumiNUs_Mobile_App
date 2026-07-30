@@ -1467,7 +1467,13 @@ const AccountSettingsScreen = ({ navigation }) => {
 
       ThemedAlert.alert(
         "Success",
-        "Your profile has been updated successfully."
+        "Your profile has been updated successfully.",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.goBack()
+          }
+        ]
       );
     } catch (saveError) {
       const serverData = saveError.response?.data;

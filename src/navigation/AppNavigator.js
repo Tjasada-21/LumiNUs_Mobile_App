@@ -4,7 +4,7 @@ import { NativeModules, Pressable, Text, View } from "react-native";
 import LoginScreen from "../screens/LoginScreen";
 import MainTabNavigator from "./MainTabNavigator";
 import AccountSettingsScreen from "../screens/AccountSettingsScreen";
-import SettingsScreen from "../screens/SettingsScreen"; // <-- Added your new SettingsScreen
+import SettingsScreen from "../screens/SettingsScreen"; 
 import ViewYearbookScreen from "../screens/ViewYearbookScreen";
 import AlumniTracerScreen from "../screens/AlumniTracerScreen";
 import TracerMenuScreen from "../screens/TracerMenuScreen";
@@ -30,6 +30,10 @@ import WorkExperienceScreen from "../screens/WorkExperienceScreen";
 import WorkExperienceFormScreen from "../screens/WorkExperienceFormScreen";
 import ArchivedChatsScreen from "../screens/ArchivedChatsScreen";
 
+// Profile Screens
+import UserProfileScreen from "../screens/UserProfileScreen"; 
+import ProfileViewScreen from "../screens/ProfileViewScreen";
+
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
@@ -50,6 +54,10 @@ const AppNavigator = () => {
       
       {/* New Settings Route */}
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+      
+      {/* --> FIXED: Name is exactly "Profile" to match your buttons */}
+      <Stack.Screen name="Profile" component={UserProfileScreen} />
+      <Stack.Screen name="ProfileView" component={ProfileViewScreen} />
       
       <Stack.Screen name="ViewYearbook" component={ViewYearbookScreen} />
       <Stack.Screen name="AlumniTracer" component={AlumniTracerScreen} />

@@ -531,8 +531,6 @@ export default function ConvoScreen() {
       if (!isRelevant) return;
 
       if (event === "insert") {
-        // We completely ignore the 'insert' event for our OWN messages now. 
-        // handleSend() will seamlessly insert the message with the fully loaded image attachment itself.
         if (String(newMessage.sender_id) === String(currentUserId)) {
           return;
         }
@@ -769,7 +767,6 @@ export default function ConvoScreen() {
     
     setMessages((prev) => [optimistic, ...prev]);
 
-    // Give messageQueries.js the raw file path, it will upload it itself!
     const attachmentsArray = currentAttachmentUri ? [currentAttachmentUri] : [];
 
     try {
@@ -780,11 +777,9 @@ export default function ConvoScreen() {
         sentMessage = await sendDirectMessage(currentUserId, contactId, trimmed, attachmentsArray, senderType, receiverType);
       }
 
-      // Now that the backend upload is 100% finished, fetch the real public cloud URLs
       const finalAttachments = await getMessageAttachments(sentMessage.id);
       sentMessage.attachments = finalAttachments;
 
-      // Swap the optimistic temp message out for the real fully-loaded one
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId || m.id === sentMessage.id ? { ...sentMessage, localStatus: "sent" } : m)),
       );
@@ -941,13 +936,15 @@ export default function ConvoScreen() {
     );
   }
 
+  const keyboardBehavior = isKeyboardVisible ? (Platform.OS === "ios" ? "padding" : "height") : undefined;
+
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: "transparent", flex: 1 }]} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        behavior={keyboardBehavior}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -10}
+      >
         <View style={[styles.container, { flex: 1 }]}>
           <ChatHeader
             title={conversationName}
@@ -1115,7 +1112,7 @@ export default function ConvoScreen() {
             </View>
           </View>
         </Modal>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }

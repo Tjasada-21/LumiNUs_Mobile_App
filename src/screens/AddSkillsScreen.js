@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,18 @@ import { ThemedAlert } from '../components/ThemedAlert';
 const AddSkillsScreen = ({ navigation }) => {
   const [skill, setSkill] = useState('');
   const [saving, setSaving] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const handleSave = async () => {
-    if (!skill.trim()) {
+    const trimmedSkill = skill.trim();
+    
+    if (!trimmedSkill) {
       ThemedAlert.alert("Missing Field", "Please enter a skill before saving.");
       return;
     }
@@ -32,22 +41,38 @@ const AddSkillsScreen = ({ navigation }) => {
       const user = await getCurrentUser();
       if (!user?.id) throw new Error("No active session found.");
 
-      const { error } = await supabase
+      // 1. Check for duplicates before inserting
+      const { data: existingSkills, error: checkError } = await supabase
+        .from('alumni_skills')
+        .select('id')
+        .eq('alumni_id', user.id)
+        .ilike('skill_name', trimmedSkill);
+
+      if (checkError) throw checkError;
+
+      if (existingSkills && existingSkills.length > 0) {
+        ThemedAlert.alert("Duplicate Skill", "You have already added this skill to your profile.");
+        if (isMounted.current) setSaving(false);
+        return;
+      }
+
+      // 2. Insert the new skill
+      const { error: insertError } = await supabase
         .from('alumni_skills')
         .insert([{ 
           alumni_id: user.id, 
-          skill_name: skill.trim() 
+          skill_name: trimmedSkill 
         }]);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      // Successfully saved, go back to profile
+      // 3. Successfully saved, go back to profile. 
+      // We skip setting saving to false here to avoid memory leak warnings since the screen is unmounting.
       navigation.goBack();
     } catch (error) {
       console.error("Error saving skill:", error);
       ThemedAlert.alert("Error", "Could not save your skill. Please try again.");
-    } finally {
-      setSaving(false);
+      if (isMounted.current) setSaving(false);
     }
   };
 
@@ -78,7 +103,8 @@ const AddSkillsScreen = ({ navigation }) => {
                 style={styles.input}
                 value={skill}
                 onChangeText={setSkill}
-                placeholder="e.g. Graphic Design, JavaScript, Project Management"
+                maxLength={40}
+                placeholder="e.g. Graphic Design, JavaScript"
                 placeholderTextColor="#9CA3AF"
                 autoFocus
               />
@@ -90,10 +116,10 @@ const AddSkillsScreen = ({ navigation }) => {
               <View style={styles.reminderCard}>
                 <Text style={styles.reminderTitle}>User Reminders:</Text>
                 <Text style={styles.reminderText}>
-                  You are required to fill-out this part. In case you are not employed, please select 'N/A' and save the form.
+                  Add key technical and soft skills to showcase your expertise on your profile. Keep them brief and specific.
                 </Text>
                 <Text style={styles.reminderText}>
-                  Your Job/Occupation information will be displayed once you've completed the initial account activation process. Failure to complete the process will limit you in accessing other LumiNUs modules.
+                  Keeping your skills updated helps you connect with other alumni in your field and discover relevant career opportunities within the LumiNUs network.
                 </Text>
               </View>
 

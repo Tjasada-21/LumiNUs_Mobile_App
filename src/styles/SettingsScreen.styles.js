@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 
 export default StyleSheet.create({
   safeArea: {
@@ -14,34 +14,34 @@ export default StyleSheet.create({
     paddingTop: 10,
   },
   
-  // --- WHITE HEADER CARD ---
+  // --- HEADER ---
   headerCard: {
     backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
-    zIndex: 10,
-    marginBottom: 20,
+    marginBottom: 24,
+    // Shadow using bottom border approach instead
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8EAFF",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   backButton: {
-    marginRight: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F8F9FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
   },
   headerTitle: {
     fontSize: 20,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#1C1C1E",
+    fontFamily: "Poppins-Bold",
+    color: "#32418C",
   },
 
   // --- MENU SECTIONS ---
@@ -49,29 +49,37 @@ export default StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#1C1C1E",
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: "#666680",
     marginBottom: 10,
-    marginLeft: 4,
+    marginLeft: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   menuCard: {
-    backgroundColor: "#F8FAFC", 
+    backgroundColor: "#F8F9FF",
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    overflow: "hidden",
   },
 
   // --- MENU ROWS ---
   row: {
-    minHeight: 56,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
   rowPressed: {
-    opacity: 0.6,
+    backgroundColor: "rgba(50, 65, 140, 0.04)",
+  },
+  rowWithBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8EAFF",
   },
   rowLeft: {
     flexDirection: "row",
@@ -81,14 +89,11 @@ export default StyleSheet.create({
   rowIcon: {
     marginRight: 14,
   },
-  iconSpacer: {
-    width: 22,
-    marginRight: 14,
-  },
   rowLabel: {
-    fontSize: 16,
-    fontFamily: "Poppins_400Regular",
-    color: "#1C1C1E",
+    fontSize: 15,
+    fontFamily: "Poppins-Medium",
+    fontWeight: "500",
+    color: "#1A1A2E",
   },
 
   // --- FOOTER ---
@@ -98,7 +103,7 @@ export default StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 70,
-    backgroundColor: "#384A9C",
+    backgroundColor: "#32418C",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -120,36 +125,53 @@ export default StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8EAFF",
+  },
+  modalBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F8F9FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
   },
   modalTitle: {
-    fontSize: 22,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#1C1C1E",
-    marginLeft: 16,
+    fontSize: 20,
+    fontFamily: "Poppins-Bold",
+    color: "#1A1A2E",
   },
   modalContent: {
     flex: 1,
+    paddingTop: 16,
   },
 
   // --- NOTIFICATIONS MODAL ---
   notifCard: {
-    backgroundColor: "#F4F6F8",
+    backgroundColor: "#F8F9FF",
     borderRadius: 16,
-    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
     marginHorizontal: 20,
-    marginTop: 10,
+    overflow: "hidden",
   },
   notifRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8EAFF",
+  },
+  notifRowLast: {
+    borderBottomWidth: 0,
   },
   notifLabel: {
-    fontSize: 16,
-    fontFamily: "Poppins_400Regular",
-    color: "#333333",
+    fontSize: 15,
+    fontFamily: "Poppins-Medium",
+    color: "#1A1A2E",
     flex: 1,
     paddingRight: 10,
   },
@@ -157,29 +179,33 @@ export default StyleSheet.create({
   // --- CHANGE PASSWORD MODAL ---
   inputWrap: {
     marginHorizontal: 20,
-    marginTop: 24,
+    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
-    fontFamily: "Poppins_500Medium",
-    color: "#4A4A4A",
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: "#666680",
     marginBottom: 8,
   },
   inputBoxContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#A0A0A0",
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
     borderRadius: 10,
     paddingHorizontal: 14,
-    height: 52,
+    height: 50,
+  },
+  inputBoxContainerFocused: {
+    borderColor: "#32418C",
     backgroundColor: "#FFFFFF",
   },
   inputBox: {
     flex: 1,
-    fontSize: 16,
-    fontFamily: "Poppins_400Regular",
-    color: "#1C1C1E",
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+    color: "#1A1A2E",
   },
   eyeIcon: {
     padding: 4,
@@ -192,19 +218,32 @@ export default StyleSheet.create({
     paddingTop: 10,
   },
   modalPrimaryButton: {
-    backgroundColor: "#384A9C",
-    height: 54,
+    backgroundColor: "#FBD117",
+    height: 52,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#FBD117",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   modalPrimaryButtonDisabled: {
-    opacity: 0.75,
+    backgroundColor: "#E8EAFF",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   modalPrimaryButtonText: {
-    color: "#FFD404",
-    fontSize: 18,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
+    color: "#32418C",
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
   },
 });

@@ -1,228 +1,490 @@
-import { StyleSheet, Platform } from "react-native";
+import { StyleSheet, Dimensions, Platform } from "react-native";
+const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
-  container: {
+  // These are the same as CompleteProfileScreen styles
+  backgroundImage: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    width: "100%",
+    height: "100%",
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+  },
+  keyboardView: {
+    flex: 1,
+    width: "100%",
+  },
+  safeArea: {
+    flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 24,
     paddingHorizontal: 20,
-    paddingBottom: 40,
   },
-
-  // --- WHITE HEADER ---
-  whiteHeaderCard: {
+  cardContainer: {
+    width: width * 0.92,
+    maxWidth: 420,
     backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    paddingTop: 25,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
-    zIndex: 10,
+    borderRadius: 24,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#32418C",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  cardScrollView: {
+    borderRadius: 24,
+  },
+  cardContent: {
+    padding: 24,
+    paddingTop: 20,
+    paddingBottom: 28,
+  },
+  // Logo
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 10,
+  },
+  logo: {
+    width: "85%",
+    height: 45,
+    alignSelf: "center",
+  },
+  // Header Section
+  headerSection: {
+    alignItems: "center",
     marginBottom: 20,
   },
-  headerRow: {
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#FFF8E1",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  title: {
+    fontFamily: "Poppins-Bold",
+    fontSize: 22,
+    color: "#32418C",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: "#666680",
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 4,
+  },
+  // Section Headers
+  sectionContainer: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 16,
+    marginTop: 8,
   },
-  backBtn: {
-    marginRight: 16,
+  sectionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FBD117",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#1C1C1E",
+  sectionNumberText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Bold",
+    color: "#32418C",
   },
-
-  // --- AVATAR SECTION ---
-  avatarContainer: {
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+    color: "#32418C",
+    flex: 1,
+  },
+  // Form Fields
+  fieldContainer: {
+    marginBottom: 14,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: "#666680",
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+    color: "#1A1A2E",
+  },
+  inputFocused: {
+    borderColor: "#32418C",
+    backgroundColor: "#FFFFFF",
+  },
+  dropdownButton: {
+    minHeight: 50,
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownButtonDisabled: {
+    backgroundColor: "#F5F5FA",
+    borderColor: "#E8EAFF",
+    opacity: 0.5,
+  },
+  dropdownButtonActive: {
+    borderColor: "#32418C",
+    backgroundColor: "#FFFFFF",
+  },
+  dropdownText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+    color: "#1A1A2E",
+  },
+  dropdownPlaceholder: {
+    color: "#A0AABF",
+  },
+  // Button
+  buttonContainer: {
+    marginTop: 8,
+  },
+  button: {
+    backgroundColor: "#FBD117",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#FBD117",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  buttonDisabled: {
+    backgroundColor: "#E8EAFF",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonText: {
+    fontFamily: "Poppins-Bold",
+    color: "#32418C",
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  buttonTextDisabled: {
+    color: "#A0AABF",
+  },
+  footerText: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 11,
+    color: "#A0AABF",
+    textAlign: "center",
+    marginTop: 14,
+  },
+  // Modal Styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSafeArea: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 0,
+    marginBottom: 0,
+    maxHeight: "78%",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  dobModalCard: {
+    maxHeight: "88%",
+    minHeight: "78%",
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E8EAFF",
     alignSelf: "center",
-    marginBottom: 30,
-    position: "relative",
+    marginBottom: 20,
   },
-  avatarImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#E5E7EB",
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
-  cameraBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 4,
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: "Poppins-Bold",
+    color: "#1A1A2E",
+    flex: 1,
+  },
+  modalCloseButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#FFD404",
+    backgroundColor: "#F8F9FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 12,
+  },
+  searchInput: {
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: "#1A1A2E",
+    marginBottom: 16,
+  },
+  optionList: {
+    paddingBottom: 12,
+  },
+  optionRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F2FF",
+  },
+  optionText: {
+    fontSize: 15,
+    fontFamily: "Poppins-Medium",
+    color: "#1A1A2E",
+  },
+  optionSubtext: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    color: "#A0AABF",
+  },
+  // Date Picker
+  datePickerWrap: {
+    width: "100%",
+    marginBottom: 18,
+    backgroundColor: "#F8F9FF",
+    borderRadius: 12,
+    padding: 8,
+  },
+  dobSelectorsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+  },
+  dobSelectorColumn: {
+    flex: 1,
+  },
+  datePickerActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  datePickerAction: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
+  },
+  datePickerCancel: {
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+  },
+  datePickerConfirm: {
+    backgroundColor: "#32418C",
+  },
+  datePickerCancelText: {
+    color: "#666680",
+    fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
+  },
+  datePickerConfirmText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
+  },
+  // States
+  modalLoadingState: {
+    minHeight: 120,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalLoadingText: {
+    marginTop: 12,
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: "#A0AABF",
+  },
+  emptyStateText: {
+    paddingVertical: 20,
+    textAlign: "center",
+    color: "#A0AABF",
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+  },
+
+  // Map styles
+  mapContainer: {
+    height: 300,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+  },
+  map: {
+    flex: 1,
+  },
+  mapOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    pointerEvents: "box-none",
+  },
+  mapControls: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    padding: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-
-  // --- FORM SECTIONS ---
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#4A4A4A",
+  mapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 16,
   },
-  inputLabel: {
-    fontSize: 13,
-    fontFamily: "Poppins_500Medium",
-    color: "#8A8F9A",
-    marginBottom: 6,
+  mapButtonText: {
+    fontFamily: "Poppins-SemiBold",
+    fontSize: 14,
+    color: "#32418C",
+    marginLeft: 8,
   },
-  inputBox: {
-    borderWidth: 1,
-    borderColor: "#A0A0A0",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 15,
-    fontFamily: "Poppins_400Regular",
-    color: "#1C1C1E",
-    backgroundColor: "#FFFFFF",
-    marginBottom: 14,
+  coordinatesText: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 11,
+    color: "#A0AABF",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  locationLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255,255,255,0.8)",
     justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
   },
-  dateInputBox: {
+  locationLoadingText: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: "#32418C",
+    marginTop: 8,
+  },
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#A0A0A0",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    height: 48,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 14,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  dateText: {
-    fontSize: 15,
-    fontFamily: "Poppins_400Regular",
-    color: "#1C1C1E",
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: "#A0A0A0",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 14,
-    minHeight: 140,
-    fontSize: 14,
-    lineHeight: 22,
-    fontFamily: "Poppins_400Regular",
-    color: "#1C1C1E",
-    backgroundColor: "#FFFFFF",
-  },
-
-  // --- HELPER TEXTS ---
-  helperTextItalic: {
-    fontSize: 10,
-    fontFamily: "Poppins_400Regular",
-    fontStyle: "italic",
-    color: "#8A8F9A",
-    marginTop: -8, // Pulls it closer to the input above
-    marginBottom: 14,
-    textAlign: "center",
-  },
-  helperTextItalicRight: {
-    fontSize: 10,
-    fontFamily: "Poppins_400Regular",
-    fontStyle: "italic",
-    color: "#8A8F9A",
-    marginTop: 6,
-    textAlign: "right",
-  },
-
-  // --- iOS Date Picker ---
-  iosDateDoneBtn: {
-    alignSelf: "flex-end",
-    padding: 10,
-    marginTop: -10,
-    marginBottom: 10,
-  },
-  iosDateDoneText: {
-    color: "#31429B",
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-  },
-
-  // --- REMINDERS CARD ---
-  remindersCard: {
-    backgroundColor: "#384A9C",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 30,
-  },
-  remindersTitle: {
-    fontSize: 14,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-    color: "#FFD404",
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1.5,
+    borderColor: "#E8EAFF",
+    borderRadius: 10,
+    overflow: "hidden",
     marginBottom: 8,
   },
-  remindersText: {
-    fontSize: 11,
-    lineHeight: 16,
-    fontFamily: "Poppins_400Regular",
-    color: "#FFFFFF",
-  },
-
-  // --- BOTTOM BUTTONS ---
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  discardButton: {
+  passwordInput: {
     flex: 1,
-    backgroundColor: "#9CA3AF", // Grey
-    height: 50,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  discardButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: "#FFD404", // Yellow
-    height: 50,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 10,
-  },
-  saveButtonText: {
-    color: "#31429B", // Dark Blue
-    fontSize: 16,
-    fontFamily: "Poppins_700Bold",
-    fontWeight: "bold",
+    marginLeft: 15,
+    paddingLeft: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    fontFamily: "Poppins-Regular",
+    fontSize: 14,
+    color: "#1A1A2E",
   },
 });
 

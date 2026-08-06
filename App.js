@@ -1,6 +1,7 @@
 // CRITICAL: Import URL polyfill FIRST for React Native compatibility
 import 'react-native-url-polyfill/auto';
 
+import { Platform, Alert } from 'react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -18,7 +19,14 @@ import supabase, { isSupabaseReady } from './src/services/supabase';
 import { CurrentUserProfileProvider } from './src/context/CurrentUserProfileContext';
 import { UnreadMessagesProvider } from './src/context/UnreadMessagesContext';
 import { NotificationProvider } from './src/context/NotificationContext';
-import * as Notifications from 'expo-notifications';
+
+// Only import notifications on Android, or handle gracefully on iOS
+let Notifications = null;
+try {
+  Notifications = require('expo-notifications');
+} catch (e) {
+  console.log('Notifications not available:', e.message);
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -31,9 +39,15 @@ export default function App() {
     'Poppins-SemiBold': Poppins_600SemiBold,
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [animationFinished, setAnimationFinished] = useState(false); // NEW State to hold the router back
+  const [animationFinished, setAnimationFinished] = useState(false);
   const [initialRouteName, setInitialRouteName] = useState('Login');
   const navigationRef = useRef(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      console.log('Running in Expo Go - some features will be limited');
+    }
+  }, []);
 
   useEffect(() => {
     // Initialize Supabase auth state listener
@@ -49,7 +63,6 @@ export default function App() {
       try {
         if (__DEV__) console.log('[App] Testing Supabase connection...');
         
-        // Try a simple count query on alumnis table
         const { data, error } = await supabase
           .from('alumnis')
           .select('id', { count: 'exact', head: true })
@@ -88,47 +101,61 @@ export default function App() {
     };
   }, []);
 
-  // Handle notification responses
+  // Handle notification responses - only on Android
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data ?? {};
+    if (!Notifications || Platform.OS === 'ios') {
+      console.log('[Notifications] Skipping notification setup on iOS Expo Go');
+      return;
+    }
 
-      if (!navigationRef.current) {
-        return;
-      }
+    let subscription = null;
+    try {
+      subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data ?? {};
 
-      if (data.screen) {
-        if (data.targetScreen) {
+        if (!navigationRef.current) {
+          return;
+        }
+
+        if (data.screen) {
+          if (data.targetScreen) {
+            navigationRef.current.navigate(data.screen, {
+              screen: data.targetScreen,
+              params: { ...data },
+            });
+            return;
+          }
+
           navigationRef.current.navigate(data.screen, {
-            screen: data.targetScreen,
+            ...data,
+          });
+          return;
+        }
+
+        if (data.type === 'event') {
+          navigationRef.current.navigate('Home', {
+            screen: 'EventsScreen',
             params: { ...data },
           });
           return;
         }
 
-        navigationRef.current.navigate(data.screen, {
-          ...data,
-        });
-        return;
-      }
+        if (data.type === 'announcement') {
+          navigationRef.current.navigate('Home', {
+            screen: 'Feed',
+            params: { ...data },
+          });
+        }
+      });
+    } catch (error) {
+      console.log('[Notifications] Error setting up:', error.message);
+    }
 
-      if (data.type === 'event') {
-        navigationRef.current.navigate('Home', {
-          screen: 'EventsScreen',
-          params: { ...data },
-        });
-        return;
+    return () => {
+      if (subscription) {
+        subscription.remove();
       }
-
-      if (data.type === 'announcement') {
-        navigationRef.current.navigate('Home', {
-          screen: 'Feed',
-          params: { ...data },
-        });
-      }
-    });
-
-    return () => subscription.remove();
+    };
   }, []);
 
   // FIXED RULE: Show splash screen until fonts are ready, auth is checked, AND the full custom animation finishes playing
@@ -141,7 +168,7 @@ export default function App() {
     return (
       <SplashScreenLottie 
         animationSource={animation} 
-        onReady={() => setAnimationFinished(true)} // Handle closure signal safely
+        onReady={() => setAnimationFinished(true)}
       />
     );
   }

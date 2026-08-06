@@ -5,13 +5,24 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import * as Notifications from "expo-notifications";
-import {
-  registerForPushNotificationsAsync,
-  saveTokenToSupabase,
-} from "../services/notificationService";
-import { startAnnouncementNotifier } from "../services/announcementNotifier";
-import { startEventNotifier } from "../services/eventNotifier";
+import { Platform } from "react-native";
+
+// Only import notification services on Android
+let Notifications = null;
+let notificationService = null;
+let announcementNotifier = null;
+let eventNotifier = null;
+
+if (Platform.OS === 'android') {
+  try {
+    Notifications = require("expo-notifications");
+    notificationService = require("../services/notificationService");
+    announcementNotifier = require("../services/announcementNotifier");
+    eventNotifier = require("../services/eventNotifier");
+  } catch (e) {
+    console.log('[NotificationContext] Services not available:', e.message);
+  }
+}
 
 const NotificationContext = createContext();
 
@@ -21,8 +32,15 @@ export const NotificationProvider = ({ children }) => {
 
   // Initialize notifications on app start
   useEffect(() => {
+    // Skip entirely on iOS Expo Go
+    if (Platform.OS === 'ios' || !notificationService) {
+      console.log('[NotificationContext] Notifications disabled on this platform');
+      return;
+    }
+
     const initializeNotifications = async () => {
       try {
+        const { registerForPushNotificationsAsync, saveTokenToSupabase } = notificationService;
         const token = await registerForPushNotificationsAsync();
         setIsPermissionGranted(Boolean(token));
 
@@ -31,7 +49,7 @@ export const NotificationProvider = ({ children }) => {
           await saveTokenToSupabase(token);
         }
       } catch (error) {
-        // Silently handle notification initialization errors
+        console.log('[NotificationContext] Init error:', error.message);
       }
     };
 
@@ -43,12 +61,17 @@ export const NotificationProvider = ({ children }) => {
 
     (async () => {
       try {
-        [stopAnnouncements, stopEvents] = await Promise.all([
-          startAnnouncementNotifier(),
-          startEventNotifier(),
-        ]);
+        if (announcementNotifier && eventNotifier) {
+          const { startAnnouncementNotifier } = announcementNotifier;
+          const { startEventNotifier } = eventNotifier;
+          
+          [stopAnnouncements, stopEvents] = await Promise.all([
+            startAnnouncementNotifier(),
+            startEventNotifier(),
+          ]);
+        }
       } catch (error) {
-        // Silently handle initialization errors
+        console.log('[NotificationContext] Notifier error:', error.message);
       }
     })();
 
@@ -61,6 +84,12 @@ export const NotificationProvider = ({ children }) => {
 
   const sendNotification = useCallback(
     async (title, body, data = {}) => {
+      // Skip on iOS Expo Go
+      if (Platform.OS === 'ios' || !Notifications) {
+        console.log('[NotificationContext] Notification skipped on this platform');
+        return;
+      }
+
       try {
         if (isPermissionGranted) {
           await Notifications.scheduleNotificationAsync({
@@ -69,15 +98,15 @@ export const NotificationProvider = ({ children }) => {
           });
         }
       } catch (error) {
-        // Silently handle send errors
+        console.log('[NotificationContext] Send error:', error.message);
       }
     },
     [isPermissionGranted],
   );
 
   const value = {
-    isPermissionGranted,
-    pushToken,
+    isPermissionGranted: Platform.OS === 'android' ? isPermissionGranted : false,
+    pushToken: Platform.OS === 'android' ? pushToken : null,
     sendNotification,
   };
 

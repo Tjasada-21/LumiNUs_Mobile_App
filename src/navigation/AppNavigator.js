@@ -23,8 +23,8 @@ import VerifyResetOtpScreen from "../screens/VerifyResetOtpScreen";
 import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 import DraftsScreen from "../screens/DraftScreen";
 import GlobalSearchScreen from "../screens/GlobalSearchScreen";
-import IncomingCallScreen from "../screens/IncomingCallScreen";
-import CallScreenEntry from "../screens/CallScreen";
+// import IncomingCallScreen from "../screens/IncomingCallScreen";
+// import CallScreenEntry from "../screens/CallScreen";
 import AddSkillsScreen from "../screens/AddSkillsScreen";
 import WorkExperienceScreen from "../screens/WorkExperienceScreen";
 import WorkExperienceFormScreen from "../screens/WorkExperienceFormScreen";
@@ -77,8 +77,8 @@ const AppNavigator = () => {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
-      <Stack.Screen name="CallScreen" component={CallScreenEntry} options={{ headerShown: false, presentation: "fullScreenModal" }} />
+      {/* <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} /> */}
+      {/* <Stack.Screen name="CallScreen" component={CallScreenEntry} options={{ headerShown: false, presentation: "fullScreenModal" }} /> */}
       <Stack.Screen name="NotificationsScreen" component={require('../screens/NotificationsScreen').default} />
       <Stack.Screen name="ArchivedChats" component={ArchivedChatsScreen} />
       

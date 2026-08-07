@@ -386,3 +386,20 @@ export const submitDraftResponse = async (responseId) => {
     throw error;
   }
 };
+
+export const uploadTracerFile = async (responseId, questionId, file) => {
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    type: file.mimeType,
+    name: file.name,
+  });
+  formData.append('response_id', responseId);
+  formData.append('question_id', questionId);
+
+  const response = await api.post('/tracer/upload-file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  
+  return response.data.path;
+};

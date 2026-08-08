@@ -183,32 +183,107 @@ export const getTracerProgress = async (alumniId) => {
   }
 };
 
-/**
- * Get or create draft response - FINAL VERSION (no sentinel date)
- */
 export const getOrCreateDraftResponse = async (alumniId, formId) => {
   try {
-    console.log("🔍 Looking for draft: alumniId=", alumniId, "formId=", formId);
+    console.log("🔍 Looking for response: alumniId=", alumniId, "formId=", formId);
 
-    // Find existing in_progress draft (submitted_at is null)
+    // 1. Find ANY existing response (in_progress or completed)
     const { data: existing, error: existingError } = await supabase
       .from("tracer_responses")
       .select("*")
       .eq("alumni_id", alumniId)
       .eq("form_id", formId)
-      .eq("status", "in_progress")
-      .is("submitted_at", null)
       .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    console.log("🔍 Existing draft:", existing?.id || "NONE", "| Error:", existingError);
-
     if (existingError) throw existingError;
-    if (existing?.id) return existing;
 
-    // Create new draft
+    // 2. If NO existing response → create new draft
+    if (!existing) {
+      console.log("📝 No response found, creating NEW draft...");
+      return await createNewDraftResponse(alumniId, formId);
+    }
+
+    console.log("🔍 Existing response found:", existing.id, "Status:", existing.status);
+
+    // 3. If response is 'in_progress' → return it
+    if (existing.status === 'in_progress') {
+      console.log("✅ Found in-progress draft:", existing.id);
+      return existing;
+    }
+
+    // 4. If response is 'completed' → check if there are new questions
+    if (existing.status === 'completed') {
+      console.log("📝 Checking if completed response needs updating...");
+      
+      // Get all questions for this form
+      const { data: allQuestions, error: questionsError } = await supabase
+        .from("tracer_questions")
+        .select("id")
+        .eq("form_id", formId);
+
+      if (questionsError) throw questionsError;
+
+      // Get all answered questions for this response
+      const { data: answers, error: answersError } = await supabase
+        .from("tracer_answers")
+        .select("question_id")
+        .eq("tracer_response_id", existing.id);
+
+      if (answersError) throw answersError;
+
+      const answeredQuestionIds = new Set(answers?.map(a => a.question_id) || []);
+      const allQuestionIds = new Set(allQuestions?.map(q => q.id) || []);
+
+      // Check if there are unanswered questions
+      const hasUnansweredQuestions = allQuestions?.some(q => !answeredQuestionIds.has(q.id));
+
+      console.log("📊 Unanswered questions:", hasUnansweredQuestions);
+
+      // If ALL questions are answered → response is truly complete
+      if (!hasUnansweredQuestions) {
+        console.log("✅ All questions answered. Response is complete.");
+        return existing;
+      }
+
+      // If there are NEW unanswered questions → reopen the response
+      console.log("📝 New questions found! Reopening completed response...");
+      
+      const { data: reopened, error: reopenError } = await supabase
+        .from("tracer_responses")
+        .update({
+          status: "in_progress",
+          submitted_at: null,
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (reopenError) {
+        console.error("❌ Reopen error:", reopenError);
+        throw reopenError;
+      }
+
+      console.log("✅ Response reopened successfully:", reopened.id);
+      return reopened;
+    }
+
+    // Fallback: create new draft
+    return await createNewDraftResponse(alumniId, formId);
+  } catch (error) {
+    console.error("❌ getOrCreateDraft error:", error.message);
+    throw error;
+  }
+};
+
+/**
+ * Helper: Create a new draft response
+ */
+const createNewDraftResponse = async (alumniId, formId) => {
+  try {
     console.log("📝 Creating NEW draft...");
+    
     const { data: newDraft, error: createError } = await supabase
       .from("tracer_responses")
       .insert([{
@@ -219,12 +294,15 @@ export const getOrCreateDraftResponse = async (alumniId, formId) => {
       .select()
       .single();
 
-    console.log("📝 New draft created:", newDraft?.id, "| Error:", createError);
+    if (createError) {
+      console.error("❌ Create error:", createError);
+      throw createError;
+    }
 
-    if (createError) throw createError;
+    console.log("✅ New draft created:", newDraft.id);
     return newDraft;
   } catch (error) {
-    console.error("❌ getOrCreateDraft error:", error.message);
+    console.error("❌ createNewDraftResponse error:", error.message);
     throw error;
   }
 };
@@ -385,4 +463,21 @@ export const submitDraftResponse = async (responseId) => {
     console.error("❌ submitDraft error:", error.message);
     throw error;
   }
+};
+
+export const uploadTracerFile = async (responseId, questionId, file) => {
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    type: file.mimeType,
+    name: file.name,
+  });
+  formData.append('response_id', responseId);
+  formData.append('question_id', questionId);
+
+  const response = await api.post('/tracer/upload-file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  
+  return response.data.path;
 };

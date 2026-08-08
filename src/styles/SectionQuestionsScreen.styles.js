@@ -1,4 +1,3 @@
-// SectionQuestionsScreen.styles.js
 import { StyleSheet } from "react-native";
 
 const COLORS = {
@@ -82,7 +81,7 @@ const styles = StyleSheet.create({
   // QUESTION PROGRESS
   // ─────────────────────────────────────────────
   questionProgressContainer: {
-    marginHorizontal: 20, marginBottom: 20,
+    marginHorizontal: 20, marginBottom: 20, marginTop: 30,
     backgroundColor: COLORS.cardBg, borderRadius: 12,
     padding: 14, borderWidth: 1, borderColor: COLORS.border,
   },
@@ -228,6 +227,226 @@ const styles = StyleSheet.create({
   },
 
   // ─────────────────────────────────────────────
+  // LIKERT SCALE & GRID
+  // ─────────────────────────────────────────────
+  likertHeaderRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  likertRowLabelPlaceholder: {
+    width: 130,
+  },
+  likertColumnHeader: {
+    width: 80,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  likertColumnText: {
+    color: '#FFD404',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  likertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  likertRowLabel: {
+    width: 130,
+    paddingRight: 8,
+  },
+  likertRowText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+  },
+  likertCell: {
+    width: 80,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  likertCellSelected: {
+    // Customize as needed
+  },
+  likertRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likertRadioSelected: {
+    borderColor: '#FFD404',
+  },
+  likertRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFD404',
+  },
+
+  // ─────────────────────────────────────────────
+  // FILE UPLOAD
+  // ─────────────────────────────────────────────
+  fileSizeHint: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  
+  // iOS Expo Link styles
+  iosExpoContainer: {
+    marginBottom: 12,
+  },
+  linkOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,212,4,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,4,0.3)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  linkOptionText: {
+    color: '#FFD404',
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+  },
+  linkInputContainer: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  linkInputLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    marginBottom: 8,
+    fontFamily: FONTS.regular,
+  },
+  linkInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  linkActionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 10,
+  },
+  linkCancelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  linkCancelText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+  },
+  linkSubmitButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: '#FFD404',
+  },
+  linkSubmitText: {
+    color: '#1A237E',
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+  },
+  fileLinkUrl: {
+    color: 'rgba(255,212,4,0.7)',
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: FONTS.regular,
+  },
+  uploadSubText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 10,
+    fontFamily: FONTS.regular,
+    marginLeft: 4,
+  },
+
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,212,4,0.3)',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    minHeight: 70,
+  },
+  uploadButtonText: {
+    color: '#FFD404',
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+  },
+  filePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,212,4,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,4,0.3)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  fileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  fileDetails: {
+    flex: 1,
+  },
+  fileName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+  },
+  fileSize: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: FONTS.regular,
+  },
+  removeFileButton: {
+    padding: 4,
+  },
+  fileTypeHint: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    fontStyle: 'italic',
+    fontFamily: FONTS.regular,
+  },
+
+  // ─────────────────────────────────────────────
   // NAVIGATION BUTTONS
   // ─────────────────────────────────────────────
   navigationButtons: {
@@ -278,6 +497,115 @@ const styles = StyleSheet.create({
   questionDotText: {
     fontFamily: FONTS.semiBold, fontSize: 11, color: COLORS.whiteAlpha60,
   },
+
+  // ─────────────────────────────────────────────
+// QUESTION DOTS WITH SCROLL
+// ─────────────────────────────────────────────
+
+questionDotsContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flex: 1,
+  marginHorizontal: 8,
+  maxWidth: '60%',
+},
+questionDotsScroll: {
+  flex: 1,
+  maxWidth: '100%',
+},
+questionDotsScrollContent: {
+  alignItems: 'center',
+  paddingHorizontal: 4,
+  gap: 6,
+},
+ellipsisWrapper: {
+  paddingHorizontal: 2,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+ellipsisText: {
+  color: 'rgba(255,255,255,0.3)',
+  fontSize: 14,
+  fontFamily: FONTS.bold,
+},
+questionDot: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: COLORS.whiteAlpha08,
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 28,
+},
+questionDotCurrent: {
+  backgroundColor: COLORS.goldStar + '30',
+  borderWidth: 1.5,
+  borderColor: COLORS.goldStar,
+},
+questionDotAnswered: {
+  backgroundColor: COLORS.nebulaGreen + '30',
+  borderWidth: 1,
+  borderColor: COLORS.nebulaGreen,
+},
+questionDotText: {
+  fontFamily: FONTS.semiBold,
+  fontSize: 10,
+  color: COLORS.whiteAlpha60,
+},
+questionDotTextCurrent: {
+  color: COLORS.goldStar,
+  fontFamily: FONTS.bold,
+},
+questionDotTextAnswered: {
+  color: COLORS.nebulaGreen,
+},
+
+// ─────────────────────────────────────────────
+// SCROLL HINT FOR LIKERT/GRID
+// ─────────────────────────────────────────────
+
+scrollHintContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  backgroundColor: 'rgba(255,212,4,0.08)',
+  borderRadius: 8,
+  marginBottom: 12,
+  borderWidth: 1,
+  borderColor: 'rgba(255,212,4,0.15)',
+},
+scrollHintText: {
+  color: COLORS.goldStar,
+  fontSize: 11,
+  fontFamily: FONTS.medium,
+  opacity: 0.8,
+},
+likertScrollView: {
+  marginBottom: 4,
+},
+scrollIndicatorContainer: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 8,
+  paddingVertical: 4,
+},
+scrollIndicatorDot: {
+  width: 4,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: 'rgba(255,255,255,0.15)',
+},
+scrollIndicatorDotActive: {
+  width: 16,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: COLORS.goldStar,
+},
 });
 
 export { COLORS, FONTS };

@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   ActivityIndicator,
   RefreshControl,
   Modal,
@@ -17,8 +18,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// Only import DraggableFlatList on Android
+let DraggableFlatList = null;
+let ScaleDecorator = null;
+if (Platform.OS === 'android') {
+  try {
+    const draggable = require('react-native-draggable-flatlist');
+    DraggableFlatList = draggable.default;
+    ScaleDecorator = draggable.ScaleDecorator;
+  } catch (e) {
+    console.log('DraggableFlatList not available');
+  }
+}
 
 import styles from '../styles/WorkExperienceScreen.styles';
 import supabase from '../services/supabase';
@@ -30,7 +43,6 @@ const WorkExperienceScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Reorder State
   const [isReordering, setIsReordering] = useState(false);
 
   // Modal & Form State
@@ -64,7 +76,6 @@ const WorkExperienceScreen = ({ navigation }) => {
 
       if (error) throw error;
 
-      // Sort by display_order in JS to prevent crashes if the column hasn't been added yet
       const sortedData = (data || []).sort((a, b) => {
         if (typeof a.display_order === 'number' && typeof b.display_order === 'number') {
           return a.display_order - b.display_order;
@@ -117,7 +128,6 @@ const WorkExperienceScreen = ({ navigation }) => {
   const handleSaveOrder = async () => {
     setIsSaving(true);
     try {
-      // Loop through the visually reordered list and update their display_order index in the DB
       await Promise.all(
         workExperiences.map((exp, index) =>
           supabase
@@ -214,6 +224,37 @@ const WorkExperienceScreen = ({ navigation }) => {
     );
   };
 
+  // Render draggable list item (Android only)
+  const renderDraggableItem = ({ item, drag, isActive }) => (
+    <ScaleDecorator>
+      <TouchableOpacity
+        onLongPress={drag}
+        disabled={isActive}
+        style={[
+          styles.dragCard,
+          { backgroundColor: isActive ? '#F3F4F6' : '#FFFFFF' }
+        ]}
+      >
+        <Ionicons name="reorder-two" size={28} color="#9CA3AF" style={{ marginRight: 16 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 2 }]}>{item.title}</Text>
+          <Text style={[styles.cardSubtitle, { textAlign: 'left', marginBottom: 0 }]}>{item.subtitle}</Text>
+        </View>
+      </TouchableOpacity>
+    </ScaleDecorator>
+  );
+
+  // Render non-draggable list item (iOS fallback)
+  const renderStaticItem = ({ item }) => (
+    <View style={[styles.dragCard, { backgroundColor: '#FFFFFF' }]}>
+      <Ionicons name="reorder-two" size={28} color="#D1D5DB" style={{ marginRight: 16 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 2 }]}>{item.title}</Text>
+        <Text style={[styles.cardSubtitle, { textAlign: 'left', marginBottom: 0 }]}>{item.subtitle}</Text>
+      </View>
+    </View>
+  );
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -255,7 +296,8 @@ const WorkExperienceScreen = ({ navigation }) => {
                       <Text style={styles.addNewText}>Add New</Text>
                     </TouchableOpacity>
 
-                    {workExperiences.length > 1 && (
+                    {/* Only show Reorder button on Android or if DraggableFlatList is available */}
+                    {workExperiences.length > 1 && DraggableFlatList && (
                       <TouchableOpacity style={styles.reorderButton} onPress={() => setIsReordering(true)}>
                         <Ionicons name="reorder-three-outline" size={14} color="#FACC15" />
                         <Text style={styles.reorderText}>Reorder</Text>
@@ -278,32 +320,28 @@ const WorkExperienceScreen = ({ navigation }) => {
                   You haven't added any work experiences yet.
                 </Text>
               </View>
-            ) : isReordering ? (
-              // Draggable List View
+            ) : isReordering && DraggableFlatList ? (
+              // Draggable List View (Android only)
               <DraggableFlatList
                 data={workExperiences}
                 onDragEnd={({ data }) => setWorkExperiences(data)}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ paddingBottom: 40 }}
-                renderItem={({ item, drag, isActive }) => (
-                  <ScaleDecorator>
-                    <TouchableOpacity
-                      onLongPress={drag}
-                      disabled={isActive}
-                      style={[
-                        styles.dragCard,
-                        { backgroundColor: isActive ? '#F3F4F6' : '#FFFFFF' }
-                      ]}
-                    >
-                      <Ionicons name="reorder-two" size={28} color="#9CA3AF" style={{ marginRight: 16 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 2 }]}>{item.title}</Text>
-                        <Text style={[styles.cardSubtitle, { textAlign: 'left', marginBottom: 0 }]}>{item.subtitle}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  </ScaleDecorator>
-                )}
+                renderItem={renderDraggableItem}
               />
+            ) : isReordering && !DraggableFlatList ? (
+              // iOS fallback - show static list with message
+              <View style={{ flex: 1 }}>
+                <Text style={{ textAlign: 'center', color: '#6B7280', marginVertical: 20, fontFamily: 'Poppins_400Regular' }}>
+                  Reordering is not available on this device.
+                </Text>
+                <FlatList
+                  data={workExperiences}
+                  keyExtractor={(item) => item.id.toString()}
+                  contentContainerStyle={{ paddingBottom: 40 }}
+                  renderItem={renderStaticItem}
+                />
+              </View>
             ) : (
               // Standard Grid View
               <ScrollView 

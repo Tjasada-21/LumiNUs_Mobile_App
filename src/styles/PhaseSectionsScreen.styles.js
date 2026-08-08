@@ -64,6 +64,7 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    marginTop: 100,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.deepSpace,
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   // ─────────────────────────────────────────────
   phaseProgressContainer: {
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 80,
     backgroundColor: COLORS.cardBg,
     borderRadius: 20,
     padding: 20,

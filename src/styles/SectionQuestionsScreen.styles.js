@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   // QUESTION PROGRESS
   // ─────────────────────────────────────────────
   questionProgressContainer: {
-    marginHorizontal: 20, marginBottom: 20,
+    marginHorizontal: 20, marginBottom: 20, marginTop: 30,
     backgroundColor: COLORS.cardBg, borderRadius: 12,
     padding: 14, borderWidth: 1, borderColor: COLORS.border,
   },
@@ -497,6 +497,115 @@ const styles = StyleSheet.create({
   questionDotText: {
     fontFamily: FONTS.semiBold, fontSize: 11, color: COLORS.whiteAlpha60,
   },
+
+  // ─────────────────────────────────────────────
+// QUESTION DOTS WITH SCROLL
+// ─────────────────────────────────────────────
+
+questionDotsContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flex: 1,
+  marginHorizontal: 8,
+  maxWidth: '60%',
+},
+questionDotsScroll: {
+  flex: 1,
+  maxWidth: '100%',
+},
+questionDotsScrollContent: {
+  alignItems: 'center',
+  paddingHorizontal: 4,
+  gap: 6,
+},
+ellipsisWrapper: {
+  paddingHorizontal: 2,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+ellipsisText: {
+  color: 'rgba(255,255,255,0.3)',
+  fontSize: 14,
+  fontFamily: FONTS.bold,
+},
+questionDot: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: COLORS.whiteAlpha08,
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 28,
+},
+questionDotCurrent: {
+  backgroundColor: COLORS.goldStar + '30',
+  borderWidth: 1.5,
+  borderColor: COLORS.goldStar,
+},
+questionDotAnswered: {
+  backgroundColor: COLORS.nebulaGreen + '30',
+  borderWidth: 1,
+  borderColor: COLORS.nebulaGreen,
+},
+questionDotText: {
+  fontFamily: FONTS.semiBold,
+  fontSize: 10,
+  color: COLORS.whiteAlpha60,
+},
+questionDotTextCurrent: {
+  color: COLORS.goldStar,
+  fontFamily: FONTS.bold,
+},
+questionDotTextAnswered: {
+  color: COLORS.nebulaGreen,
+},
+
+// ─────────────────────────────────────────────
+// SCROLL HINT FOR LIKERT/GRID
+// ─────────────────────────────────────────────
+
+scrollHintContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  backgroundColor: 'rgba(255,212,4,0.08)',
+  borderRadius: 8,
+  marginBottom: 12,
+  borderWidth: 1,
+  borderColor: 'rgba(255,212,4,0.15)',
+},
+scrollHintText: {
+  color: COLORS.goldStar,
+  fontSize: 11,
+  fontFamily: FONTS.medium,
+  opacity: 0.8,
+},
+likertScrollView: {
+  marginBottom: 4,
+},
+scrollIndicatorContainer: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 8,
+  paddingVertical: 4,
+},
+scrollIndicatorDot: {
+  width: 4,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: 'rgba(255,255,255,0.15)',
+},
+scrollIndicatorDotActive: {
+  width: 16,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: COLORS.goldStar,
+},
 });
 
 export { COLORS, FONTS };

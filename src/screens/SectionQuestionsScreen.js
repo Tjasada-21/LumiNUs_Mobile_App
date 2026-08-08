@@ -72,6 +72,92 @@ const StarField = () => (
   </View>
 );
 
+// ─────────────────────────────────────────────
+// QUESTION DOTS WITH SCROLL & ELLIPSIS
+// ─────────────────────────────────────────────
+
+const QuestionDots = ({ questions, answers, currentIndex, onDotPress }) => {
+  const scrollViewRef = useRef(null);
+  const [showLeftEllipsis, setShowLeftEllipsis] = useState(false);
+  const [showRightEllipsis, setShowRightEllipsis] = useState(true);
+
+  // Handle scroll to detect ellipsis visibility
+  const handleScroll = (event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    setShowLeftEllipsis(contentOffset.x > 10);
+    setShowRightEllipsis(contentOffset.x + layoutMeasurement.width < contentSize.width - 10);
+  };
+
+  // Auto-scroll to current question
+  useEffect(() => {
+    if (scrollViewRef.current && currentIndex >= 0) {
+      const dotWidth = 34; // width + gap
+      const scrollToX = Math.max(0, currentIndex * dotWidth - 100);
+      scrollViewRef.current.scrollTo({ x: scrollToX, animated: true });
+    }
+  }, [currentIndex]);
+
+  const totalQuestions = questions.length;
+
+  return (
+    <View style={styles.questionDotsContainer}>
+      {/* Left ellipsis */}
+      {showLeftEllipsis && (
+        <View style={styles.ellipsisWrapper}>
+          <Text style={styles.ellipsisText}>…</Text>
+        </View>
+      )}
+
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={styles.questionDotsScrollContent}
+        style={styles.questionDotsScroll}
+      >
+        {questions.map((q, index) => {
+          const isAnswered = answers[q.id] && (
+            typeof answers[q.id] === 'string'
+              ? answers[q.id].trim() !== ''
+              : Object.keys(answers[q.id] || {}).length > 0
+          );
+          const isCurrent = index === currentIndex;
+          const isLast = index === totalQuestions - 1;
+
+          return (
+            <TouchableOpacity
+              key={q.id || index}
+              style={[
+                styles.questionDot,
+                isCurrent && styles.questionDotCurrent,
+                isAnswered && styles.questionDotAnswered,
+              ]}
+              onPress={() => onDotPress(index)}
+            >
+              <Text style={[
+                styles.questionDotText,
+                isCurrent && styles.questionDotTextCurrent,
+                isAnswered && styles.questionDotTextAnswered,
+              ]}>
+                {index + 1}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Right ellipsis */}
+      {showRightEllipsis && (
+        <View style={styles.ellipsisWrapper}>
+          <Text style={styles.ellipsisText}>…</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
 /** Progress bar at the top */
 const QuestionProgress = ({ current, total }) => {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
@@ -290,9 +376,11 @@ const DropdownInput = ({ question, value, onChange, error }) => {
 
 /** Likert Scale Input */
 const LikertScaleInput = ({ question, value, onChange, error }) => {
-  // Likert scale uses grid_rows for statements and grid_columns for scale points
   const rows = question.grid_rows || [];
   const columns = question.grid_columns || [];
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const scrollViewRef = useRef(null);
   
   // Parse existing value as JSON object { row_id: column_id }
   const selectedValues = value ? JSON.parse(value) : {};
@@ -302,8 +390,18 @@ const LikertScaleInput = ({ question, value, onChange, error }) => {
     onChange(JSON.stringify(updated));
   };
 
+  // Hide scroll hint after user scrolls
+  const handleScroll = (event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const isAtEnd = contentOffset.x + layoutMeasurement.width >= contentSize.width - 5;
+    if (isAtEnd) {
+      setShowScrollHint(false);
+    }
+    setIsScrolling(true);
+    setTimeout(() => setIsScrolling(false), 500);
+  };
+
   if (rows.length === 0) {
-    // Fallback: treat as regular multiple choice if no rows defined
     return <MultipleChoiceInput question={question} value={value} onChange={onChange} error={error} />;
   }
 
@@ -318,8 +416,24 @@ const LikertScaleInput = ({ question, value, onChange, error }) => {
         <Text style={styles.questionDescription}>{question.description}</Text>
       ) : null}
       
+      {/* Scroll Hint */}
+      {showScrollHint && columns.length > 2 && (
+        <View style={styles.scrollHintContainer}>
+          <Ionicons name="chevron-forward-outline" size={16} color="#FFD404" />
+          <Text style={styles.scrollHintText}>Swipe right to see more</Text>
+          <Ionicons name="chevron-forward-outline" size={16} color="#FFD404" />
+        </View>
+      )}
+      
       {/* Column headers */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={true}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        style={styles.likertScrollView}
+      >
         <View>
           <View style={styles.likertHeaderRow}>
             <View style={styles.likertRowLabelPlaceholder} />
@@ -361,6 +475,22 @@ const LikertScaleInput = ({ question, value, onChange, error }) => {
           ))}
         </View>
       </ScrollView>
+      
+      {/* Scroll indicator dots */}
+      {columns.length > 2 && (
+        <View style={styles.scrollIndicatorContainer}>
+          {columns.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.scrollIndicatorDot,
+                index === 0 && styles.scrollIndicatorDotActive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+      
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
@@ -370,6 +500,9 @@ const LikertScaleInput = ({ question, value, onChange, error }) => {
 const MultipleChoiceGridInput = ({ question, value, onChange, error }) => {
   const rows = question.grid_rows || [];
   const columns = question.grid_columns || [];
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const scrollViewRef = useRef(null);
   
   // Parse existing value as JSON object { row_id: column_id }
   const selectedValues = value ? JSON.parse(value) : {};
@@ -377,6 +510,17 @@ const MultipleChoiceGridInput = ({ question, value, onChange, error }) => {
   const handleSelect = (rowId, columnId) => {
     const updated = { ...selectedValues, [rowId]: columnId?.toString() };
     onChange(JSON.stringify(updated));
+  };
+
+  // Hide scroll hint after user scrolls
+  const handleScroll = (event) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const isAtEnd = contentOffset.x + layoutMeasurement.width >= contentSize.width - 5;
+    if (isAtEnd) {
+      setShowScrollHint(false);
+    }
+    setIsScrolling(true);
+    setTimeout(() => setIsScrolling(false), 500);
   };
 
   return (
@@ -390,8 +534,24 @@ const MultipleChoiceGridInput = ({ question, value, onChange, error }) => {
         <Text style={styles.questionDescription}>{question.description}</Text>
       ) : null}
       
+      {/* Scroll Hint */}
+      {showScrollHint && columns.length > 2 && (
+        <View style={styles.scrollHintContainer}>
+          <Ionicons name="chevron-forward-outline" size={16} color="#FFD404" />
+          <Text style={styles.scrollHintText}>Swipe right to see more</Text>
+          <Ionicons name="chevron-forward-outline" size={16} color="#FFD404" />
+        </View>
+      )}
+      
       {/* Column headers */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={true}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        style={styles.likertScrollView}
+      >
         <View>
           <View style={styles.likertHeaderRow}>
             <View style={styles.likertRowLabelPlaceholder} />
@@ -433,11 +593,26 @@ const MultipleChoiceGridInput = ({ question, value, onChange, error }) => {
           ))}
         </View>
       </ScrollView>
+      
+      {/* Scroll indicator dots */}
+      {columns.length > 2 && (
+        <View style={styles.scrollIndicatorContainer}>
+          {columns.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.scrollIndicatorDot,
+                index === 0 && styles.scrollIndicatorDotActive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+      
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 };
-
 /** File Upload Input */
 const FileUploadInput = ({ question, value, onChange, error, onFilePick }) => {
   const [uploading, setUploading] = useState(false);
@@ -1197,33 +1372,17 @@ const handleFileUpload = async (file) => {
                 color={isFirstQuestion ? 'rgba(255,255,255,0.2)' : '#FFD404'}
               />
               <Text style={[styles.navButtonText, isFirstQuestion && styles.navButtonTextDisabled]}>
-                Previous
+                Prev
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.questionDots}>
-              {sortedQuestions.map((q, index) => {
-                const isAnswered = answers[q.id] && (
-                  typeof answers[q.id] === 'string' 
-                    ? answers[q.id].trim() !== '' 
-                    : Object.keys(answers[q.id] || {}).length > 0
-                );
-                const isCurrent = index === currentQuestionIndex;
-                return (
-                  <TouchableOpacity
-                    key={q.id || index}
-                    style={[
-                      styles.questionDot,
-                      isCurrent && styles.questionDotCurrent,
-                      isAnswered && styles.questionDotAnswered,
-                    ]}
-                    onPress={() => animateTransition(() => setCurrentQuestionIndex(index))}
-                  >
-                    <Text style={styles.questionDotText}>{index + 1}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* Updated Question Dots with scroll */}
+            <QuestionDots
+              questions={sortedQuestions}
+              answers={answers}
+              currentIndex={currentQuestionIndex}
+              onDotPress={(index) => animateTransition(() => setCurrentQuestionIndex(index))}
+            />
 
             <TouchableOpacity
               style={[styles.navButton, styles.navButtonNext]}

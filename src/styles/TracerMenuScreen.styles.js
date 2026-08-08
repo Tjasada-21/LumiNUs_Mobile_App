@@ -88,12 +88,13 @@ const styles = StyleSheet.create({
   // ─────────────────────────────────────────────
   loadingContainer: {
     flex: 1,
+    marginTop: 100,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.deepSpace,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 20,
     color: COLORS.whiteAlpha60,
     fontSize: 15,
     fontFamily: FONTS.medium,

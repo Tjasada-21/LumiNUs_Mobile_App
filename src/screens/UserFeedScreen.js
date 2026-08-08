@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
+  Animated as RNAnimated,
   Dimensions,
   Easing,
   Image,
   Modal,
   Pressable,
   RefreshControl,
+  FlatList,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -92,14 +93,6 @@ const toMentionHandle = (firstName, lastName) => {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-const getTouchDistance = (touches) => {
-  if (!touches || touches.length < 2) return 0;
-  const [firstTouch, secondTouch] = touches;
-  const deltaX = firstTouch.pageX - secondTouch.pageX;
-  const deltaY = firstTouch.pageY - secondTouch.pageY;
-  return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-};
-
 const resolveFeedInteractionTarget = (post) => {
   if (!post) return { feedType: 'post', postId: null, announcementId: null, originalPostId: null };
   if (post.feed_type === 'announcement')
@@ -150,64 +143,7 @@ const ZoomableViewer = ({
   onMenuPress,
 }) => {
   const pagerRef = useRef(null);
-  const scale = useRef(new Animated.Value(1)).current;
-  const zoomedInRef = useRef(false);
-  const lastTapRef = useRef(0);
-  const pinchStartDistanceRef = useRef(0);
-  const pinchStartScaleRef = useRef(1);
-  const isPinchingRef = useRef(false);
   const resolvedImages = images.filter((image) => Boolean(image?.uri));
-
-  const handleImageTap = () => {
-    const now = Date.now();
-    const isDoubleTap = now - lastTapRef.current < 300;
-    lastTapRef.current = now;
-    if (!isDoubleTap) return;
-    const nextZoomedState = !zoomedInRef.current;
-    zoomedInRef.current = nextZoomedState;
-    Animated.spring(scale, {
-      toValue: nextZoomedState ? MAX_ZOOM_SCALE : 1,
-      useNativeDriver: true,
-      bounciness: 4,
-    }).start();
-  };
-
-  const handleTouchStart = (event) => {
-    const touches = event.nativeEvent.touches ?? [];
-    if (touches.length >= 2) {
-      isPinchingRef.current = true;
-      pinchStartDistanceRef.current = getTouchDistance(touches);
-      scale.stopAnimation((currentScale) => {
-        pinchStartScaleRef.current = currentScale;
-      });
-    }
-  };
-
-  const handleTouchMove = (event) => {
-    const touches = event.nativeEvent.touches ?? [];
-    if (touches.length >= 2) {
-      const currentDistance = getTouchDistance(touches);
-      const startDistance = pinchStartDistanceRef.current;
-      if (!startDistance) {
-        pinchStartDistanceRef.current = currentDistance;
-        return;
-      }
-      const distanceScale = currentDistance / startDistance;
-      const nextScale = clamp(pinchStartScaleRef.current * distanceScale, 1, MAX_ZOOM_SCALE);
-      scale.setValue(nextScale);
-      zoomedInRef.current = nextScale > 1;
-    }
-  };
-
-  const handleTouchEnd = (event) => {
-    const touches = event.nativeEvent.touches ?? [];
-    if (touches.length < 2) {
-      isPinchingRef.current = false;
-      pinchStartDistanceRef.current = 0;
-      pinchStartScaleRef.current = 1;
-      if (!zoomedInRef.current) scale.setValue(1);
-    }
-  };
 
   if (!visible || resolvedImages.length === 0) return null;
 
@@ -230,27 +166,19 @@ const ZoomableViewer = ({
               return (
                 <View key={imageKey} style={styles.viewerScrollItem}>
                   <View style={styles.viewerImageCard}>
-                    <Pressable
-                      style={styles.viewerImagePressable}
-                      onPress={handleImageTap}
-                      onTouchStart={handleTouchStart}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchCancel={handleTouchEnd}
-                    >
-                      <Animated.Image
+                    <View style={styles.viewerImagePressable}>
+                      <Image
                         source={{ uri: image.uri }}
                         style={[
                           styles.viewerImage,
                           {
-                            transform: [{ scale }],
                             width: VIEWER_IMAGE_WIDTH,
                             height: VIEWER_IMAGE_HEIGHT,
                           },
                         ]}
                         resizeMode="contain"
                       />
-                    </Pressable>
+                    </View>
                   </View>
                 </View>
               );
@@ -359,11 +287,11 @@ const UserFeedScreen = ({ navigation }) => {
   const [connections, setConnections] = useState([]);
   const [feedSortMode, setFeedSortMode] = useState('relevant');
   const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
-  const reactionPulseScale = useRef(new Animated.Value(1)).current;
+  const reactionPulseScale = useRef(new RNAnimated.Value(1)).current;
 
-  const postActionsTranslateY = useRef(new Animated.Value(0)).current;
-  const repostComposerTranslateY = useRef(new Animated.Value(0)).current;
-  const commentsTranslateY = useRef(new Animated.Value(0)).current;
+  const postActionsTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const repostComposerTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const commentsTranslateY = useRef(new RNAnimated.Value(0)).current;
   const postMediaTapTimeoutRef = useRef(null);
   const postMediaTapStateRef = useRef({ postKey: null, imageIndex: null });
   const postActionsSwipeStartRef = useRef(0);
@@ -420,11 +348,8 @@ const UserFeedScreen = ({ navigation }) => {
     }
     const distance = currentY - commentsSwipeStartRef.current;
     
-    // Only apply rubber banding for positive distance (swiping down)
-    // Allow full range of motion without rubber banding for better feel
     let newValue = distance;
     if (distance > 0) {
-      // Apply slight resistance for a natural feel
       newValue = distance * 0.6;
     }
     
@@ -436,11 +361,10 @@ const UserFeedScreen = ({ navigation }) => {
   repostComposerSwipeStartRef.current = 0;
   commentsSwipeStartRef.current = 0;
   
-  Animated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
-  Animated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
+  RNAnimated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
+  RNAnimated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
   
-  // Make sure comments translateY resets properly
-  Animated.spring(commentsTranslateY, { 
+  RNAnimated.spring(commentsTranslateY, { 
     toValue: 0, 
     useNativeDriver: false,
     tension: 40,
@@ -514,12 +438,9 @@ const UserFeedScreen = ({ navigation }) => {
     });
   }, [feedRefreshNonce, feedSortMode, posts]);
 
-  
-    // ✅ ADD THIS USEEFFECT INSIDE UserFeedScreen COMPONENT
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       if (commentsVisible) {
-        // Small delay ensures the layout has fully recalculated before scrolling
         setTimeout(() => {
           commentsScrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -1104,18 +1025,15 @@ const handlePostComment = useCallback((post) => {
   }, []);
 
 const closeCommentsModal = () => {
-  // Prevent multiple calls
   if (isClosingRef.current) return;
   isClosingRef.current = true;
-  
-  // Smooth slide-down animation
-  Animated.timing(commentsTranslateY, {
+
+  RNAnimated.timing(commentsTranslateY, {
     toValue: SCREEN_HEIGHT,
-    duration: 200, // Slightly faster for a snappier, more native feel
-    easing: Easing.out(Easing.quad), // More reliable than complex bezier
+    duration: 200,
+    easing: Easing.out(Easing.quad),
     useNativeDriver: false,
   }).start(() => {
-    // Close after animation completes
     setCommentsVisible(false);
     setActiveCommentPost(null);
     setReplyingToComment(null);
@@ -1124,14 +1042,11 @@ const closeCommentsModal = () => {
     setCommentInputHeight(48);
     setExpandedCommentParents({});
     setKeyboardHeight(0);
-    
-    // ✅ DO NOT reset commentsTranslateY to 0 here! 
-    // Let it stay off-screen (SCREEN_HEIGHT) while it unmounts to prevent the flash.
-    // It will be reset to SCREEN_HEIGHT automatically the next time it opens.
-    
     commentsSwipeStartRef.current = 0;
     commentsInitialYRef.current = 0;
-    isClosingRef.current = false;
+    setTimeout(() => {
+      isClosingRef.current = false;
+    }, 120);
   });
 };
 
@@ -1380,14 +1295,14 @@ const closeCommentsModal = () => {
     setReactionPulsePostId(postId);
     reactionPulseScale.stopAnimation();
     reactionPulseScale.setValue(0.94);
-    Animated.sequence([
-      Animated.timing(reactionPulseScale, {
+    RNAnimated.sequence([
+      RNAnimated.timing(reactionPulseScale, {
         toValue: 1.08,
         duration: 120,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.spring(reactionPulseScale, {
+      RNAnimated.spring(reactionPulseScale, {
         toValue: 1,
         tension: 140,
         friction: 14,
@@ -1547,23 +1462,19 @@ const closeCommentsModal = () => {
     };
   }, []);
 
-  // Add this useEffect for smooth opening animation
   useEffect(() => {
-    if (commentsVisible) {
-      // Reset closing flag
-      isClosingRef.current = false;
-      
-      // Reset to bottom first
-      commentsTranslateY.setValue(SCREEN_HEIGHT);
-      // Animate slide up
-      Animated.spring(commentsTranslateY, {
-        toValue: 0,
-        useNativeDriver: false,
-        tension: 65,
-        friction: 12,
-        velocity: 0.5,
-      }).start();
+    if (!commentsVisible) {
+      return;
     }
+    isClosingRef.current = false;
+    commentsTranslateY.setValue(SCREEN_HEIGHT);
+    RNAnimated.spring(commentsTranslateY, {
+      toValue: 0,
+      useNativeDriver: false,
+      tension: 65,
+      friction: 12,
+      velocity: 0.5,
+    }).start();
   }, [commentsVisible]);
 
   const openRepostComposer = (post) => {
@@ -1810,6 +1721,8 @@ const closeCommentsModal = () => {
     );
   };
 
+  const renderPostItem = useCallback(({ item }) => <View style={styles.postCard}>{renderSinglePostContent(item)}</View>, []);
+
   return (
     <View style={styles.container}>
       <HomeHeader />
@@ -1826,9 +1739,12 @@ const closeCommentsModal = () => {
         </Pressable>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        data={displayedPosts}
+        keyExtractor={getFeedItemKey}
+        renderItem={renderPostItem}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshingPosts}
@@ -1837,35 +1753,31 @@ const closeCommentsModal = () => {
             colors={['#31429B']}
           />
         }
-      >
-        {isLoadingPosts ? (
-          <View style={styles.feedStateCard}>
-            <ActivityIndicator size="small" color="#31429B" />
-            <Text style={styles.feedStateText}>Loading posts...</Text>
-          </View>
-        ) : feedError ? (
-          <View style={styles.feedStateCard}>
-            <Ionicons name="alert-circle-outline" size={22} color="#B42318" />
-            <Text style={styles.feedStateText}>{feedError}</Text>
-          </View>
-        ) : posts.length === 0 ? (
-          <View style={styles.feedStateCard}>
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#8A94A6" />
-            <Text style={styles.feedStateText}>No posts yet.</Text>
-          </View>
-        ) : (
-          <View>
-            {displayedPosts.map((post) => {
-              return (
-                <View key={getFeedItemKey(post)} style={styles.postCard}>
-                  {renderSinglePostContent(post)}
-                </View>
-              );
-            })}
-          </View>
-        )}
-        <View style={styles.emptySpace} />
-      </ScrollView>
+        ListEmptyComponent={
+          isLoadingPosts ? (
+            <View style={styles.feedStateCard}>
+              <ActivityIndicator size="small" color="#31429B" />
+              <Text style={styles.feedStateText}>Loading posts...</Text>
+            </View>
+          ) : feedError ? (
+            <View style={styles.feedStateCard}>
+              <Ionicons name="alert-circle-outline" size={22} color="#B42318" />
+              <Text style={styles.feedStateText}>{feedError}</Text>
+            </View>
+          ) : (
+            <View style={styles.feedStateCard}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color="#8A94A6" />
+              <Text style={styles.feedStateText}>No posts yet.</Text>
+            </View>
+          )
+        }
+        ListFooterComponent={<View style={styles.emptySpace} />}
+        initialNumToRender={5}
+        maxToRenderPerBatch={3}
+        windowSize={7}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+      />
 
       <ZoomableViewer
         images={viewerImages}
@@ -1911,7 +1823,7 @@ const closeCommentsModal = () => {
       >
         <View style={styles.postActionsBackdrop}>
           <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
-            <Animated.View
+            <RNAnimated.View
               style={[
                 styles.postActionsCard,
                 { transform: [{ translateY: postActionsTranslateY }] },
@@ -2042,7 +1954,7 @@ const closeCommentsModal = () => {
                   </View>
                 </>
               )}
-            </Animated.View>
+            </RNAnimated.View>
           </SafeAreaView>
         </View>
       </Modal>
@@ -2153,7 +2065,7 @@ const closeCommentsModal = () => {
           <View style={styles.repostModalBackdrop}>
             <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
             <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
-              <Animated.View
+              <RNAnimated.View
                 style={[
                   styles.repostModalCard,
                   { transform: [{ translateY: repostComposerTranslateY }] },
@@ -2213,7 +2125,7 @@ const closeCommentsModal = () => {
                     <Text style={styles.repostSubmitButtonText}>Repost</Text>
                   </Pressable>
                 </View>
-              </Animated.View>
+              </RNAnimated.View>
             </SafeAreaView>
           </View>
         </KeyboardAvoidingView>
@@ -2261,7 +2173,7 @@ const closeCommentsModal = () => {
         </View>
       </Modal>
 
-      {/* --- FIXED COMMENTS MODAL --- */}
+      {/* --- COMMENTS MODAL --- */}
       <Modal
         transparent
         visible={commentsVisible}
@@ -2269,8 +2181,7 @@ const closeCommentsModal = () => {
         onRequestClose={closeCommentsModal}
       >
         <View style={styles.commentsModalBackdrop}>
-          {/* Backdrop with opacity that fades as you swipe */}
-          <Animated.View 
+          <RNAnimated.View
             style={[
               StyleSheet.absoluteFillObject,
               {
@@ -2284,69 +2195,50 @@ const closeCommentsModal = () => {
             ]}
           >
             <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
-          </Animated.View>
+          </RNAnimated.View>
           
-          {/* The entire sheet moves with translateY */}
-          <Animated.View 
+          <RNAnimated.View
             style={[
               styles.commentsSheet,
-              { 
-                transform: [{ 
+              {
+                transform: [{
                   translateY: commentsTranslateY
                 }],
                 marginBottom: keyboardHeight > 0 ? keyboardHeight + 10 : 0,
               }
             ]}
+            onTouchMove={handleCommentsSwipe}
+            onTouchEnd={() => {
+              if (isClosingRef.current) return;
+              
+              commentsTranslateY.stopAnimation((value) => {
+                if (value > 150) {
+                  closeCommentsModal();
+                } else {
+                  RNAnimated.spring(commentsTranslateY, {
+                    toValue: 0,
+                    useNativeDriver: false,
+                    tension: 65,
+                    friction: 12,
+                  }).start();
+                }
+              });
+              commentsSwipeStartRef.current = 0;
+            }}
           >
             <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-              {/* Drag Handle - More responsive */}
-              <View 
-                style={{ 
-                  height: 5, 
-                  width: 40, 
-                  backgroundColor: '#D1D5DB', 
-                  borderRadius: 3, 
-                  alignSelf: 'center', 
-                  marginTop: 8, 
+              <View
+                style={{
+                  height: 5,
+                  width: 40,
+                  backgroundColor: '#D1D5DB',
+                  borderRadius: 3,
+                  alignSelf: 'center',
+                  marginTop: 8,
                   marginBottom: 12,
                 }}
-              >
-                {/* Invisible larger touch area for swiping - THIS IS THE ONLY TOUCH HANDLER */}
-                <Pressable 
-                  style={{ 
-                    position: 'absolute', 
-                    top: -20, 
-                    left: -SCREEN_WIDTH/2, 
-                    right: -SCREEN_WIDTH/2, 
-                    bottom: -10,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  onTouchMove={handleCommentsSwipe}
-                  onTouchEnd={() => {
-                    // Prevent multiple triggers
-                    if (isClosingRef.current) return;
-                    
-                    commentsTranslateY.stopAnimation((value) => {
-                      if (value > 150) {
-                        // Close the modal
-                        closeCommentsModal();
-                      } else {
-                        // Snap back with spring
-                        Animated.spring(commentsTranslateY, {
-                          toValue: 0,
-                          useNativeDriver: false,
-                          tension: 65,
-                          friction: 12,
-                        }).start();
-                      }
-                    });
-                    commentsSwipeStartRef.current = 0;
-                  }}
-                />
-              </View>
+              />
 
-              {/* Header Row */}
               <View style={styles.commentsHeaderRow}>
                 <Text style={styles.commentsTitle}>
                   {activeCommentPost?.comment_count ?? comments.length} comments
@@ -2356,9 +2248,7 @@ const closeCommentsModal = () => {
                 </Pressable>
               </View>
 
-              {/* Content */}
               <View style={{ flex: 1 }}>
-                {/* Body Content */}
                 <ScrollView
                   ref={commentsScrollViewRef}
                   style={[styles.commentsList, styles.commentsBody]}
@@ -2391,7 +2281,6 @@ const closeCommentsModal = () => {
                   )}
                 </ScrollView>
 
-                {/* Footer Input - Always at bottom */}
                 <View style={[
                   styles.commentComposerSafeArea,
                   keyboardHeight > 0 && { paddingBottom: 4 }
@@ -2428,7 +2317,6 @@ const closeCommentsModal = () => {
                         </View>
                       ) : null}
 
-                      {/* Pill-Shaped Input */}
                       <View style={styles.commentInputWrap}>
                         <TextInput
                           value={commentDraft}
@@ -2480,11 +2368,11 @@ const closeCommentsModal = () => {
                 </View>
               </View>
             </SafeAreaView>
-          </Animated.View>
+          </RNAnimated.View>
         </View>
       </Modal>
 
-    </View>
+      </View>
   );
 };
 

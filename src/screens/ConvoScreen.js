@@ -7,9 +7,9 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
+  InteractionManager,
   Keyboard,
   Platform,
   KeyboardAvoidingView,
@@ -58,7 +58,6 @@ import { ThemedAlert } from "../components/ThemedAlert";
 import { sendPushNotification } from "../services/NotificationSender";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "👏"];
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MESSAGE_LIMIT = 30;
 
 LogBox.ignoreLogs([
@@ -223,6 +222,7 @@ export default function ConvoScreen() {
   const typingChannelRef = useRef(null);
   const typingTimeoutsRef = useRef(new Map());
   const isLoadingMoreRef = useRef(false);
+  const isLoadingRef = useRef(false);
 
   const hasConversation = Boolean(contactId || groupId);
   const messagesRef = useRef(messages);
@@ -410,7 +410,10 @@ export default function ConvoScreen() {
         return;
       }
 
-      if (!silent && messages.length === 0) {
+      if (isLoadingRef.current) return;
+      isLoadingRef.current = true;
+
+      if (!silent && messagesRef.current.length === 0) {
         setIsLoading(true);
       } else {
         setIsRefreshing(true);
@@ -465,20 +468,31 @@ export default function ConvoScreen() {
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
+        isLoadingRef.current = false;
       }
     },
-    [contactId, currentUserId, groupId, hasConversation, isGroup, params.receiverType, refreshUnreadMessages, messages.length],
+    [contactId, currentUserId, groupId, hasConversation, isGroup, params.receiverType, refreshUnreadMessages],
   );
 
   useEffect(() => {
     loadCurrentUser();
   }, [loadCurrentUser]);
 
+  useEffect(() => {
+    if (!hasConversation || !currentUserId) return;
+    loadMessages(true);
+  }, [contactId, currentUserId, groupId, hasConversation, isGroup, loadMessages]);
+
   useFocusEffect(
     useCallback(() => {
-      loadMessages(true);
-      loadTypingStatus();
-      return () => updateTypingStatus(false);
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadMessages(true);
+        loadTypingStatus();
+      });
+      return () => {
+        task?.cancel?.();
+        updateTypingStatus(false);
+      };
     }, [loadMessages, loadTypingStatus, updateTypingStatus]),
   );
 
@@ -847,6 +861,12 @@ export default function ConvoScreen() {
     }
   };
 
+  const getItemLayout = useCallback((_, index) => ({
+    length: 92,
+    offset: 92 * index,
+    index,
+  }), []);
+
   const renderMessageItem = useCallback(
     ({ item, index }) => {
       const senderId = item?.sender_id ?? item?.user_id ?? item?.sender?.id ?? null;
@@ -993,10 +1013,11 @@ export default function ConvoScreen() {
               const uniqueId = item?.id ?? item?.tempId ?? item?.localId ?? `msg-${index}`;
               return `${uniqueId}-${index}`;
             }}
-            initialNumToRender={14}
-            maxToRenderPerBatch={10}
+            initialNumToRender={10}
+            maxToRenderPerBatch={6}
             updateCellsBatchingPeriod={50}
-            windowSize={6}
+            windowSize={5}
+            getItemLayout={getItemLayout}
             removeClippedSubviews
             contentContainerStyle={
               messages.length > 0

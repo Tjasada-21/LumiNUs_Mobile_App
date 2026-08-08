@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import {
   Platform,
   View,
@@ -202,4 +202,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MessageInputBar;
+export default memo(MessageInputBar);

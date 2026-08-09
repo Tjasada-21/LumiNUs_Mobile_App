@@ -17,13 +17,11 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
-  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeHeader from '../components/HomeHeader';
-import CustomKeyboardView from '../components/CustomKeyboardView';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
@@ -50,6 +48,7 @@ const VIEWER_IMAGE_WIDTH = SCREEN_WIDTH * 0.92;
 const VIEWER_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.72;
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 const SWIPE_DISMISS_THRESHOLD = 100;
+const FEED_PAGE_SIZE = 20;
 
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
@@ -110,6 +109,22 @@ const getFeedItemTimestamp = (item) => {
   if (!rawValue) return 0;
   const timestamp = new Date(rawValue).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const getFeedItemKeyValue = (item) => (item?.feed_id ? item.feed_id : `${item?.feed_type ?? 'post'}-${item?.id ?? 'unknown'}`);
+
+const mergeFeedItems = (currentItems, nextItems) => {
+  const merged = Array.isArray(currentItems) ? [...currentItems] : [];
+  const seenKeys = new Set(merged.map(getFeedItemKeyValue));
+
+  (Array.isArray(nextItems) ? nextItems : []).forEach((item) => {
+    const key = getFeedItemKeyValue(item);
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    merged.push(item);
+  });
+
+  return merged;
 };
 
 const getFeedJitter = (itemId, refreshNonce) => {
@@ -254,6 +269,8 @@ const UserFeedScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [isRefreshingPosts, setIsRefreshingPosts] = useState(false);
+  const [isFetchingMorePosts, setIsFetchingMorePosts] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
   const [postImageRatios, setPostImageRatios] = useState({});
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
@@ -303,7 +320,8 @@ const UserFeedScreen = ({ navigation }) => {
 
   const commentsScrollViewRef = useRef(null);
   const isClosingRef = useRef(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const feedPageRef = useRef(0);
+  const feedLoadInFlightRef = useRef(false);
 
   const applyRubberBandingOffset = (distance) => {
     const RESISTANCE_FACTOR = 0.3;
@@ -439,20 +457,6 @@ const UserFeedScreen = ({ navigation }) => {
   }, [feedRefreshNonce, feedSortMode, posts]);
 
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
-      if (commentsVisible) {
-        setTimeout(() => {
-          commentsScrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
-    });
-
-    return () => {
-      keyboardDidShowListener.remove();
-    };
-  }, [commentsVisible]);
-
-  useEffect(() => {
     const fetchProfile = async () => {
       try {
         const supaUser = await getCurrentUser();
@@ -475,10 +479,19 @@ const UserFeedScreen = ({ navigation }) => {
   }, []);
 
   const fetchPosts = useCallback(
-    async ({ showLoadingState = false } = {}) => {
+    async ({ showLoadingState = false, reset = false } = {}) => {
+      if (feedLoadInFlightRef.current) return;
+      if (!reset && !hasMorePosts) return;
+
+      const pageToLoad = reset ? 0 : feedPageRef.current;
+      const offset = pageToLoad * FEED_PAGE_SIZE;
+
+      feedLoadInFlightRef.current = true;
+      if (showLoadingState) setIsRefreshingPosts(true);
+      else if (reset) setIsLoadingPosts(posts.length === 0);
+      else setIsFetchingMorePosts(true);
+
       try {
-        if (showLoadingState) setIsRefreshingPosts(true);
-        else setIsLoadingPosts(true);
         setFeedError('');
         let currentUserId = null;
         let rawPosts = [];
@@ -490,7 +503,7 @@ const UserFeedScreen = ({ navigation }) => {
             const profile = await getAlumniByEmail(supaUser.email).catch(() => null);
             currentUserId = profile?.id ?? null;
           }
-          rawPosts = await getFeedPosts(currentUserId).catch(() => []);
+          rawPosts = await getFeedPosts(currentUserId, FEED_PAGE_SIZE, offset).catch(() => []);
         } catch (e) {
           rawPosts = [];
         }
@@ -518,19 +531,32 @@ const UserFeedScreen = ({ navigation }) => {
             can_manage: isOwnedByCurrentUser,
           };
         });
-        setPosts(mappedPosts);
+
+        setPosts((curr) => (reset ? mappedPosts : mergeFeedItems(curr, mappedPosts)));
+        feedPageRef.current = pageToLoad + 1;
+        setHasMorePosts(mappedPosts.length === FEED_PAGE_SIZE);
       } catch (error) {
         console.error('Failed to fetch feed posts:', error);
         setFeedError('Unable to load posts right now.');
       } finally {
+        feedLoadInFlightRef.current = false;
         setIsLoadingPosts(false);
         setIsRefreshingPosts(false);
+        setIsFetchingMorePosts(false);
       }
     },
-    [currentUserProfile?.id, userData?.id]
+    [currentUserProfile?.id, hasMorePosts, posts.length, userData?.id]
   );
 
-  useFocusEffect(useCallback(() => { fetchPosts(); }, [fetchPosts]));
+  useFocusEffect(
+    useCallback(() => {
+      if (posts.length === 0) {
+        feedPageRef.current = 0;
+        setHasMorePosts(true);
+        fetchPosts({ reset: true });
+      }
+    }, [fetchPosts, posts.length])
+  );
 
   const renderPostAuthorName = (post) => {
     const source = post?.author ?? post?.alumni ?? {};
@@ -867,7 +893,7 @@ const UserFeedScreen = ({ navigation }) => {
     });
   };
 
-  const getFeedItemKey = (post) => (post?.feed_id ? post.feed_id : `${post?.feed_type ?? 'post'}-${post.id}`);
+  const getFeedItemKey = (post) => getFeedItemKeyValue(post);
 
   const isCaptionExpanded = useCallback(
     (feedItemKey) => Boolean(expandedCaptions[feedItemKey]),
@@ -1041,7 +1067,6 @@ const closeCommentsModal = () => {
     setCommentDraft('');
     setCommentInputHeight(48);
     setExpandedCommentParents({});
-    setKeyboardHeight(0);
     commentsSwipeStartRef.current = 0;
     commentsInitialYRef.current = 0;
     setTimeout(() => {
@@ -1440,28 +1465,6 @@ const closeCommentsModal = () => {
     }
   }, []);
 
-  // ✅ KEEP THIS ONE - It's in the right place (inside UserFeedScreen component)
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-      // Scroll to bottom after keyboard appears
-      setTimeout(() => {
-        commentsScrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 150);
-    });
-
-    
-
-    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
-
   useEffect(() => {
     if (!commentsVisible) {
       return;
@@ -1604,8 +1607,14 @@ const closeCommentsModal = () => {
 
   const handleRefreshPosts = () => {
     setFeedRefreshNonce((curr) => curr + 1);
-    fetchPosts({ showLoadingState: true });
+    feedPageRef.current = 0;
+    setHasMorePosts(true);
+    fetchPosts({ showLoadingState: true, reset: true });
   };
+  const handleLoadMorePosts = useCallback(() => {
+    if (isLoadingPosts || isRefreshingPosts || isFetchingMorePosts || !hasMorePosts) return;
+    fetchPosts({ reset: false });
+  }, [fetchPosts, hasMorePosts, isFetchingMorePosts, isLoadingPosts, isRefreshingPosts]);
   const activePostActionVisibilityLabel = getPostVisibilityLabel(activePostActionPost);
 
   const renderSinglePostContent = (postObj, isNested = false) => {
@@ -1753,6 +1762,8 @@ const closeCommentsModal = () => {
             colors={['#31429B']}
           />
         }
+        onEndReached={handleLoadMorePosts}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           isLoadingPosts ? (
             <View style={styles.feedStateCard}>
@@ -1771,7 +1782,16 @@ const closeCommentsModal = () => {
             </View>
           )
         }
-        ListFooterComponent={<View style={styles.emptySpace} />}
+        ListFooterComponent={
+          isFetchingMorePosts ? (
+            <View style={styles.feedStateCard}>
+              <ActivityIndicator size="small" color="#31429B" />
+              <Text style={styles.feedStateText}>Loading more posts...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptySpace} />
+          )
+        }
         initialNumToRender={5}
         maxToRenderPerBatch={3}
         windowSize={7}
@@ -1779,298 +1799,59 @@ const closeCommentsModal = () => {
         keyboardShouldPersistTaps="handled"
       />
 
-      <ZoomableViewer
-        images={viewerImages}
-        initialIndex={viewerIndex}
-        visible={viewerVisible}
-        post={viewerPost}
-        viewerAuthorName={viewerPost ? renderPostAuthorName(viewerPost) : ''}
-        postAvatarUri={viewerPost ? renderPostAvatarUri(viewerPost) : ''}
-        timeLabel={viewerPost ? getRelativeTimeLabel(getFeedItemDateValue(viewerPost)) : ''}
-        postVisibilityLabel={viewerPost ? getPostVisibilityLabel(viewerPost) : 'Public'}
-        reactionCount={viewerPost?.reaction_count ?? 0}
-        commentCount={viewerPost?.comment_count ?? 0}
-        repostCount={viewerPost?.repost_count ?? 0}
-        isReacted={Boolean(viewerPost?.my_reaction)}
-        onRequestClose={closeImageViewer}
-        onAuthorPress={() => {
-          if (!viewerPost?.alumni?.id) return;
-          if (viewerPost.alumni.id === userData?.id) navigation.navigate('Profile');
-          else navigation.navigate('ProfileView', { userId: viewerPost.alumni.id });
-        }}
-        onReactionPress={() => (viewerPost ? handlePostReaction(viewerPost) : null)}
-        onCommentPress={() => (viewerPost ? handlePostComment(viewerPost) : null)}
-        onRepostPress={() => (viewerPost ? openRepostComposer(viewerPost) : null)}
-        onMenuPress={() => {
-          if (canManagePost(viewerPost)) {
-            openPostActions(viewerPost);
-            return;
-          }
-          showThemedAlert({
-            title: 'Image options',
-            message: 'More image actions are not available yet.',
-            actions: [{ text: 'OK' }],
-          });
-        }}
-      />
+      {viewerVisible && (
+        <ZoomableViewer
+          images={viewerImages}
+          initialIndex={viewerIndex}
+          visible={viewerVisible}
+          post={viewerPost}
+          viewerAuthorName={viewerPost ? renderPostAuthorName(viewerPost) : ''}
+          postAvatarUri={viewerPost ? renderPostAvatarUri(viewerPost) : ''}
+          timeLabel={viewerPost ? getRelativeTimeLabel(getFeedItemDateValue(viewerPost)) : ''}
+          postVisibilityLabel={viewerPost ? getPostVisibilityLabel(viewerPost) : 'Public'}
+          reactionCount={viewerPost?.reaction_count ?? 0}
+          commentCount={viewerPost?.comment_count ?? 0}
+          repostCount={viewerPost?.repost_count ?? 0}
+          isReacted={Boolean(viewerPost?.my_reaction)}
+          onRequestClose={closeImageViewer}
+          onAuthorPress={() => {
+            if (!viewerPost?.alumni?.id) return;
+            if (viewerPost.alumni.id === userData?.id) navigation.navigate('Profile');
+            else navigation.navigate('ProfileView', { userId: viewerPost.alumni.id });
+          }}
+          onReactionPress={() => (viewerPost ? handlePostReaction(viewerPost) : null)}
+          onCommentPress={() => (viewerPost ? handlePostComment(viewerPost) : null)}
+          onRepostPress={() => (viewerPost ? openRepostComposer(viewerPost) : null)}
+          onMenuPress={() => {
+            if (canManagePost(viewerPost)) {
+              openPostActions(viewerPost);
+              return;
+            }
+            showThemedAlert({
+              title: 'Image options',
+              message: 'More image actions are not available yet.',
+              actions: [{ text: 'OK' }],
+            });
+          }}
+        />
+      )}
 
-      <Modal
-        transparent
-        visible={postActionsVisible}
-        animationType="slide"
-        statusBarTranslucent={true}
-        onRequestClose={closePostActions}
-      >
-        <View style={styles.postActionsBackdrop}>
-          <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
-            <RNAnimated.View
-              style={[
-                styles.postActionsCard,
-                { transform: [{ translateY: postActionsTranslateY }] },
-              ]}
-              onTouchMove={handlePostActionsSwipe}
-              onTouchEnd={() => {
-                resetSwipeRefs();
-              }}
-            >
-              <View
-                style={{
-                  height: 4,
-                  width: 40,
-                  backgroundColor: '#D1D5DB',
-                  borderRadius: 2,
-                  alignSelf: 'center',
-                  marginTop: 8,
-                  marginBottom: 4,
-                }}
-              />
-              <View style={styles.postActionsHeader}>
-                <Text style={styles.postActionsTitle}>
-                  {canManagePost(activePostActionPost) ? 'Manage Your Post' : 'Post Options'}
-                </Text>
-                <Pressable
-                  style={styles.postActionsCloseButton}
-                  onPress={closePostActions}
-                  hitSlop={8}
-                  disabled={isPostActionSaving}
-                >
-                  <Ionicons name="close" size={20} color="#31429B" />
-                </Pressable>
-              </View>
-              {canManagePost(activePostActionPost) ? (
-                <>
-                  <Text style={styles.postActionsSubtitle}>
-                    {activePostActionVisibilityLabel}. Edit the post, save it as a draft, change who
-                    can view it, or delete it.
-                  </Text>
-                  <View style={styles.postActionsRow}>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleEditActivePost}
-                      disabled={isPostActionSaving}
-                    >
-                      <Ionicons name="create-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleToggleActivePostDraft}
-                      disabled={isPostActionSaving}
-                    >
-                      <Ionicons
-                        name={activePostActionPost?.is_draft ? 'cloud-upload-outline' : 'bookmark-outline'}
-                        size={16}
-                        color="#31429B"
-                      />
-                      <Text style={styles.postActionChoiceText}>
-                        {activePostActionPost?.is_draft ? 'Publish' : 'Draft'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Text style={styles.postActionsLabel}>Who can view this post?</Text>
-                  <View style={styles.postVisibilityChoicesRow}>
-                    {['public', 'friends', 'private'].map((vis) => {
-                      const isSelected = (activePostActionPost?.visibility ?? 'public') === vis;
-                      return (
-                        <Pressable
-                          key={vis}
-                          style={[
-                            styles.postVisibilityChoice,
-                            isSelected && styles.postVisibilityChoiceSelected,
-                          ]}
-                          onPress={() => handleChangeActivePostVisibility(vis)}
-                          disabled={isPostActionSaving}
-                        >
-                          <Text style={styles.postVisibilityChoiceText}>
-                            {getPostVisibilityLabel({ visibility: vis })}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Pressable
-                    style={styles.postDeleteButton}
-                    onPress={handleDeleteActivePost}
-                    disabled={isPostActionSaving}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#B42318" />
-                    <Text style={styles.postDeleteButtonText}>Delete Post</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.postActionsSubtitle}>Actions for this post</Text>
-                  <View style={styles.postActionsRow}>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleReportPost}
-                    >
-                      <Ionicons name="flag-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Report</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleMuteAuthor}
-                    >
-                      <Ionicons name="volume-mute-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Mute user</Text>
-                    </Pressable>
-                  </View>
-                  <View style={styles.postActionsRow}>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleHidePost}
-                    >
-                      <Ionicons name="eye-off-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Hide post</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleCopyLink}
-                    >
-                      <Ionicons name="link-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Copy link</Text>
-                    </Pressable>
-                  </View>
-                </>
-              )}
-            </RNAnimated.View>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      <Modal
-        transparent
-        visible={commentActionsVisible}
-        animationType="slide"
-        statusBarTranslucent={true}
-        onRequestClose={closeCommentActions}
-      >
-        <View style={styles.postActionsBackdrop}>
-          <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
-            <View style={styles.postActionsCard}>
-              <View
-                style={{
-                  height: 4,
-                  width: 40,
-                  backgroundColor: '#D1D5DB',
-                  borderRadius: 2,
-                  alignSelf: 'center',
-                  marginTop: 8,
-                  marginBottom: 4,
-                }}
-              />
-              <View style={styles.postActionsHeader}>
-                <Text style={styles.postActionsTitle}>
-                  {canManageComment(activeCommentActionComment) ? 'Manage Comment' : 'Comment Options'}
-                </Text>
-                <Pressable
-                  style={styles.postActionsCloseButton}
-                  onPress={closeCommentActions}
-                  hitSlop={8}
-                  disabled={isCommentActionSaving}
-                >
-                  <Ionicons name="close" size={20} color="#31429B" />
-                </Pressable>
-              </View>
-              {canManageComment(activeCommentActionComment) ? (
-                <>
-                  <Text style={styles.postActionsSubtitle}>Edit or delete your comment.</Text>
-                  <View style={styles.postActionsRow}>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleEditComment}
-                      disabled={isCommentActionSaving}
-                    >
-                      <Ionicons name="create-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={handleDeleteCommentAction}
-                      disabled={isCommentActionSaving}
-                    >
-                      <Ionicons name="trash-outline" size={16} color="#B42318" />
-                      <Text style={styles.postActionChoiceText}>Delete</Text>
-                    </Pressable>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.postActionsSubtitle}>Actions for this comment</Text>
-                  <View style={styles.postActionsRow}>
-                    <Pressable
-                      style={styles.postActionChoiceButton}
-                      onPress={() => {
-                        closeCommentActions();
-                        showThemedAlert({
-                          title: 'Reported',
-                          message: 'Thanks - the comment has been reported.',
-                        });
-                      }}
-                    >
-                      <Ionicons name="flag-outline" size={16} color="#31429B" />
-                      <Text style={styles.postActionChoiceText}>Report</Text>
-                    </Pressable>
-                  </View>
-                </>
-              )}
-            </View>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      <Modal visible={isDeletingPost} transparent animationType="fade" statusBarTranslucent>
-        <View style={styles.deleteLoadingBackdrop}>
-          <View style={styles.deleteLoadingCard}>
-            <ActivityIndicator size="large" color="#31429B" />
-            <Text style={styles.deleteLoadingTitle}>Deleting post</Text>
-            <Text style={styles.deleteLoadingText}>
-              Please wait while the post is removed.
-            </Text>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        transparent
-        visible={repostComposerVisible}
-        animationType="slide"
-        onRequestClose={closeRepostComposer}
-      >
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {postActionsVisible && (
+        <Modal
+          transparent
+          visible={postActionsVisible}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={closePostActions}
         >
-          <View style={styles.repostModalBackdrop}>
-            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
-            <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
+          <View style={styles.postActionsBackdrop}>
+            <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
               <RNAnimated.View
                 style={[
-                  styles.repostModalCard,
-                  { transform: [{ translateY: repostComposerTranslateY }] },
+                  styles.postActionsCard,
+                  { transform: [{ translateY: postActionsTranslateY }] },
                 ]}
-                onTouchMove={handleRepostComposerSwipe}
+                onTouchMove={handlePostActionsSwipe}
                 onTouchEnd={() => {
                   resetSwipeRefs();
                 }}
@@ -2083,296 +1864,555 @@ const closeCommentsModal = () => {
                     borderRadius: 2,
                     alignSelf: 'center',
                     marginTop: 8,
-                    marginBottom: 8,
+                    marginBottom: 4,
                   }}
                 />
-                <Text style={styles.repostModalTitle}>Repost with your caption</Text>
-                <Text style={styles.repostModalSubtitle} numberOfLines={1}>
-                  {activeRepostPost
-                    ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post`
-                    : 'Add context to your repost'}
-                </Text>
-                <TextInput
-                  value={repostCaptionDraft}
-                  onChangeText={setRepostCaptionDraft}
-                  placeholder="Share your thoughts..."
-                  placeholderTextColor="#8A94A6"
-                  style={styles.repostCaptionInput}
-                  multiline
-                  textAlignVertical="top"
-                />
-                {repostMentionContext && repostMentionSuggestions.length > 0 ? (
-                  <View style={styles.mentionPanel}>
-                    {repostMentionSuggestions.map((item) => (
-                      <Pressable
-                        key={`repost-mention-${String(item.id ?? item.name)}`}
-                        style={styles.mentionItem}
-                        onPress={() => handleRepostMentionPick(item.handle)}
-                      >
-                        <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                        <Text style={styles.mentionName} numberOfLines={1}>
-                          @{item.handle}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-                <View style={styles.repostModalActionsRow}>
-                  <Pressable style={styles.repostCancelButton} onPress={closeRepostComposer}>
-                    <Text style={styles.repostCancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable style={styles.repostSubmitButton} onPress={submitRepostWithCaption}>
-                    <Text style={styles.repostSubmitButtonText}>Repost</Text>
+                <View style={styles.postActionsHeader}>
+                  <Text style={styles.postActionsTitle}>
+                    {canManagePost(activePostActionPost) ? 'Manage Your Post' : 'Post Options'}
+                  </Text>
+                  <Pressable
+                    style={styles.postActionsCloseButton}
+                    onPress={closePostActions}
+                    hitSlop={8}
+                    disabled={isPostActionSaving}
+                  >
+                    <Ionicons name="close" size={20} color="#31429B" />
                   </Pressable>
                 </View>
+                {canManagePost(activePostActionPost) ? (
+                  <>
+                    <Text style={styles.postActionsSubtitle}>
+                      {activePostActionVisibilityLabel}. Edit the post, save it as a draft, change who
+                      can view it, or delete it.
+                    </Text>
+                    <View style={styles.postActionsRow}>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleEditActivePost}
+                        disabled={isPostActionSaving}
+                      >
+                        <Ionicons name="create-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Edit</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleToggleActivePostDraft}
+                        disabled={isPostActionSaving}
+                      >
+                        <Ionicons
+                          name={activePostActionPost?.is_draft ? 'cloud-upload-outline' : 'bookmark-outline'}
+                          size={16}
+                          color="#31429B"
+                        />
+                        <Text style={styles.postActionChoiceText}>
+                          {activePostActionPost?.is_draft ? 'Publish' : 'Draft'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <Text style={styles.postActionsLabel}>Who can view this post?</Text>
+                    <View style={styles.postVisibilityChoicesRow}>
+                      {['public', 'friends', 'private'].map((vis) => {
+                        const isSelected = (activePostActionPost?.visibility ?? 'public') === vis;
+                        return (
+                          <Pressable
+                            key={vis}
+                            style={[
+                              styles.postVisibilityChoice,
+                              isSelected && styles.postVisibilityChoiceSelected,
+                            ]}
+                            onPress={() => handleChangeActivePostVisibility(vis)}
+                            disabled={isPostActionSaving}
+                          >
+                            <Text style={styles.postVisibilityChoiceText}>
+                              {getPostVisibilityLabel({ visibility: vis })}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Pressable
+                      style={styles.postDeleteButton}
+                      onPress={handleDeleteActivePost}
+                      disabled={isPostActionSaving}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#B42318" />
+                      <Text style={styles.postDeleteButtonText}>Delete Post</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.postActionsSubtitle}>Actions for this post</Text>
+                    <View style={styles.postActionsRow}>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleReportPost}
+                      >
+                        <Ionicons name="flag-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Report</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleMuteAuthor}
+                      >
+                        <Ionicons name="volume-mute-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Mute user</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.postActionsRow}>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleHidePost}
+                      >
+                        <Ionicons name="eye-off-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Hide post</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleCopyLink}
+                      >
+                        <Ionicons name="link-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Copy link</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
               </RNAnimated.View>
             </SafeAreaView>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </Modal>
+      )}
 
-      <Modal
-        transparent
-        visible={themedAlertState.visible}
-        animationType="fade"
-        onRequestClose={closeThemedAlert}
-      >
-        <View style={styles.themedAlertBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeThemedAlert} />
-          <View style={styles.themedAlertCard}>
-            <Text style={styles.themedAlertTitle}>{themedAlertState.title}</Text>
-            <Text style={styles.themedAlertMessage}>{themedAlertState.message}</Text>
-            <View style={styles.themedAlertActionsRow}>
-              {themedAlertState.actions.map((action, actionIndex) => {
-                const isDestructive = action?.style === 'destructive';
-                const isCancel = action?.style === 'cancel';
-                return (
+      {commentActionsVisible && (
+        <Modal
+          transparent
+          visible={commentActionsVisible}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={closeCommentActions}
+        >
+          <View style={styles.postActionsBackdrop}>
+            <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
+              <View style={styles.postActionsCard}>
+                <View
+                  style={{
+                    height: 4,
+                    width: 40,
+                    backgroundColor: '#D1D5DB',
+                    borderRadius: 2,
+                    alignSelf: 'center',
+                    marginTop: 8,
+                    marginBottom: 4,
+                  }}
+                />
+                <View style={styles.postActionsHeader}>
+                  <Text style={styles.postActionsTitle}>
+                    {canManageComment(activeCommentActionComment) ? 'Manage Comment' : 'Comment Options'}
+                  </Text>
                   <Pressable
-                    key={`${action.text}-${actionIndex}`}
-                    style={[
-                      styles.themedAlertButton,
-                      isDestructive ? styles.themedAlertButtonDestructive : null,
-                      isCancel ? styles.themedAlertButtonNeutral : null,
-                    ]}
-                    onPress={() => handleThemedAlertAction(action)}
+                    style={styles.postActionsCloseButton}
+                    onPress={closeCommentActions}
+                    hitSlop={8}
+                    disabled={isCommentActionSaving}
                   >
-                    <Text
-                      style={[
-                        styles.themedAlertButtonText,
-                        isDestructive ? styles.themedAlertButtonTextDestructive : null,
-                        isCancel ? styles.themedAlertButtonTextNeutral : null,
-                      ]}
-                    >
-                      {action.text}
-                    </Text>
+                    <Ionicons name="close" size={20} color="#31429B" />
                   </Pressable>
-                );
-              })}
+                </View>
+                {canManageComment(activeCommentActionComment) ? (
+                  <>
+                    <Text style={styles.postActionsSubtitle}>Edit or delete your comment.</Text>
+                    <View style={styles.postActionsRow}>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleEditComment}
+                        disabled={isCommentActionSaving}
+                      >
+                        <Ionicons name="create-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Edit</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={handleDeleteCommentAction}
+                        disabled={isCommentActionSaving}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#B42318" />
+                        <Text style={styles.postActionChoiceText}>Delete</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.postActionsSubtitle}>Actions for this comment</Text>
+                    <View style={styles.postActionsRow}>
+                      <Pressable
+                        style={styles.postActionChoiceButton}
+                        onPress={() => {
+                          closeCommentActions();
+                          showThemedAlert({
+                            title: 'Reported',
+                            message: 'Thanks - the comment has been reported.',
+                          });
+                        }}
+                      >
+                        <Ionicons name="flag-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Report</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
+      )}
+
+      {isDeletingPost && (
+        <Modal visible={isDeletingPost} transparent animationType="fade" statusBarTranslucent>
+          <View style={styles.deleteLoadingBackdrop}>
+            <View style={styles.deleteLoadingCard}>
+              <ActivityIndicator size="large" color="#31429B" />
+              <Text style={styles.deleteLoadingTitle}>Deleting post</Text>
+              <Text style={styles.deleteLoadingText}>
+                Please wait while the post is removed.
+              </Text>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
+
+      {repostComposerVisible && (
+        <Modal
+          transparent
+          visible={repostComposerVisible}
+          animationType="slide"
+          onRequestClose={closeRepostComposer}
+        >
+          <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.repostModalBackdrop}>
+              <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
+              <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
+                <RNAnimated.View
+                  style={[
+                    styles.repostModalCard,
+                    { transform: [{ translateY: repostComposerTranslateY }] },
+                  ]}
+                  onTouchMove={handleRepostComposerSwipe}
+                  onTouchEnd={() => {
+                    resetSwipeRefs();
+                  }}
+                >
+                  <View
+                    style={{
+                      height: 4,
+                      width: 40,
+                      backgroundColor: '#D1D5DB',
+                      borderRadius: 2,
+                      alignSelf: 'center',
+                      marginTop: 8,
+                      marginBottom: 8,
+                    }}
+                  />
+                  <Text style={styles.repostModalTitle}>Repost with your caption</Text>
+                  <Text style={styles.repostModalSubtitle} numberOfLines={1}>
+                    {activeRepostPost
+                      ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post`
+                      : 'Add context to your repost'}
+                  </Text>
+                  <TextInput
+                    value={repostCaptionDraft}
+                    onChangeText={setRepostCaptionDraft}
+                    placeholder="Share your thoughts..."
+                    placeholderTextColor="#8A94A6"
+                    style={styles.repostCaptionInput}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                  {repostMentionContext && repostMentionSuggestions.length > 0 ? (
+                    <View style={styles.mentionPanel}>
+                      {repostMentionSuggestions.map((item) => (
+                        <Pressable
+                          key={`repost-mention-${String(item.id ?? item.name)}`}
+                          style={styles.mentionItem}
+                          onPress={() => handleRepostMentionPick(item.handle)}
+                        >
+                          <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                          <Text style={styles.mentionName} numberOfLines={1}>
+                            @{item.handle}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                  <View style={styles.repostModalActionsRow}>
+                    <Pressable style={styles.repostCancelButton} onPress={closeRepostComposer}>
+                      <Text style={styles.repostCancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={styles.repostSubmitButton} onPress={submitRepostWithCaption}>
+                      <Text style={styles.repostSubmitButtonText}>Repost</Text>
+                    </Pressable>
+                  </View>
+                </RNAnimated.View>
+              </SafeAreaView>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {themedAlertState.visible && (
+        <Modal
+          transparent
+          visible={themedAlertState.visible}
+          animationType="fade"
+          onRequestClose={closeThemedAlert}
+        >
+          <View style={styles.themedAlertBackdrop}>
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeThemedAlert} />
+            <View style={styles.themedAlertCard}>
+              <Text style={styles.themedAlertTitle}>{themedAlertState.title}</Text>
+              <Text style={styles.themedAlertMessage}>{themedAlertState.message}</Text>
+              <View style={styles.themedAlertActionsRow}>
+                {themedAlertState.actions.map((action, actionIndex) => {
+                  const isDestructive = action?.style === 'destructive';
+                  const isCancel = action?.style === 'cancel';
+                  return (
+                    <Pressable
+                      key={`${action.text}-${actionIndex}`}
+                      style={[
+                        styles.themedAlertButton,
+                        isDestructive ? styles.themedAlertButtonDestructive : null,
+                        isCancel ? styles.themedAlertButtonNeutral : null,
+                      ]}
+                      onPress={() => handleThemedAlertAction(action)}
+                    >
+                      <Text
+                        style={[
+                          styles.themedAlertButtonText,
+                          isDestructive ? styles.themedAlertButtonTextDestructive : null,
+                          isCancel ? styles.themedAlertButtonTextNeutral : null,
+                        ]}
+                      >
+                        {action.text}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* --- COMMENTS MODAL --- */}
-      <Modal
-        transparent
-        visible={commentsVisible}
-        animationType="none"
-        onRequestClose={closeCommentsModal}
-      >
-        <View style={styles.commentsModalBackdrop}>
-          <RNAnimated.View
-            style={[
-              StyleSheet.absoluteFillObject,
-              {
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                opacity: commentsTranslateY.interpolate({
-                  inputRange: [0, 300],
-                  outputRange: [1, 0],
-                  extrapolate: 'clamp',
-                }),
-              }
-            ]}
+      {commentsVisible && (
+        <Modal
+          transparent
+          visible={commentsVisible}
+          animationType="none"
+          onRequestClose={closeCommentsModal}
+        >
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
-            <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
-          </RNAnimated.View>
-          
-          <RNAnimated.View
-            style={[
-              styles.commentsSheet,
-              {
-                transform: [{
-                  translateY: commentsTranslateY
-                }],
-                marginBottom: keyboardHeight > 0 ? keyboardHeight + 10 : 0,
-              }
-            ]}
-            onTouchMove={handleCommentsSwipe}
-            onTouchEnd={() => {
-              if (isClosingRef.current) return;
-              
-              commentsTranslateY.stopAnimation((value) => {
-                if (value > 150) {
-                  closeCommentsModal();
-                } else {
-                  RNAnimated.spring(commentsTranslateY, {
-                    toValue: 0,
-                    useNativeDriver: false,
-                    tension: 65,
-                    friction: 12,
-                  }).start();
+          <View style={styles.commentsModalBackdrop}>
+            <RNAnimated.View
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                  opacity: commentsTranslateY.interpolate({
+                    inputRange: [0, 300],
+                    outputRange: [1, 0],
+                    extrapolate: 'clamp',
+                  }),
                 }
-              });
-              commentsSwipeStartRef.current = 0;
-            }}
-          >
-            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-              <View
-                style={{
-                  height: 5,
-                  width: 40,
-                  backgroundColor: '#D1D5DB',
-                  borderRadius: 3,
-                  alignSelf: 'center',
-                  marginTop: 8,
-                  marginBottom: 12,
-                }}
-              />
+              ]}
+            >
+              <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
+            </RNAnimated.View>
+            
+            <RNAnimated.View
+              style={[
+                styles.commentsSheet,
+                {
+                  transform: [{
+                    translateY: commentsTranslateY
+                  }],
+                }
+              ]}
+              onTouchMove={handleCommentsSwipe}
+              onTouchEnd={() => {
+                if (isClosingRef.current) return;
+                
+                commentsTranslateY.stopAnimation((value) => {
+                  if (value > 150) {
+                    closeCommentsModal();
+                  } else {
+                    RNAnimated.spring(commentsTranslateY, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                      tension: 65,
+                      friction: 12,
+                    }).start();
+                  }
+                });
+                commentsSwipeStartRef.current = 0;
+              }}
+            >
+              <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+                <View
+                  style={{
+                    height: 5,
+                    width: 40,
+                    backgroundColor: '#D1D5DB',
+                    borderRadius: 3,
+                    alignSelf: 'center',
+                    marginTop: 8,
+                    marginBottom: 12,
+                  }}
+                />
 
-              <View style={styles.commentsHeaderRow}>
-                <Text style={styles.commentsTitle}>
-                  {activeCommentPost?.comment_count ?? comments.length} comments
-                </Text>
-                <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
-                  <Ionicons name="close" size={24} color="#1C1C1E" />
-                </Pressable>
-              </View>
+                <View style={styles.commentsHeaderRow}>
+                  <Text style={styles.commentsTitle}>
+                    {activeCommentPost?.comment_count ?? comments.length} comments
+                  </Text>
+                  <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
+                    <Ionicons name="close" size={24} color="#1C1C1E" />
+                  </Pressable>
+                </View>
 
-              <View style={{ flex: 1 }}>
-                <ScrollView
-                  ref={commentsScrollViewRef}
-                  style={[styles.commentsList, styles.commentsBody]}
-                  contentContainerStyle={[styles.commentsListContent, { flexGrow: 1, paddingBottom: 20 }]}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="interactive"
-                  nestedScrollEnabled
-                  scrollEnabled={true}
-                  bounces={true}
-                  overScrollMode="always"
-                >
-                  {commentsLoading ? (
-                    <View style={styles.commentsEmptyState}>
-                      <ActivityIndicator size="small" color="#31429B" />
-                      <Text style={styles.commentsEmptyText}>Loading comments...</Text>
-                    </View>
-                  ) : commentsError ? (
-                    <View style={styles.commentsEmptyState}>
-                      <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
-                      <Text style={styles.commentsEmptyText}>{commentsError}</Text>
-                    </View>
-                  ) : comments.length === 0 ? (
-                    <View style={styles.commentsEmptyState}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={26} color="#94A3B8" />
-                      <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
-                    </View>
-                  ) : (
-                    commentTree.map((thread) => renderCommentNode(thread))
-                  )}
-                </ScrollView>
-
-                <View style={[
-                  styles.commentComposerSafeArea,
-                  keyboardHeight > 0 && { paddingBottom: 4 }
-                ]}>
-                  <View style={styles.commentComposer}>
-                    <View style={styles.commentComposerContent}>
-                      {editingComment ? (
-                        <View style={styles.commentReplyContext}>
-                          <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                            Editing comment
-                          </Text>
-                          <Pressable
-                            style={styles.commentReplyContextCancel}
-                            onPress={() => {
-                              setEditingComment(null);
-                              setCommentDraft('');
-                            }}
-                          >
-                            <Ionicons name="close" size={14} color="#31429B" />
-                          </Pressable>
-                        </View>
-                      ) : null}
-                      {replyingToComment ? (
-                        <View style={styles.commentReplyContext}>
-                          <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                            Replying to {renderCommentAuthorName(replyingToComment)}
-                          </Text>
-                          <Pressable
-                            style={styles.commentReplyContextCancel}
-                            onPress={() => setReplyingToComment(null)}
-                          >
-                            <Ionicons name="close" size={14} color="#31429B" />
-                          </Pressable>
-                        </View>
-                      ) : null}
-
-                      <View style={styles.commentInputWrap}>
-                        <TextInput
-                          value={commentDraft}
-                          onChangeText={setCommentDraft}
-                          onContentSizeChange={handleCommentInputContentSizeChange}
-                          placeholder={
-                            editingComment
-                              ? 'Edit your comment...'
-                              : replyingToComment
-                                ? 'Write a reply...'
-                                : 'Write a comment...'
-                          }
-                          placeholderTextColor="#94A3B8"
-                          style={[styles.commentInput, { height: commentInputHeight }]}
-                          multiline
-                          scrollEnabled={false}
-                          textAlignVertical="center"
-                        />
-                        <Pressable
-                          style={[
-                            styles.commentSendButtonInside,
-                            !commentDraft.trim() ? styles.commentSendButtonDisabled : null,
-                          ]}
-                          onPress={handleSubmitComment}
-                          disabled={!commentDraft.trim()}
-                        >
-                          <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
-                        </Pressable>
+                <View style={{ flex: 1 }}>
+                  <ScrollView
+                    ref={commentsScrollViewRef}
+                    style={[styles.commentsList, styles.commentsBody]}
+                    contentContainerStyle={[styles.commentsListContent, { flexGrow: 1, paddingBottom: 20 }]}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
+                    nestedScrollEnabled
+                    scrollEnabled={true}
+                    bounces={true}
+                    overScrollMode="always"
+                    onContentSizeChange={() => {
+                      commentsScrollViewRef.current?.scrollToEnd({ animated: true });
+                    }}
+                  >
+                    {commentsLoading ? (
+                      <View style={styles.commentsEmptyState}>
+                        <ActivityIndicator size="small" color="#31429B" />
+                        <Text style={styles.commentsEmptyText}>Loading comments...</Text>
                       </View>
+                    ) : commentsError ? (
+                      <View style={styles.commentsEmptyState}>
+                        <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
+                        <Text style={styles.commentsEmptyText}>{commentsError}</Text>
+                      </View>
+                    ) : comments.length === 0 ? (
+                      <View style={styles.commentsEmptyState}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={26} color="#94A3B8" />
+                        <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
+                      </View>
+                    ) : (
+                      commentTree.map((thread) => renderCommentNode(thread))
+                    )}
+                  </ScrollView>
 
-                      {commentMentionContext && commentMentionSuggestions.length > 0 ? (
-                        <View style={styles.commentMentionPanel}>
-                          {commentMentionSuggestions.map((item) => (
+                  <View style={[
+                    styles.commentComposerSafeArea,
+                  ]}>
+                    <View style={styles.commentComposer}>
+                      <View style={styles.commentComposerContent}>
+                        {editingComment ? (
+                          <View style={styles.commentReplyContext}>
+                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
+                              Editing comment
+                            </Text>
                             <Pressable
-                              key={`comment-mention-${String(item.id ?? item.name)}`}
-                              style={styles.mentionItem}
-                              onPress={() => handleCommentMentionPick(item.handle)}
+                              style={styles.commentReplyContextCancel}
+                              onPress={() => {
+                                setEditingComment(null);
+                                setCommentDraft('');
+                              }}
                             >
-                              <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                              <Text style={styles.mentionName} numberOfLines={1}>
-                                @{item.handle}
-                              </Text>
+                              <Ionicons name="close" size={14} color="#31429B" />
                             </Pressable>
-                          ))}
+                          </View>
+                        ) : null}
+                        {replyingToComment ? (
+                          <View style={styles.commentReplyContext}>
+                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
+                              Replying to {renderCommentAuthorName(replyingToComment)}
+                            </Text>
+                            <Pressable
+                              style={styles.commentReplyContextCancel}
+                              onPress={() => setReplyingToComment(null)}
+                            >
+                              <Ionicons name="close" size={14} color="#31429B" />
+                            </Pressable>
+                          </View>
+                        ) : null}
+
+                        <View style={styles.commentInputWrap}>
+                          <TextInput
+                            value={commentDraft}
+                            onChangeText={setCommentDraft}
+                            onContentSizeChange={handleCommentInputContentSizeChange}
+                            placeholder={
+                              editingComment
+                                ? 'Edit your comment...'
+                                : replyingToComment
+                                  ? 'Write a reply...'
+                                  : 'Write a comment...'
+                            }
+                            placeholderTextColor="#94A3B8"
+                            style={[styles.commentInput, { height: commentInputHeight }]}
+                            multiline
+                            scrollEnabled={false}
+                            textAlignVertical="center"
+                          />
+                          <Pressable
+                            style={[
+                              styles.commentSendButtonInside,
+                              !commentDraft.trim() ? styles.commentSendButtonDisabled : null,
+                            ]}
+                            onPress={handleSubmitComment}
+                            disabled={!commentDraft.trim()}
+                          >
+                            <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                          </Pressable>
                         </View>
-                      ) : null}
+
+                        {commentMentionContext && commentMentionSuggestions.length > 0 ? (
+                          <View style={styles.commentMentionPanel}>
+                            {commentMentionSuggestions.map((item) => (
+                              <Pressable
+                                key={`comment-mention-${String(item.id ?? item.name)}`}
+                                style={styles.mentionItem}
+                                onPress={() => handleCommentMentionPick(item.handle)}
+                              >
+                                <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                                <Text style={styles.mentionName} numberOfLines={1}>
+                                  @{item.handle}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
                   </View>
                 </View>
-              </View>
-            </SafeAreaView>
-          </RNAnimated.View>
-        </View>
-      </Modal>
+              </SafeAreaView>
+            </RNAnimated.View>
+          </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
 
-      </View>
+    </View>
   );
 };
 

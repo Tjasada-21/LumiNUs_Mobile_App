@@ -499,7 +499,7 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
         );
       });
 
-    return rankedFeed.slice(0, limit);
+    return rankedFeed.slice(offset, offset + limit);
   } catch (error) {
     console.error("[posts] Get feed exception:", error.message || error);
     throw error;

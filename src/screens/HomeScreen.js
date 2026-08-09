@@ -15,6 +15,7 @@ import {
   RefreshControl,
   useWindowDimensions,
   StatusBar,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
@@ -27,9 +28,8 @@ import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
 import HomeHeader from "../components/HomeHeader";
 import { responsiveHeight, responsiveWidth } from "../utils/responsive";
 import styles from "../styles/HomeScreen.styles";
-import { dismissNotification, getDismissedNotifications } from "../services/utilityQueries";
+import { getDismissedNotifications } from "../services/utilityQueries";
 import { registerForPushNotificationsAsync, saveTokenToSupabase } from "../services/notificationService";
-import TracerMenuScreen from "../screens/TracerMenuScreen";
 
 const formatEventDateRange = (startDate, endDate) => {
   if (!startDate) return "Date to be announced";
@@ -46,30 +46,6 @@ const getEventLocationLabel = (event) => {
   if (event?.venue?.name) return event.venue.name;
   if (event?.platform) return event.platform;
   return "NU Lipa";
-};
-
-const NotificationRow = ({ children, onRemove }) => {
-  const opacity = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const isRemovingRef = useRef(false);
-
-  const handleRemove = useCallback(() => {
-    if (isRemovingRef.current) return;
-    isRemovingRef.current = true;
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(translateX, { toValue: 36, duration: 180, useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished) void onRemove?.();
-      isRemovingRef.current = false;
-    });
-  }, [onRemove, opacity, translateX]);
-
-  return (
-    <Animated.View style={{ opacity, transform: [{ translateX }] }}>
-      {children(handleRemove)}
-    </Animated.View>
-  );
 };
 
 const HomeScreen = ({ navigation }) => {
@@ -127,15 +103,41 @@ const HomeScreen = ({ navigation }) => {
       const dismissedNotificationKeys = await getDismissedNotifications(currentUserId).catch(() => []);
       const dismissedNotificationKeySet = new Set((dismissedNotificationKeys || []).map((key) => String(key)));
 
+      // Fetch the user's recent posts to check for interactions
       const ownedPosts = await getUserPosts(currentUserId, 50, 0).catch(() => []);
       const ownedPostsById = new Map((ownedPosts || []).map((post) => [post.id, post]));
       const postIds = (ownedPosts || []).map((post) => post?.id).filter(Boolean);
 
+      // OPTIMIZATION: Added .limit(30) to prevent memory spikes from massive payloads
       const [commentsResult, reactionsResult, repostsResult, announcementsResult] = await Promise.all([
-        postIds.length > 0 ? supabase.from("comments").select(`id, post_id, comment, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
-        postIds.length > 0 ? supabase.from("reactions").select(`id, post_id, reaction, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
-        postIds.length > 0 ? supabase.from("reposts").select(`id, post_id, caption, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
-        supabase.from("announcements").select(`id, title, announcement_description, date_posted, admin:admin_id(id, admin_first_name, admin_last_name, photo)`).order("date_posted", { ascending: false }).limit(20),
+        postIds.length > 0 
+          ? supabase.from("comments")
+              .select(`id, post_id, comment, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`)
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+              .limit(30) 
+          : Promise.resolve({ data: [], error: null }),
+        
+        postIds.length > 0 
+          ? supabase.from("reactions")
+              .select(`id, post_id, reaction, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`)
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+              .limit(30) 
+          : Promise.resolve({ data: [], error: null }),
+        
+        postIds.length > 0 
+          ? supabase.from("reposts")
+              .select(`id, post_id, caption, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`)
+              .in("post_id", postIds)
+              .order("created_at", { ascending: false })
+              .limit(30) 
+          : Promise.resolve({ data: [], error: null }),
+          
+        supabase.from("announcements")
+          .select(`id, title, announcement_description, date_posted, admin:admin_id(id, admin_first_name, admin_last_name, photo)`)
+          .order("date_posted", { ascending: false })
+          .limit(20),
       ]);
 
       const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
@@ -210,7 +212,6 @@ const HomeScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
       let isActive = true;
 
       const fetchUserData = async () => {
@@ -247,13 +248,21 @@ const HomeScreen = ({ navigation }) => {
   const openNUWebsite = async () => {
     const url = "https://national-u.edu.ph/";
     const supported = await Linking.canOpenURL(url);
-    if (supported) await Linking.openURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert("Error", "Cannot open this URL.");
+    }
   };
 
   const openNUQuestWebsite = async () => {
     const url = "https://onlineapp.nu-lipa.edu.ph/quest/home.php";
     const supported = await Linking.canOpenURL(url);
-    if (supported) await Linking.openURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert("Error", "Cannot open this URL.");
+    }
   };
 
   const openPerksScreen = () => {
@@ -269,7 +278,11 @@ const HomeScreen = ({ navigation }) => {
   const openMastersWebsite = async () => {
     const url = "https://onlineapp.nu-lipa.edu.ph/portal/services.php";
     const supported = await Linking.canOpenURL(url);
-    if (supported) await Linking.openURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert("Error", "Cannot open this URL.");
+    }
   };
 
   const openViewYearbook = () => navigation.navigate("ViewYearbook");
@@ -330,6 +343,11 @@ const HomeScreen = ({ navigation }) => {
 
   const frontRotateY = flipAnimation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
   const backRotateY = flipAnimation.interpolate({ inputRange: [0, 1], outputRange: ["180deg", "360deg"] });
+  
+  // Interpolating opacity provides a robust fix for the Android card flip flickering bug.
+  const frontOpacity = flipAnimation.interpolate({ inputRange: [0, 0.5, 0.5, 1], outputRange: [1, 1, 0, 0] });
+  const backOpacity = flipAnimation.interpolate({ inputRange: [0, 0.5, 0.5, 1], outputRange: [0, 0, 1, 1] });
+
   const graduationYear = userData?.year_graduated ? String(userData.year_graduated).slice(0, 4) : "LOADING...";
   
   const notificationCount = Array.isArray(notifications) ? notifications.length : 0;
@@ -400,7 +418,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.idSection}>
               <Pressable onPress={toggleIdCard}>
                 <View style={styles.idCardPerspective}>
-                  <Animated.View style={[styles.idCardFace, styles.idCardFrontFace, { transform: [{ perspective: 1000 }, { rotateY: frontRotateY }] }]}>
+                  <Animated.View style={[styles.idCardFace, styles.idCardFrontFace, { opacity: frontOpacity, transform: [{ perspective: 1000 }, { rotateY: frontRotateY }] }]}>
                     <ImageBackground source={require("../../assets/images/BlankID_Front 1.png")} style={styles.idBackground} imageStyle={styles.idBackgroundImage} resizeMode="contain">
                       <Image source={{ uri: getAvatarUri(`${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || "Alumni", userData?.card_photo) }} style={styles.idPhoto} resizeMode="cover" />
                       <View style={styles.idCardContent}>
@@ -410,7 +428,7 @@ const HomeScreen = ({ navigation }) => {
                       </View>
                     </ImageBackground>
                   </Animated.View>
-                  <Animated.View style={[styles.idCardFace, styles.idCardBackFace, { transform: [{ perspective: 1000 }, { rotateY: backRotateY }] }]}>
+                  <Animated.View style={[styles.idCardFace, styles.idCardBackFace, { opacity: backOpacity, transform: [{ perspective: 1000 }, { rotateY: backRotateY }] }]}>
                     <Image source={require("../../assets/images/BlankID_Back 1.png")} style={styles.idBackImage} resizeMode="contain" />
                   </Animated.View>
                 </View>
@@ -483,12 +501,11 @@ const HomeScreen = ({ navigation }) => {
                 resizeMode="cover" 
               />
               
-              {/* NEW FEEDBACK SECTION */}
               <View style={styles.feedbackSection}>
                 <Text style={styles.feedbackTitle}>Why Your Feedback Matters?</Text>
                 
                 <View style={styles.feedbackItem}>
-                  <Text style={styles.feedbackEmoji}>🎓</Text>
+                  <Text style={styles.feedbackEmoji}>🚀</Text>
                   <Text style={styles.feedbackText}>
                     <Text style={styles.feedbackTextBold}>Help future Bulldogs: </Text>
                     Your feedback shapes NU LIPA's programs and curriculum

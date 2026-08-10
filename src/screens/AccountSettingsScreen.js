@@ -327,6 +327,10 @@ const AccountSettingsScreen = ({ navigation }) => {
   const searchTimeoutRef = useRef(null);
   const cardScrollViewRef = useRef(null);
 
+  // Education Type States
+  const [alumniType, setAlumniType] = useState("");
+  const [hasExistingAlumniType, setHasExistingAlumniType] = useState(false);
+
   // Sex and address type options
   const sexOptions = React.useMemo(
     () => [
@@ -350,6 +354,25 @@ const AccountSettingsScreen = ({ navigation }) => {
       },
     ],
     []
+  );
+
+  // Alumni Type Options
+  const alumniTypeOptions = React.useMemo(
+    () => [
+      { 
+        code: "college", 
+        name: "College Graduate", 
+        icon: "school-outline",
+        description: "I completed a college degree program"
+      },
+      { 
+        code: "shs", 
+        name: "SHS Graduate", 
+        icon: "book-outline",
+        description: "I graduated from Senior High School"
+      },
+    ],
+    [],
   );
 
   const monthOptions = React.useMemo(
@@ -611,6 +634,9 @@ const AccountSettingsScreen = ({ navigation }) => {
 
       setOriginalUserData(enrichedData);
       setUserData(enrichedData);
+      // Set education type from database
+      setAlumniType(data?.alumni_type || "");
+      setHasExistingAlumniType(!!data?.alumni_type);
 
       setFormData({
         first_name: data?.first_name || "",
@@ -1349,11 +1375,23 @@ const AccountSettingsScreen = ({ navigation }) => {
           if (newVal !== (oldValRaw ?? "")) changes[f] = newVal;
         }
       });
+
+       // 🆕 ADD EDUCATION TYPE CHANGES:
+      if (alumniType !== (compareBase?.alumni_type || "")) {
+        changes.alumni_type = alumniType;
+      }
+
       return changes;
     };
 
     const changes = getChangedPayload();
     const addressChanged = checkAddressChanged();
+
+    // With this (remove the strand validation)
+    if (!alumniType) {
+      ThemedAlert.alert("Missing Info", "Please select your education type (College or SHS Graduate).");
+      return;
+    }
 
     if (Object.keys(changes).length === 0 && !addressChanged) {
       ThemedAlert.alert("No changes", "You have not modified any fields.");
@@ -1909,11 +1947,63 @@ const AccountSettingsScreen = ({ navigation }) => {
                         </View>
                       </View>
 
+                        {/* ======================================== */}
+                        {/* 🆕 SECTION: Education Type */}
+                        {/* ======================================== */}
+                        <View style={styles.sectionContainer}>
+                          <View style={styles.sectionHeader}>
+                            <View style={styles.sectionNumber}>
+                              <Text style={styles.sectionNumberText}>3</Text>
+                            </View>
+                            <Text style={styles.sectionTitle}>Education Type</Text>
+                          </View>
+
+                          <Text style={styles.fieldLabel}>Are you a College or SHS Graduate?</Text>
+                          
+                          <View style={styles.alumniTypeGrid}>
+                            {alumniTypeOptions.map((option) => (
+                              <TouchableOpacity
+                                key={option.code}
+                                style={[
+                                  styles.alumniTypeCard,
+                                  alumniType === option.code && styles.alumniTypeCardSelected,
+                                ]}
+                                onPress={() => setAlumniType(option.code)}
+                                activeOpacity={0.7}
+                              >
+                                <View style={styles.alumniTypeIconContainer}>
+                                  <Ionicons 
+                                    name={option.icon} 
+                                    size={32} 
+                                    color={alumniType === option.code ? "#32418C" : "#A0AABF"} 
+                                  />
+                                </View>
+                                <Text style={[
+                                  styles.alumniTypeName,
+                                  alumniType === option.code && styles.alumniTypeNameSelected
+                                ]}>
+                                  {option.name}
+                                </Text>
+                                <Text style={styles.alumniTypeDescription}>
+                                  {option.description}
+                                </Text>
+                                {alumniType === option.code && (
+                                  <View style={styles.alumniTypeCheckmark}>
+                                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                                  </View>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+
+                          
+                        </View>
+
                       {/* PROFILE INFORMATION */}
                       <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeader}>
                           <View style={styles.sectionNumber}>
-                            <Text style={styles.sectionNumberText}>3</Text>
+                            <Text style={styles.sectionNumberText}>4</Text>
                           </View>
                           <Text style={styles.sectionTitle}>
                             Profile Information
@@ -1961,7 +2051,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                       <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeader}>
                           <View style={styles.sectionNumber}>
-                            <Text style={styles.sectionNumberText}>4</Text>
+                            <Text style={styles.sectionNumberText}>5</Text>
                           </View>
                           <Text style={styles.sectionTitle}>
                             Address Details
@@ -3066,7 +3156,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                       style={{ marginRight: 6 }}
                     />
                     <Text style={styles.datePickerConfirmText}>
-                      Confirm Location
+                      Confirm
                     </Text>
                   </View>
                 </TouchableOpacity>

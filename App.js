@@ -8,9 +8,15 @@ import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { useFonts } from 'expo-font';
 import {
+  Poppins_100Thin,
+  Poppins_200ExtraLight,
+  Poppins_300Light,
   Poppins_400Regular,
+  Poppins_500Medium,
   Poppins_600SemiBold,
   Poppins_700Bold,
+  Poppins_800ExtraBold,
+  Poppins_900Black,
 } from '@expo-google-fonts/poppins';
 import ThemedAlertComponent from './src/components/ThemedAlert';
 import SplashScreenLottie from './src/screens/SplashScreenLottie';
@@ -19,6 +25,7 @@ import supabase, { isSupabaseReady } from './src/services/supabase';
 import { CurrentUserProfileProvider } from './src/context/CurrentUserProfileContext';
 import { UnreadMessagesProvider } from './src/context/UnreadMessagesContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { getAlumniByEmail } from './src/services/alumniQueries';
 
 // Only import notifications on Android, or handle gracefully on iOS
 let Notifications = null;
@@ -30,13 +37,22 @@ try {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
+    Poppins_100Thin,
+    Poppins_200ExtraLight,
+    Poppins_300Light,
     Poppins_400Regular,
+    Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
+    Poppins_800ExtraBold,
+    Poppins_900Black,
     Poppins: Poppins_400Regular,
     'Poppins-Regular': Poppins_400Regular,
-    'Poppins-Bold': Poppins_700Bold,
+    'Poppins-Medium': Poppins_500Medium,
     'Poppins-SemiBold': Poppins_600SemiBold,
+    'Poppins-Bold': Poppins_700Bold,
+    'Poppins-ExtraBold': Poppins_800ExtraBold,
+    'Poppins-Black': Poppins_900Black,
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [animationFinished, setAnimationFinished] = useState(false);
@@ -83,7 +99,23 @@ export default function App() {
     const bootstrapAuth = async () => {
       try {
         const user = await getCurrentUser();
-        setInitialRouteName(user ? 'Home' : 'Login');
+        if (user) {
+          // ✅ Check if user's account is restricted
+          const alumniProfile = await getAlumniByEmail(
+            String(user.email || "").trim().toLowerCase()
+          );
+          
+          if (alumniProfile && Number(alumniProfile.account_status) === 0) {
+            // Account is restricted - sign out and go to Restricted screen
+            await supabase.auth.signOut();
+            setInitialRouteName('Restricted');
+            return;
+          }
+          
+          setInitialRouteName('Home');
+        } else {
+          setInitialRouteName('Login');
+        }
       } catch (error) {
         console.error('[App] Auth check error:', error);
         setInitialRouteName('Login');
@@ -174,15 +206,15 @@ export default function App() {
   }
 
   // Set a global default Text style so all screens use Poppins by default
-  if (Text) {
-    Text.defaultProps = Text.defaultProps || {};
-    Text.defaultProps.style = { ...(Text.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
-  }
+  // if (Text) {
+  //   Text.defaultProps = Text.defaultProps || {};
+  //   Text.defaultProps.style = { ...(Text.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
+  // }
 
-  if (TextInput) {
-    TextInput.defaultProps = TextInput.defaultProps || {};
-    TextInput.defaultProps.style = { ...(TextInput.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
-  }
+  // if (TextInput) {
+  //   TextInput.defaultProps = TextInput.defaultProps || {};
+  //   TextInput.defaultProps.style = { ...(TextInput.defaultProps.style || {}), fontFamily: 'Poppins_400Regular' };
+  // }
 
   return (
     <NotificationProvider>

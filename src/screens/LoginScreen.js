@@ -115,6 +115,16 @@ const LoginScreen = ({ navigation }) => {
       if (alumniProfile) {
         const accountStatus = Number(alumniProfile.account_status);
 
+        // ✅ CHECK FOR RESTRICTED ACCOUNT (status 0)
+        if (accountStatus === 0) {
+          await supabase.auth.signOut();
+          navigation.replace("Restricted", {
+            email: normalizedEmail,
+            reason: "Your account has been restricted by the NU Lipa Alumni Affairs Office. Please contact them for assistance.",
+          });
+          return;
+        }
+
         if (accountStatus === 2) {
           await supabase.auth.signOut();
           ThemedAlert.alert(
@@ -157,6 +167,9 @@ const LoginScreen = ({ navigation }) => {
 
       await refreshUnreadMessages();
       navigation.replace("Home");
+
+      
+
     } catch (error) {
       const errMsg = error?.message || "";
       if (!errMsg.includes("Invalid login credentials")) {

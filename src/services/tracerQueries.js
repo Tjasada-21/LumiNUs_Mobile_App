@@ -1,11 +1,9 @@
 import supabase from "./supabase";
 
-/**
- * Get all phases from active forms
- */
-export const getTracerForms = async () => {
+export const getTracerForms = async (alumniType = null) => {
   try {
-    const { data: phases, error } = await supabase
+    // Build the query with optional alumni type filter
+    let query = supabase
       .from("tracer_phases")
       .select(`
         id,
@@ -15,6 +13,7 @@ export const getTracerForms = async () => {
         icon,
         color,
         order_priority,
+        target_alumni_type,
         sections:tracer_sections(
           id,
           title,
@@ -34,9 +33,20 @@ export const getTracerForms = async () => {
       `)
       .order("order_priority", { ascending: true });
 
+    // If alumniType is provided, filter phases
+    if (alumniType) {
+      // Show phases that are 'all' OR match the alumni's type
+      query = query.or(`target_alumni_type.eq.all,target_alumni_type.eq.${alumniType}`);
+    } else {
+      // If no alumniType, only show 'all' phases
+      query = query.eq("target_alumni_type", "all");
+    }
+
+    const { data: phases, error } = await query;
+
     if (error) throw error;
 
-    console.log("[tracer] Phases fetched:", phases?.length || 0);
+    console.log("[tracer] Phases fetched:", phases?.length || 0, "for alumni type:", alumniType || 'all');
 
     if (phases) {
       phases.forEach(phase => {
@@ -480,4 +490,105 @@ export const uploadTracerFile = async (responseId, questionId, file) => {
   });
   
   return response.data.path;
+};
+
+/**
+ * Get count of alumni who have completed ALL tracer sections (100% completion)
+ */
+export const getCompletedAlumniCount = async () => {
+  try {
+    // First, get all tracer responses that are completed
+    const { data: completedResponses, error: responsesError } = await supabase
+      .from("tracer_responses")
+      .select(`
+        id,
+        alumni_id,
+        form_id,
+        status
+      `)
+      .eq("status", "completed");
+
+    if (responsesError) throw responsesError;
+
+    if (!completedResponses || completedResponses.length === 0) {
+      return 0;
+    }
+
+    // Get all phases to determine total sections count
+    const { data: phases, error: phasesError } = await supabase
+      .from("tracer_phases")
+      .select(`
+        id,
+        sections:tracer_sections(
+          id,
+          questions:tracer_questions(id)
+        )
+      `);
+
+    if (phasesError) throw phasesError;
+
+    // Calculate total questions across all phases
+    let totalQuestions = 0;
+    phases?.forEach(phase => {
+      phase.sections?.forEach(section => {
+        totalQuestions += section.questions?.length || 0;
+      });
+    });
+
+    if (totalQuestions === 0) return 0;
+
+    // Get all answers for completed responses
+    const responseIds = completedResponses.map(r => r.id);
+    const { data: allAnswers, error: answersError } = await supabase
+      .from("tracer_answers")
+      .select("tracer_response_id, question_id")
+      .in("tracer_response_id", responseIds);
+
+    if (answersError) throw answersError;
+
+    // Count unique alumni with complete answers
+    const alumniProgress = new Map();
+
+    completedResponses.forEach(response => {
+      const alumniId = response.alumni_id;
+      const answersForResponse = allAnswers?.filter(a => a.tracer_response_id === response.id) || [];
+      
+      // Check if this alumni has answered ALL questions
+      const answeredQuestionIds = new Set(answersForResponse.map(a => a.question_id));
+      
+      // For now, we just track that they have a completed response
+      // But we need to verify they answered all questions
+      const answerCount = answersForResponse.length;
+      
+      if (!alumniProgress.has(alumniId)) {
+        alumniProgress.set(alumniId, {
+          responseId: response.id,
+          answerCount: 0,
+        });
+      }
+      
+      // Update with the highest answer count for this alumni
+      const current = alumniProgress.get(alumniId);
+      if (answerCount > current.answerCount) {
+        alumniProgress.set(alumniId, {
+          ...current,
+          answerCount: answerCount,
+        });
+      }
+    });
+
+    // Count alumni who have answered ALL questions
+    let fullyCompletedAlumni = 0;
+    for (const [alumniId, progress] of alumniProgress) {
+      // Check if they have answered all questions
+      if (progress.answerCount >= totalQuestions) {
+        fullyCompletedAlumni++;
+      }
+    }
+
+    return fullyCompletedAlumni;
+  } catch (error) {
+    console.error("[tracer] Get completed alumni count error:", error.message);
+    return 0;
+  }
 };

@@ -591,6 +591,29 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
     color: COLORS.whiteAlpha20,
   },
+
+  // Add these to your TracerMenuScreen.styles.js
+  targetBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#fbd117',
+    marginLeft: 6,
+  },
+  targetBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Poppins-Medium',
+    color: '#32418C',
+  },
+  // Add this to your styles object
+  motivationalText: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#ffffff',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+
 });
 
 export { COLORS, FONTS };

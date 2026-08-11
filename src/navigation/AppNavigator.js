@@ -23,6 +23,7 @@ import VerifyResetOtpScreen from "../screens/VerifyResetOtpScreen";
 import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 import DraftsScreen from "../screens/DraftScreen";
 import GlobalSearchScreen from "../screens/GlobalSearchScreen";
+import RestrictedScreen from "../screens/RestrictedScreen";
 // import IncomingCallScreen from "../screens/IncomingCallScreen";
 // import CallScreenEntry from "../screens/CallScreen";
 import AddSkillsScreen from "../screens/AddSkillsScreen";
@@ -85,6 +86,7 @@ const AppNavigator = () => {
       <Stack.Screen name="AddSkillsScreen" component={AddSkillsScreen} />
       <Stack.Screen name="WorkExperienceScreen" component={WorkExperienceScreen} />
       <Stack.Screen name="WorkExperienceFormScreen" component={WorkExperienceFormScreen} />
+      <Stack.Screen name="Restricted" component={RestrictedScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 };

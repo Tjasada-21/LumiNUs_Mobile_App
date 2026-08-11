@@ -13,7 +13,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import TopHeaderDark from "../components/TopHeaderDark";
 import styles, { COLORS } from "../styles/TracerMenuScreen.styles";
-import { getTracerForms, getTracerProgress } from "../services/tracerQueries";
+import { 
+  getTracerForms, 
+  getTracerProgress,
+  getCompletedAlumniCount 
+} from "../services/tracerQueries";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { getAlumniByEmail } from "../services/alumniQueries";
 import { ThemedAlert } from "../components/ThemedAlert";
@@ -24,7 +28,6 @@ import mascotImg from '../../assets/images/nu-mascot.png';
 // ─────────────────────────────────────────────
 
 const TOTAL_STARS = 5;
-const ALUMNI_COUNT = 2847;
 
 // Generate constellation-like stars
 const generateStars = () => {
@@ -158,6 +161,15 @@ const PhaseCard = ({ phase, phaseIndex, completedCount, totalSections, onPress }
   const progressPercent = Math.round(progressRatio * 100);
   const accentColor = phase.color || COLORS.nebulaBlue;
 
+  // Show target badge if phase is specific to college or shs
+  const targetBadge = phase.target_alumni_type && phase.target_alumni_type !== 'all' ? (
+    <View style={styles.targetBadge}>
+      <Text style={styles.targetBadgeText}>
+        {phase.target_alumni_type === 'college' ? '🎓 College Exclusive' : '🏫 SHS Exclusive'}
+      </Text>
+    </View>
+  ) : null;
+
   return (
     <TouchableOpacity
       style={[styles.phaseCard, isDone && styles.phaseCardDone]}
@@ -181,6 +193,7 @@ const PhaseCard = ({ phase, phaseIndex, completedCount, totalSections, onPress }
                   Mission {phaseIndex + 1}
                 </Text>
               </View>
+              {targetBadge}
               {isDone && (
                 <View style={styles.completedBadge}>
                   <Text style={styles.completedBadgeText}>✦ Complete</Text>
@@ -247,6 +260,7 @@ const TracerMenuScreen = ({ navigation }) => {
   const [alumniData, setAlumniData] = useState(null);
   const [completedSections, setCompletedSections] = useState(new Set());
   const [showAllPhases, setShowAllPhases] = useState(false);
+  const [completedAlumniCount, setCompletedAlumniCount] = useState(0);
 
   const loadTracerData = async () => {
     try {
@@ -266,14 +280,22 @@ const TracerMenuScreen = ({ navigation }) => {
       }
       setAlumniData(alumni);
 
-      const phasesData = await getTracerForms();
-      const progress = await getTracerProgress(alumni.id);
+      // Get the alumni's type (college or shs)
+      const alumniType = alumni.alumni_type || null;
+      
+      // Fetch all data in parallel
+      const [phasesData, progress, completedCount] = await Promise.all([
+        getTracerForms(alumniType),
+        getTracerProgress(alumni.id),
+        getCompletedAlumniCount()
+      ]);
       
       if (progress?.completedSectionIds) {
         setCompletedSections(new Set(progress.completedSectionIds));
       }
 
       setPhases(phasesData || []);
+      setCompletedAlumniCount(completedCount || 0);
     } catch (error) {
       console.error("[TracerMenuScreen] Error loading data:", error);
       ThemedAlert.alert("Error", "Failed to load tracer information. Please try again.");
@@ -292,12 +314,12 @@ const TracerMenuScreen = ({ navigation }) => {
     loadTracerData();
   };
 
-const handlePhasePress = (phase) => {
-  navigation.navigate("PhaseSections", {
-    phase: phase,
-    alumniId: alumniData?.id,
-  });
-};
+  const handlePhasePress = (phase) => {
+    navigation.navigate("PhaseSections", {
+      phase: phase,
+      alumniId: alumniData?.id,
+    });
+  };
 
   const { totalSections, overallCompleted } = useMemo(() => {
     let total = 0;
@@ -423,33 +445,129 @@ const handlePhasePress = (phase) => {
 
         {/* ── SHARE YOUR JOURNEY ── */}
         <View style={styles.journeySection}>
-          <Text style={styles.journeyTitle}>Share Your Alumni Journey With Us!</Text>
-          <Text style={styles.journeyHighlight}>Help Future Nationalians</Text>
-          <Text style={styles.journeyText}>
-            Your feedback shapes NU LIPA's programs and curriculum!
-          </Text>
+          {(() => {
+            // Determine message based on count
+            if (loading) {
+              return (
+                <>
+                  <Text style={styles.journeyTitle}>Loading alumni data...</Text>
+                  <Text style={styles.journeyHighlight}>Please wait</Text>
+                  <Text style={styles.journeyText}>We're preparing your journey stats.</Text>
+                  <View style={styles.mascotContainer}>
+                    <Image source={mascotImg} style={styles.mascotImage} />
+                  </View>
+                  <View style={styles.alumniCountContainer}>
+                    <Text style={[styles.alumniCountText, styles.motivationalText]}>
+                      ⏳ Loading...
+                    </Text>
+                  </View>
+                </>
+              );
+            }
 
-          {/* Mascot Image - REPLACE WITH YOUR IMAGE */}
-          <View style={styles.mascotContainer}>
-            {/* 
-              TO ADD THE MASCOT IMAGE:
-              1. Place your mascot image in assets/images/ folder
-              2. Import it at the top: import mascotImg from '../../assets/images/mascot.png';
-              3. Replace the placeholder below with:
-              <Image source={mascotImg} style={styles.mascotImage} />
-            */}
-            <Image source={mascotImg} style={styles.mascotImage} />
-          </View>
+            if (completedAlumniCount === 0) {
+              return (
+                <>
+                  <Text style={styles.journeyTitle}>Be the First Explorer! 🚀</Text>
+                  <Text style={styles.journeyHighlight}>Pioneer the Tracer</Text>
+                  <Text style={styles.journeyText}>
+                    You have the chance to be the very first alumni to complete the tracer survey! Your response will light the way for future Nationalians.
+                  </Text>
+                  <View style={styles.mascotContainer}>
+                    <Image source={mascotImg} style={styles.mascotImage} />
+                  </View>
+                  <View style={styles.alumniCountContainer}>
+                    <Text style={[styles.alumniCountText, styles.motivationalText]}>
+                      🌟 Be the pioneer! Complete your tracer now!
+                    </Text>
+                  </View>
+                </>
+              );
+            }
 
-          <View style={styles.alumniCountContainer}>
-            <Text style={styles.alumniCountText}>
-              Join{' '}
-              <Text style={styles.alumniCountNumber}>
-                {ALUMNI_COUNT.toLocaleString()}
-              </Text>{' '}
-              alumni who've already completed their tracer!
-            </Text>
-          </View>
+            if (completedAlumniCount < 5) {
+              return (
+                <>
+                  <Text style={styles.journeyTitle}>Join the First Explorers! 🌟</Text>
+                  <Text style={styles.journeyHighlight}>Early Adopters</Text>
+                  <Text style={styles.journeyText}>
+                    {completedAlumniCount} alumni have already completed the tracer. Be among the first wave of explorers to shape the future of NU Lipa!
+                  </Text>
+                  <View style={styles.mascotContainer}>
+                    <Image source={mascotImg} style={styles.mascotImage} />
+                  </View>
+                  <View style={styles.alumniCountContainer}>
+                    <Text style={[styles.alumniCountText, styles.motivationalText]}>
+                      🚀 {completedAlumniCount} pioneers and counting! Join the ranks!
+                    </Text>
+                  </View>
+                </>
+              );
+            }
+
+            if (completedAlumniCount < 10) {
+              return (
+                <>
+                  <Text style={styles.journeyTitle}>The Community is Growing! 🌱</Text>
+                  <Text style={styles.journeyHighlight}>Building Momentum</Text>
+                  <Text style={styles.journeyText}>
+                    {completedAlumniCount} alumni have now completed their tracer! Your voice matters - help us reach the next milestone!
+                  </Text>
+                  <View style={styles.mascotContainer}>
+                    <Image source={mascotImg} style={styles.mascotImage} />
+                  </View>
+                  <View style={styles.alumniCountContainer}>
+                    <Text style={[styles.alumniCountText, styles.motivationalText]}>
+                      ✨ {completedAlumniCount} explorers strong! Ready to make it {completedAlumniCount + 1}?
+                    </Text>
+                  </View>
+                </>
+              );
+            }
+
+            if (completedAlumniCount < 15) {
+              return (
+                <>
+                  <Text style={styles.journeyTitle}>Almost There! 💪</Text>
+                  <Text style={styles.journeyHighlight}>Nearing the Milestone</Text>
+                  <Text style={styles.journeyText}>
+                    We're getting close to 15 completions! {completedAlumniCount} alumni have already shared their journey. Will you be the one to push us over the edge?
+                  </Text>
+                  <View style={styles.mascotContainer}>
+                    <Image source={mascotImg} style={styles.mascotImage} />
+                  </View>
+                  <View style={styles.alumniCountContainer}>
+                    <Text style={[styles.alumniCountText, styles.motivationalText]}>
+                      🎯 {completedAlumniCount}/15 - Just {15 - completedAlumniCount} more to go!
+                    </Text>
+                  </View>
+                </>
+              );
+            }
+
+            // 15+ completions - Show the actual count
+            return (
+              <>
+                <Text style={styles.journeyTitle}>Share Your Alumni Journey With Us!</Text>
+                <Text style={styles.journeyHighlight}>Help Future Nationalians</Text>
+                <Text style={styles.journeyText}>
+                  Your feedback shapes NU LIPA's programs and curriculum!
+                </Text>
+                <View style={styles.mascotContainer}>
+                  <Image source={mascotImg} style={styles.mascotImage} />
+                </View>
+                <View style={styles.alumniCountContainer}>
+                  <Text style={styles.alumniCountText}>
+                    Join{' '}
+                    <Text style={styles.alumniCountNumber}>
+                      {completedAlumniCount.toLocaleString()}
+                    </Text>{' '}
+                    alumni who've already completed their tracer!
+                  </Text>
+                </View>
+              </>
+            );
+          })()}
         </View>
 
         {/* ── FOOTER ── */}

@@ -240,6 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.5)",
     justifyContent: "flex-end",
+    height: "100%",
   },
   modalSafeArea: {
     flex: 1,
@@ -251,7 +252,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 0,
+    paddingBottom: 50,
     marginBottom: 0,
     maxHeight: "78%",
     ...Platform.select({
@@ -397,7 +398,7 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
   },
 
-  // Add these to your existing styles
+  // Map styles
   mapContainer: {
     height: 300,
     borderRadius: 12,
@@ -417,7 +418,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-    pointerEvents: "box-none", // This allows touches to pass through to the map
+    pointerEvents: "box-none",
   },
   mapPinContainer: {
     alignItems: "center",
@@ -520,8 +521,7 @@ const styles = StyleSheet.create({
     color: "#2E7D32",
     marginLeft: 4,
   },
-  // Add these for the map search bar
-inputWrapper: {
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8F9FF",
@@ -548,6 +548,85 @@ inputWrapper: {
     borderRadius: 10,
     maxHeight: 150,
     marginBottom: 12,
+  },
+  // ========================================
+  // ALUMNI TYPE SELECTION STYLES
+  // ========================================
+
+  alumniTypeGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  alumniTypeCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#E8EAFF",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    position: "relative",
+    minHeight: 100,
+  },
+  alumniTypeCardSelected: {
+    borderColor: "#32418C",
+    backgroundColor: "#F0F4FF",
+    shadowColor: "#32418C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  alumniTypeIconContainer: {
+    marginBottom: 8,
+  },
+  alumniTypeName: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#1A1A2E",
+    textAlign: "center",
+  },
+  alumniTypeNameSelected: {
+    color: "#32418C",
+  },
+  alumniTypeDescription: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: "#9CA3AF",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  alumniTypeCheckmark: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+  },
+
+  // ========================================
+  // EXISTING FIELD INDICATOR
+  // ========================================
+
+  existingFieldContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+    gap: 10,
+  },
+  existingFieldText: {
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: "#374151",
+    flex: 1,
+  },
+  existingFieldValue: {
+    fontWeight: "600",
+    color: "#065F46",
   },
 });
 

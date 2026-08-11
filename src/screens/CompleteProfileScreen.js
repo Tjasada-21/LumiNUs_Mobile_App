@@ -126,7 +126,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
   const [addressPickerLoading, setAddressPickerLoading] = useState(false);
   const [addressPickerQuery, setAddressPickerQuery] = useState("");
   const [addressPickerOnSelect, setAddressPickerOnSelect] = useState(null);
-  const [addressPickerShowSearch, setAddressPickerShowSearch] = useState(true); // Control search visibility
+  const [addressPickerShowSearch, setAddressPickerShowSearch] = useState(true);
   const [dobPickerVisible, setDobPickerVisible] = useState(false);
   const [dobDraft, setDobDraft] = useState(new Date());
   const [dobCalendarFocusDate, setDobCalendarFocusDate] = useState(new Date());
@@ -142,6 +142,9 @@ const CompleteProfileScreen = ({ route, navigation }) => {
   const [hasExistingDob, setHasExistingDob] = useState(false);
   const [hasExistingAddress, setHasExistingAddress] = useState(false);
   
+  const [alumniType, setAlumniType] = useState("");
+  const [hasExistingAlumniType, setHasExistingAlumniType] = useState(false);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const cardScrollViewRef = useRef(null);
@@ -210,6 +213,12 @@ const CompleteProfileScreen = ({ route, navigation }) => {
               setDob(alumniData.date_of_birth);
               setHasExistingDob(true);
             }
+
+            // Check for alumni type
+            if (alumniData.alumni_type) {
+              setAlumniType(alumniData.alumni_type);
+              setHasExistingAlumniType(true);
+            }
             
             // Check if address exists
             const { data: addressData, error: addressError } = await supabase
@@ -264,6 +273,25 @@ const CompleteProfileScreen = ({ route, navigation }) => {
     [],
   );
 
+  // Alumni Type Options
+  const alumniTypeOptions = useMemo(
+    () => [
+      { 
+        code: "college", 
+        name: "College Graduate", 
+        icon: "school-outline",
+        description: "I completed a college degree program"
+      },
+      { 
+        code: "shs", 
+        name: "SHS Graduate", 
+        icon: "book-outline",
+        description: "I graduated from Senior High School"
+      },
+    ],
+    [],
+  );
+
   const monthOptions = useMemo(
     () =>
       Array.from({ length: 12 }, (_, index) => ({
@@ -309,7 +337,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
     loadingKey,
     loadOptions,
     onSelect,
-    showSearch = true, // New parameter to control search visibility
+    showSearch = true,
   }) => {
     if (loadOptions && options.length === 0) {
       setAddressPickerLoading(true);
@@ -486,7 +514,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
 
   const [selectedCountry, setSelectedCountry] = useState("");
   const [isInternational, setIsInternational] = useState(false);
-  const [customCountry, setCustomCountry] = useState(""); // For manual country input
+  const [customCountry, setCustomCountry] = useState("");
   const [countryOptions] = useState([
     { code: "PH", name: "Philippines" },
     { code: "US", name: "United States" },
@@ -542,6 +570,12 @@ const CompleteProfileScreen = ({ route, navigation }) => {
     
     if (!hasExistingDob && !dob) {
       ThemedAlert.alert("Missing Info", "Please select your date of birth.");
+      return;
+    }
+
+    // Validate education type
+    if (!hasExistingAlumniType && !alumniType) {
+      ThemedAlert.alert("Missing Info", "Please select your education type (College or SHS Graduate).");
       return;
     }
     
@@ -609,6 +643,11 @@ const CompleteProfileScreen = ({ route, navigation }) => {
       const updateData = {};
       if (!hasExistingSex) updateData.sex = sex;
       if (!hasExistingDob) updateData.date_of_birth = dob;
+
+      // Save alumni type
+      if (!hasExistingAlumniType) {
+        updateData.alumni_type = alumniType;
+      }
       
       if (Object.keys(updateData).length > 0) {
         const { error } = await supabase
@@ -1008,6 +1047,11 @@ const CompleteProfileScreen = ({ route, navigation }) => {
     );
   }
 
+  // Calculate section numbers dynamically
+  const basicInfoSectionNumber = 1;
+  const educationTypeSectionNumber = (!hasExistingSex || !hasExistingDob) ? 2 : 1;
+  const addressSectionNumber = (!hasExistingSex || !hasExistingDob || !hasExistingAlumniType) ? 3 : 2;
+
   return (
     <ImageBackground
       source={require("../../assets/images/unnamed.png")}
@@ -1092,7 +1136,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
                               title: "Select Sex",
                               options: sexOptions,
                               onSelect: (item) => setSex(item.name),
-                              showSearch: false, // No search for sex
+                              showSearch: false,
                             })
                           }
                           disabled={loading}
@@ -1114,12 +1158,73 @@ const CompleteProfileScreen = ({ route, navigation }) => {
                     </View>
                   )}
 
+                  {/* Education Type Section */}
+                  <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeader}>
+                      <View style={styles.sectionNumber}>
+                        <Text style={styles.sectionNumberText}>{educationTypeSectionNumber}</Text>
+                      </View>
+                      <Text style={styles.sectionTitle}>Education Type</Text>
+                    </View>
+
+                    {!hasExistingAlumniType ? (
+                      <>
+                        <Text style={styles.fieldLabel}>Are you a College or SHS Graduate?</Text>
+                        
+                        <View style={styles.alumniTypeGrid}>
+                          {alumniTypeOptions.map((option) => (
+                            <TouchableOpacity
+                              key={option.code}
+                              style={[
+                                styles.alumniTypeCard,
+                                alumniType === option.code && styles.alumniTypeCardSelected,
+                              ]}
+                              onPress={() => setAlumniType(option.code)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.alumniTypeIconContainer}>
+                                <Ionicons 
+                                  name={option.icon} 
+                                  size={32} 
+                                  color={alumniType === option.code ? "#32418C" : "#A0AABF"} 
+                                />
+                              </View>
+                              <Text style={[
+                                styles.alumniTypeName,
+                                alumniType === option.code && styles.alumniTypeNameSelected
+                              ]}>
+                                {option.name}
+                              </Text>
+                              <Text style={styles.alumniTypeDescription}>
+                                {option.description}
+                              </Text>
+                              {alumniType === option.code && (
+                                <View style={styles.alumniTypeCheckmark}>
+                                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.existingFieldContainer}>
+                        <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                        <Text style={styles.existingFieldText}>
+                          Education Type: <Text style={styles.existingFieldValue}>
+                            {alumniType === 'college' ? 'College Graduate' : 'SHS Graduate'}
+                          </Text>
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
                   {/* Address Details Section - Only show if no existing address */}
                   {!hasExistingAddress && (
                     <View style={styles.sectionContainer}>
                       <View style={styles.sectionHeader}>
                         <View style={styles.sectionNumber}>
-                          <Text style={styles.sectionNumberText}>2</Text>
+                          <Text style={styles.sectionNumberText}>{addressSectionNumber}</Text>
                         </View>
                         <Text style={styles.sectionTitle}>Address Details</Text>
                       </View>
@@ -1134,7 +1239,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
                             title: "Select Address Type",
                             options: addressTypeOptions,
                             onSelect: (item) => setAddressType(item.name),
-                            showSearch: false, // No search for address type
+                            showSearch: false,
                           })
                         }
                         disabled={loading}
@@ -1196,7 +1301,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
                                   }
                                 }
                               },
-                              showSearch: true, // Keep search for country list
+                              showSearch: true,
                             })
                           }
                           disabled={loading}
@@ -1663,7 +1768,7 @@ const CompleteProfileScreen = ({ route, navigation }) => {
         </Pressable>
       </Modal>
 
-      {/* Map Modal - Same as before */}
+      {/* Map Modal */}
       <Modal
         visible={mapVisible}
         transparent
@@ -1671,9 +1776,392 @@ const CompleteProfileScreen = ({ route, navigation }) => {
         onRequestClose={closeMapModal}
         statusBarTranslucent
       >
-        {/* ... (map modal code remains the same) ... */}
-      </Modal>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => Keyboard.dismiss()}
+          >
+            <View style={{ flex: 1 }} />
+          </TouchableOpacity>
 
+          <Animated.View
+            style={[
+              styles.modalCard,
+              {
+                maxHeight: "90%",
+                minHeight: "70%",
+                transform: [{ translateY: mapSlideAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pin Your Location</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  closeMapModal();
+                }}
+              >
+                <Ionicons name="close" size={18} color="#666680" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.fieldContainer}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  { marginBottom: 0, backgroundColor: "#F8F9FF" },
+                ]}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={18}
+                  color="#A0AABF"
+                  style={{ paddingLeft: 12 }}
+                />
+                <SmartTextInput
+                  style={[styles.passwordInput, { flex: 1 }]}
+                  placeholder="Search for a location or address..."
+                  placeholderTextColor="#A0AABF"
+                  value={mapSearchQuery}
+                  onChangeText={(text) => {
+                    setMapSearchQuery(text);
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                    }
+                    searchTimeoutRef.current = setTimeout(() => {
+                      searchLocation(text);
+                    }, 500);
+                  }}
+                  returnKeyType="search"
+                  onSubmitEditing={() => {
+                    if (mapSearchQuery.trim()) {
+                      searchLocation(mapSearchQuery);
+                      Keyboard.dismiss();
+                    }
+                  }}
+                />
+                {mapSearchQuery.length > 0 && (
+                  <TouchableOpacity
+                    style={{ padding: 10 }}
+                    onPress={() => {
+                      setMapSearchQuery("");
+                      setMapSearchResults([]);
+                      setShowSearchResults(false);
+                    }}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color="#A0AABF"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Search Results */}
+            {showSearchResults && (
+              <View
+                style={{
+                  maxHeight: 150,
+                  backgroundColor: "#FFFFFF",
+                  borderWidth: 1.5,
+                  borderColor: "#E8EAFF",
+                  borderRadius: 10,
+                  marginBottom: 8,
+                  overflow: "hidden",
+                }}
+              >
+                {isSearching ? (
+                  <View style={{ padding: 20, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color="#32418C" />
+                    <Text
+                      style={[
+                        styles.locationLoadingText,
+                        { marginTop: 8 },
+                      ]}
+                    >
+                      Searching...
+                    </Text>
+                  </View>
+                ) : mapSearchResults.length > 0 ? (
+                  <ScrollView
+                    style={{ maxHeight: 150 }}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                  >
+                    {mapSearchResults.map((item, index) => (
+                      <TouchableOpacity
+                        key={`${item.place_id}-${index}`}
+                        style={styles.optionRow}
+                        onPress={() => selectSearchResult(item)}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Ionicons
+                            name="location-outline"
+                            size={16}
+                            color="#32418C"
+                            style={{ marginRight: 10 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={styles.optionText}
+                              numberOfLines={1}
+                            >
+                              {item.display_name?.split(",")[0] ||
+                                item.name ||
+                                "Unknown location"}
+                            </Text>
+                            <Text
+                              style={styles.optionSubtext}
+                              numberOfLines={1}
+                            >
+                              {item.display_name
+                                ?.split(",")
+                                .slice(1)
+                                .join(",")
+                                .trim() || ""}
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : mapSearchQuery.trim().length > 0 ? (
+                  <View style={{ padding: 20, alignItems: "center" }}>
+                    <Ionicons
+                      name="search-outline"
+                      size={24}
+                      color="#A0AABF"
+                    />
+                    <Text
+                      style={[
+                        styles.emptyStateText,
+                        { marginTop: 8 },
+                      ]}
+                    >
+                      No locations found
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+
+            <Text
+              style={[
+                styles.subtitle,
+                {
+                  marginBottom: 8,
+                  marginTop: 4,
+                  textAlign: "left",
+                  paddingHorizontal: 0,
+                  fontSize: 13,
+                },
+              ]}
+            >
+              Drag the map to place the center pin, then tap "Confirm Location".
+            </Text>
+
+            {/* Map Container */}
+            <View
+              style={[
+                styles.mapContainer,
+                { height: 230, flexShrink: 1 },
+              ]}
+            >
+              {selectedLocation ? (
+                <WebView
+                  source={{
+                    html: `<!DOCTYPE html>
+                    <html>
+                    <head>
+                      <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=yes">
+                      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+                      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                      <style>
+                        *{margin:0;padding:0}
+                        html,body,#map{width:100%;height:100%;overflow:hidden;touch-action:manipulation}
+                        .leaflet-control-zoom{display:block!important}
+                        .leaflet-control-zoom a{pointer-events:auto!important;cursor:pointer}
+                        .center-pin{position:fixed;top:50%;left:50%;transform:translate(-50%,-100%);z-index:1000;pointer-events:none;font-size:36px;color:#32418C;text-shadow:0 2px 4px rgba(0,0,0,0.3)}
+                        .coords-display{position:fixed;bottom:10px;left:10px;right:10px;background:rgba(255,255,255,0.9);padding:8px 12px;border-radius:8px;font-family:monospace;font-size:11px;text-align:center;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.15);pointer-events:none}
+                      </style>
+                    </head>
+                    <body>
+                      <div id="map"></div>
+                      <div class="center-pin">📍</div>
+                      <div class="coords-display" id="coords"></div>
+                      <script>
+                        var map=L.map('map',{zoomControl:true,attributionControl:false,dragging:true,tap:true,touchZoom:true,scrollWheelZoom:true}).setView([${selectedLocation.latitude},${selectedLocation.longitude}],16);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+                        function updateCoords(){var c=map.getCenter();document.getElementById('coords').textContent=c.lat.toFixed(6)+', '+c.lng.toFixed(6);window.ReactNativeWebView.postMessage(JSON.stringify({latitude:c.lat.toFixed(6),longitude:c.lng.toFixed(6)}))}
+                        map.on('moveend',updateCoords);updateCoords();
+                      </script>
+                    </body>
+                    </html>`,
+                  }}
+                  style={styles.map}
+                  scrollEnabled={false}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  originWhitelist={["*"]}
+                  mixedContentMode="always"
+                  androidLayerType="hardware"
+                  onMessage={(event) => {
+                    try {
+                      const data = JSON.parse(event.nativeEvent.data);
+                      if (data.latitude && data.longitude) {
+                        setSelectedLocation({
+                          latitude: parseFloat(data.latitude),
+                          longitude: parseFloat(data.longitude),
+                        });
+                      }
+                    } catch (e) {}
+                  }}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.map,
+                    {
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: "#F8F9FF",
+                    },
+                  ]}
+                >
+                  <ActivityIndicator size="large" color="#32418C" />
+                  <Text
+                    style={[
+                      styles.locationLoadingText,
+                      { marginTop: 12 },
+                    ]}
+                  >
+                    Loading map...
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.mapControls}>
+                <TouchableOpacity
+                  onPress={getCurrentLocation}
+                  style={{ padding: 8 }}
+                  disabled={isLocatingAddress}
+                >
+                  <Ionicons
+                    name="locate"
+                    size={24}
+                    color={isLocatingAddress ? "#A0AABF" : "#32418C"}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {isLocatingAddress && (
+                <View style={styles.locationLoadingOverlay}>
+                  <ActivityIndicator size="large" color="#32418C" />
+                  <Text style={styles.locationLoadingText}>
+                    Detecting address...
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ paddingBottom: 20 }}>
+              <Text
+                style={[
+                  styles.coordinatesText,
+                  { marginTop: 10, marginBottom: 6 },
+                ]}
+              >
+                {selectedLocation
+                  ? `📍 ${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`
+                  : "Move the map to select your location"}
+              </Text>
+
+              {selectedLocation && (
+                <TouchableOpacity
+                  style={[styles.mapButton, { marginBottom: 10 }]}
+                  onPress={() => {
+                    const url = `https://www.openstreetmap.org/?mlat=${selectedLocation.latitude}&mlon=${selectedLocation.longitude}&zoom=18`;
+                    Linking.openURL(url).catch(() => {});
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="open-outline"
+                    size={18}
+                    color="#32418C"
+                  />
+                  <Text style={styles.mapButtonText}>
+                    Open in Maps App
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 12,
+                  marginTop: 4,
+                }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerAction,
+                    styles.datePickerCancel,
+                    { flex: 1 },
+                  ]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    closeMapModal();
+                  }}
+                >
+                  <Text style={styles.datePickerCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerAction,
+                    styles.datePickerConfirm,
+                    { flex: 1 },
+                  ]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    confirmMapSelection();
+                  }}
+                  disabled={isLocatingAddress || !selectedLocation}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.datePickerConfirmText}>
+                      Confirm
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </ImageBackground>
   );
 };

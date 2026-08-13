@@ -83,7 +83,6 @@ const getRelativeTimeLabel = (dateValue) => {
   return 'Just now';
 };
 
-// RESTORED: This was accidentally deleted in the previous cleanup
 const getFeedItemDateValue = (item) => item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
 
 const extractMentionQuery = (value) => {
@@ -304,7 +303,6 @@ const UserFeedScreen = ({ navigation }) => {
   const [feedSortMode, setFeedSortMode] = useState('relevant');
   const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
 
-  // New states for Report Logic
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState({ id: null, type: null });
 
@@ -379,20 +377,20 @@ const UserFeedScreen = ({ navigation }) => {
   };
   
   const resetSwipeRefs = () => {
-  postActionsSwipeStartRef.current = 0;
-  repostComposerSwipeStartRef.current = 0;
-  commentsSwipeStartRef.current = 0;
-  
-  RNAnimated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
-  RNAnimated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
-  
-  RNAnimated.spring(commentsTranslateY, { 
-    toValue: 0, 
-    useNativeDriver: false,
-    tension: 40,
-    friction: 8,
-  }).start();
-};
+    postActionsSwipeStartRef.current = 0;
+    repostComposerSwipeStartRef.current = 0;
+    commentsSwipeStartRef.current = 0;
+    
+    RNAnimated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
+    RNAnimated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
+    
+    RNAnimated.spring(commentsTranslateY, { 
+      toValue: 0, 
+      useNativeDriver: false,
+      tension: 40,
+      friction: 8,
+    }).start();
+  };
 
   const repostMentionContext = useMemo(() => extractMentionQuery(repostCaptionDraft), [repostCaptionDraft]);
   const commentMentionContext = useMemo(() => extractMentionQuery(commentDraft), [commentDraft]);
@@ -560,7 +558,6 @@ const UserFeedScreen = ({ navigation }) => {
     fetchPosts({ showLoadingState: true, reset: true });
   }, [fetchPosts]);
 
-  // Listen for background refresh events from CreatePostScreen
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener("REFRESH_FEED", () => {
       handleRefreshPosts();
@@ -689,14 +686,13 @@ const UserFeedScreen = ({ navigation }) => {
     }
   }, [isCommentActionSaving]);
 
-  // --- REPORTING SYSTEM INTEGRATION ---
   const openPostReportModal = useCallback(() => {
     if (!activePostActionPost?.id) return;
     setReportTarget({ id: activePostActionPost.id, type: 'post' });
     setPostActionsVisible(false);
     setTimeout(() => {
       setReportModalVisible(true);
-    }, 350); // slight delay ensures smooth modal transition
+    }, 350); 
   }, [activePostActionPost]);
 
   const openCommentReportModal = useCallback(() => {
@@ -728,8 +724,6 @@ const UserFeedScreen = ({ navigation }) => {
         }]);
 
         if (error) throw error;
-
-        // Optimistically remove the reported post from the user's feed
         setPosts((curr) => curr.filter((p) => p.id !== targetId));
 
       } else if (targetType === 'comment') {
@@ -741,21 +735,14 @@ const UserFeedScreen = ({ navigation }) => {
 
         if (error) throw error;
 
-        // Check the total number of reports for this comment
         const { count, error: countError } = await supabase
           .from('comment_reports')
           .select('*', { count: 'exact', head: true })
           .eq('comment_id', targetId);
 
-        // Only remove from UI if it has reached 10 or more reports
         if (!countError && count >= 10) {
-          // Flag the comment for moderation in the database
           await supabase.from('comments').update({ moderation_status: 'under_review' }).eq('id', targetId);
-          
-          // Remove the reported comment from the UI
           setComments((curr) => curr.filter((c) => c.id !== targetId));
-          
-          // Adjust the comment count on the post
           setPosts((curr) =>
             curr.map((p) =>
               p.id === activeCommentPost?.id
@@ -782,45 +769,51 @@ const UserFeedScreen = ({ navigation }) => {
     }
   }, [reportTarget, userData?.id, resolveActiveAlumniId, showThemedAlert, activeCommentPost?.id]);
 
-  // ------------------------------------
-
+  // --- LOCAL & DATABASE FILTERING FOR HIDE AND MUTE ---
   const handleMuteAuthor = useCallback(async () => {
     if (!activePostActionPost?.alumni?.id) return;
+    const targetAuthorId = activePostActionPost.alumni.id;
     setPostActionsVisible(false);
+    
     try {
-      try {
-        const supaUser = await getCurrentUser();
-        if (supaUser?.id)
-          await supabase
-            .from('muted_users')
-            .insert([{ user_id: supaUser.id, muted_user_id: activePostActionPost.alumni.id }]);
-      } catch (e) {
-        console.warn('Mute failed', e);
+      const currentUserId = userData?.id || await resolveActiveAlumniId();
+      
+      if (currentUserId) {
+        await supabase
+          .from('muted_users')
+          .insert([{ user_id: currentUserId, muted_user_id: targetAuthorId }]);
       }
-      showThemedAlert({ title: 'Muted', message: 'You will no longer see posts from this user.' });
+      
+      setPosts((curr) => curr.filter((p) => p.alumni?.id !== targetAuthorId));
+      
+      showThemedAlert({ title: 'Muted', message: "You won't see posts from this user anymore." });
     } catch (e) {
+      console.warn('Mute failed:', e);
       showThemedAlert({ title: 'Error', message: 'Could not mute the user.' });
     }
-  }, [activePostActionPost, showThemedAlert]);
+  }, [activePostActionPost, userData?.id, resolveActiveAlumniId, showThemedAlert]);
 
   const handleHidePost = useCallback(async () => {
     if (!activePostActionPost?.id) return;
+    const targetId = activePostActionPost.id;
     setPostActionsVisible(false);
-    setPosts((curr) => curr.filter((p) => !(p.feed_type === 'post' && p.id === activePostActionPost.id)));
-    showThemedAlert({ title: 'Hidden', message: 'This post has been hidden.' });
-  }, [activePostActionPost, showThemedAlert]);
-
-  const handleCopyLink = useCallback(async () => {
-    if (!activePostActionPost?.id) return;
-    const linkBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
-    const link = linkBaseUrl ? `${linkBaseUrl}/posts/${activePostActionPost.id}` : `post:${activePostActionPost.id}`;
+    
     try {
-      import('expo-clipboard').then((mod) => mod.setStringAsync(link));
-      showThemedAlert({ title: 'Link copied', message: 'Post link copied to clipboard.' });
+      const currentUserId = userData?.id || await resolveActiveAlumniId();
+      
+      if (currentUserId) {
+        await supabase
+          .from('hidden_posts')
+          .insert([{ user_id: currentUserId, post_id: targetId }]);
+      }
     } catch (e) {
-      showThemedAlert({ title: 'Error', message: 'Could not copy link.' });
+      console.warn('Hide post failed:', e);
     }
-  }, [activePostActionPost, showThemedAlert]);
+
+    setPosts((curr) => curr.filter((p) => p.id !== targetId && p.original_post_id !== targetId));
+    
+    showThemedAlert({ title: 'Hidden', message: 'This post has been hidden from your feed.' });
+  }, [activePostActionPost, userData?.id, resolveActiveAlumniId, showThemedAlert]);
 
   const handleEditComment = useCallback(() => {
     if (!activeCommentActionComment?.id) return;
@@ -1132,18 +1125,14 @@ const UserFeedScreen = ({ navigation }) => {
     setViewerPost(null);
   };
 
-// Update the handlePostComment function
 const handlePostComment = useCallback((post) => {
-  // Reset closing flag when opening
   isClosingRef.current = false;
-  
   setActiveCommentPost(post);
   setReplyingToComment(null);
   setCommentDraft('');
   setComments([]);
   setCommentsError('');
   setExpandedCommentParents({});
-  // Set initial position to bottom for slide-up animation
   commentsTranslateY.setValue(SCREEN_HEIGHT);
   setCommentsVisible(true);
 }, []);
@@ -1185,7 +1174,6 @@ const closeCommentsModal = () => {
     const trimmedComment = commentDraft.trim();
     if (!trimmedComment || !activeCommentPost) return;
     
-    // Make sure we pass the correct ID depending on whether it's an announcement or post
     const isAnnouncement = activeCommentPost.feed_type === 'announcement';
     const targetPostId = isAnnouncement ? null : activeCommentPost.id;
     const targetAnnouncementId = isAnnouncement ? activeCommentPost.id : null;
@@ -1229,7 +1217,6 @@ const closeCommentsModal = () => {
     };
     setComments((curr) => [pendingComment, ...curr]);
     
-    // Optimistically update the UI count
     setPosts((curr) =>
       curr.map((p) =>
         p.id === activeCommentPost.id ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p
@@ -1247,14 +1234,12 @@ const closeCommentsModal = () => {
 
     resolveActiveAlumniId()
       .then((alumniId) =>
-        // Notice we explicitly pass targetAnnouncementId here now!
         addComment(targetPostId, alumniId, trimmedComment, pendingComment.parent_id, targetAnnouncementId)
       )
       .then((saved) => {
         if (!saved) return;
         setComments((curr) => curr.map((c) => (c.id === pendingId ? saved : c)));
         
-        // Ensure count is correct from database
         setPosts((curr) =>
           curr.map((p) =>
             p.id === activeCommentPost.id
@@ -2038,26 +2023,19 @@ const closeCommentsModal = () => {
                       </Pressable>
                       <Pressable
                         style={styles.postActionChoiceButton}
-                        onPress={handleMuteAuthor}
-                      >
-                        <Ionicons name="volume-mute-outline" size={16} color="#31429B" />
-                        <Text style={styles.postActionChoiceText}>Mute user</Text>
-                      </Pressable>
-                    </View>
-                    <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
                         onPress={handleHidePost}
                       >
                         <Ionicons name="eye-off-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Hide post</Text>
                       </Pressable>
+                    </View>
+                    <View style={styles.postActionsRow}>
                       <Pressable
                         style={styles.postActionChoiceButton}
-                        onPress={handleCopyLink}
+                        onPress={handleMuteAuthor}
                       >
-                        <Ionicons name="link-outline" size={16} color="#31429B" />
-                        <Text style={styles.postActionChoiceText}>Copy link</Text>
+                        <Ionicons name="volume-mute-outline" size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>Mute user</Text>
                       </Pressable>
                     </View>
                   </>

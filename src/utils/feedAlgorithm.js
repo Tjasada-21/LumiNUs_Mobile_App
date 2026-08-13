@@ -38,7 +38,7 @@ export const getFeedItemTimestamp = (item) => {
 };
 
 /**
- * The FB/IG/LinkedIn Hybrid Feed Algorithm.
+ * The FB/IG/LinkedIn Hybrid Feed Algorithm (with Logarithmic & Storyteller Fixes).
  */
 export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections, userData) => {
   const sourcePosts = Array.isArray(posts) ? [...posts] : [];
@@ -108,13 +108,19 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
       // Connections: Massive boost if the user follows the author
       if (connectionIds.has(authorId)) score += 40;
 
-      // Deep Engagement: Not all interactions are equal
-      score += (item?.reaction_count ?? 0) * 1; // Likes are cheap
-      score += (item?.comment_count ?? 0) * 3;  // Comments show actual conversation
-      score += (item?.repost_count ?? 0) * 4;   // Shares are high-value endorsements
+      // Deep Engagement (The Logarithmic Fix): Not all interactions are equal
+      // Weighted engagement gives more value to comments and shares
+      const weightedEngagement = (item?.reaction_count ?? 0) * 1 
+                               + (item?.comment_count ?? 0) * 3 
+                               + (item?.repost_count ?? 0) * 4;
+                               
+      // Logarithmic scaling prevents "Zombie Posts" from staying on top forever
+      if (weightedEngagement > 0) {
+        score += Math.log10(weightedEngagement + 1) * 25;
+      }
 
       // ---------------------------------------------------------
-      // 3. THE LINKEDIN DNA (Professional/Academic Affinity)
+      // 3. THE LINKEDIN DNA (Professional/Academic Affinity & Content Depth)
       // ---------------------------------------------------------
       
       // Academic Overlap
@@ -129,6 +135,16 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
       // Batch Overlap
       if (myBatch && authorBatch && myBatch === authorBatch) {
         score += 20; // Graduated same year
+      }
+
+      // The Storyteller Bump: Reward deep, long-form content over quick one-liners
+      const captionText = item?.caption || item?.announcement_description || '';
+      const captionLength = captionText.length;
+      
+      if (captionLength > 300) {
+        score += 15; // Mega-boost for detailed updates/mini-blogs
+      } else if (captionLength > 150) {
+        score += 10; // Standard boost for substantive posts
       }
 
       // ---------------------------------------------------------

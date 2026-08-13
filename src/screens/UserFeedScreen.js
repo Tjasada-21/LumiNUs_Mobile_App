@@ -42,6 +42,7 @@ import {
   updatePost,
 } from '../services/postQueries';
 import supabase from '../services/supabase';
+import { sortFeedPosts } from '../utils/feedAlgorithm';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAX_ZOOM_SCALE = 2.5;
@@ -82,6 +83,7 @@ const getRelativeTimeLabel = (dateValue) => {
   return 'Just now';
 };
 
+// RESTORED: This was accidentally deleted in the previous cleanup
 const getFeedItemDateValue = (item) => item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
 
 const extractMentionQuery = (value) => {
@@ -117,13 +119,6 @@ const resolveFeedInteractionTarget = (post) => {
   return { feedType: 'post', postId: post.id ?? null, announcementId: null, originalPostId: post.id ?? null };
 };
 
-const getFeedItemTimestamp = (item) => {
-  const rawValue = item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
-  if (!rawValue) return 0;
-  const timestamp = new Date(rawValue).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
-
 const getFeedItemKeyValue = (item) => (item?.feed_id ? item.feed_id : `${item?.feed_type ?? 'post'}-${item?.id ?? 'unknown'}`);
 
 const mergeFeedItems = (currentItems, nextItems) => {
@@ -138,16 +133,6 @@ const mergeFeedItems = (currentItems, nextItems) => {
   });
 
   return merged;
-};
-
-const getFeedJitter = (itemId, refreshNonce) => {
-  const seed = `${String(itemId ?? '')}:${String(refreshNonce ?? 0)}`;
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = ((hash << 5) - hash) + seed.charCodeAt(index);
-    hash |= 0;
-  }
-  return (Math.abs(hash) % 1000) / 1000;
 };
 
 const ZoomableViewer = ({
@@ -463,17 +448,8 @@ const UserFeedScreen = ({ navigation }) => {
   const openCreatePost = useCallback(() => navigation.navigate('CreatePostScreen'), [navigation]);
 
   const displayedPosts = useMemo(() => {
-    const sourcePosts = Array.isArray(posts) ? [...posts] : [];
-    if (feedSortMode === 'newest') return sourcePosts.sort((a, b) => getFeedItemTimestamp(b) - getFeedItemTimestamp(a));
-    return sourcePosts.sort((a, b) => {
-      const aScore =
-        (Number(a?.relevance_score ?? 0) || 0) + getFeedJitter(a?.id ?? a?.feed_id, feedRefreshNonce) * 0.08;
-      const bScore =
-        (Number(b?.relevance_score ?? 0) || 0) + getFeedJitter(b?.id ?? b?.feed_id, feedRefreshNonce) * 0.08;
-      if (bScore !== aScore) return bScore - aScore;
-      return getFeedItemTimestamp(b) - getFeedItemTimestamp(a);
-    });
-  }, [feedRefreshNonce, feedSortMode, posts]);
+    return sortFeedPosts(posts, feedSortMode, feedRefreshNonce, connections, userData);
+  }, [feedRefreshNonce, feedSortMode, posts, connections, userData]);
 
   useEffect(() => {
     const fetchProfile = async () => {

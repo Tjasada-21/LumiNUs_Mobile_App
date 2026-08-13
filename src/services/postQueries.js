@@ -246,7 +246,7 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
           .select(
             `
         *,
-        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo),
+        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo, program, year_graduated),
         images_posts(id, image_path),
         comments_count:comments(count),
         reactions_count:reactions(count),
@@ -284,10 +284,10 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
             caption,
             created_at,
             moderation_status,
-            alumni:alumni_id(id, first_name, last_name, email, alumni_photo),
+            alumni:alumni_id(id, first_name, last_name, email, alumni_photo, program, year_graduated),
             original_post:post_id(
               *,
-              alumnis:alumni_id(id, first_name, last_name, email, alumni_photo),
+              alumnis:alumni_id(id, first_name, last_name, email, alumni_photo, program, year_graduated),
               images_posts(id, image_path),
               comments_count:comments(count),
               reactions_count:reactions(count),
@@ -483,6 +483,7 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
     ]
       .map((item) => ({
         ...item,
+        // Calculate a basic frontend relevance score for standard sorting fallback
         relevance_score: calculateFeedRelevanceScore(item),
       }))
       .sort((firstItem, secondItem) => {
@@ -517,7 +518,7 @@ export const getUserPosts = async (alumniId, limit = 20, offset = 0) => {
       .select(
         `
         *,
-        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo),
+        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo, program, year_graduated),
         images_posts(id, image_path),
         comments_count:comments(count),
         reactions_count:reactions(count),
@@ -548,7 +549,7 @@ export const getPostById = async (postId, alumniId = null) => {
         .select(
           `
         *,
-        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo),
+        alumnis:alumni_id(id, first_name, last_name, email, alumni_photo, program, year_graduated),
         images_posts(id, image_path),
         comments_count:comments(count),
         reactions_count:reactions(count),

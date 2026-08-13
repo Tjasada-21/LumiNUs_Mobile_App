@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -93,6 +93,79 @@ const RegisteredEventsScreen = () => {
     navigation.navigate("ViewEventsScreen", { event });
   };
 
+  // Separate registrations into upcoming and past events
+  const { upcomingRegistrations, pastRegistrations } = useMemo(() => {
+    const now = new Date();
+    const upcoming = [];
+    const past = [];
+
+    registrations.forEach((registration) => {
+      const event = registration?.event;
+      if (!event?.start_date) {
+        upcoming.push(registration);
+        return;
+      }
+
+      const compareDate = new Date(event.end_date || event.start_date);
+      // Set the time to the end of the day so it doesn't count as 'past' while it's still ongoing
+      compareDate.setHours(23, 59, 59, 999);
+
+      if (compareDate < now) {
+        past.push(registration);
+      } else {
+        upcoming.push(registration);
+      }
+    });
+
+    return { upcomingRegistrations: upcoming, pastRegistrations: past };
+  }, [registrations]);
+
+  const renderEventCard = (registration) => {
+    const event = registration?.event;
+    const eventImageUri = normalizeEventImageUri(
+      event?.cover_image_url ??
+        event?.images?.[0]?.image_path ??
+        event?.cover_image ??
+        "",
+    );
+    const imageSource = eventImageUri ? { uri: eventImageUri } : null;
+
+    return (
+      <Pressable
+        key={`registered-event-${registration.id}`}
+        style={({ pressed }) => [
+          styles.eventCard,
+          pressed ? styles.eventCardPressed : null,
+        ]}
+        onPress={() => openEvent(event)}
+      >
+        {imageSource ? (
+          <Image
+            source={imageSource}
+            style={styles.eventImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.eventImageFallback}>
+            <Ionicons name="calendar-outline" size={22} color="#31429B" />
+          </View>
+        )}
+
+        <View style={styles.eventContent}>
+          <Text style={styles.eventTitle} numberOfLines={2}>
+            {event?.title ?? "Registered Event"}
+          </Text>
+          <Text style={styles.eventMeta} numberOfLines={1}>
+            {formatDateRange(event?.start_date, event?.end_date)}
+          </Text>
+          <Text style={styles.eventMeta} numberOfLines={1}>
+            {event?.venue?.name ?? event?.platform ?? "NU Lipa"}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
@@ -138,57 +211,27 @@ const RegisteredEventsScreen = () => {
             </View>
           ) : (
             <View style={styles.listWrap}>
-              {registrations.map((registration) => {
-                const event = registration?.event;
-                const eventImageUri = normalizeEventImageUri(
-                  event?.cover_image_url ??
-                    event?.images?.[0]?.image_path ??
-                    event?.cover_image ??
-                    "",
-                );
-                const imageSource = eventImageUri
-                  ? { uri: eventImageUri }
-                  : null;
+              
+              {/* Upcoming Events Section */}
+              {upcomingRegistrations.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.title, { fontSize: 18, marginTop: 16, marginBottom: 12 }]}>
+                    Upcoming Events
+                  </Text>
+                  {upcomingRegistrations.map(renderEventCard)}
+                </View>
+              )}
 
-                return (
-                  <Pressable
-                    key={`registered-event-${registration.id}`}
-                    style={({ pressed }) => [
-                      styles.eventCard,
-                      pressed ? styles.eventCardPressed : null,
-                    ]}
-                    onPress={() => openEvent(event)}
-                  >
-                    {imageSource ? (
-                      <Image
-                        source={imageSource}
-                        style={styles.eventImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.eventImageFallback}>
-                        <Ionicons
-                          name="calendar-outline"
-                          size={22}
-                          color="#31429B"
-                        />
-                      </View>
-                    )}
+              {/* Past Events Section */}
+              {pastRegistrations.length > 0 && (
+                <View style={{ marginBottom: 16, opacity: 0.65 }}>
+                  <Text style={[styles.title, { fontSize: 18, marginTop: 16, marginBottom: 12 }]}>
+                    Past Events
+                  </Text>
+                  {pastRegistrations.map(renderEventCard)}
+                </View>
+              )}
 
-                    <View style={styles.eventContent}>
-                      <Text style={styles.eventTitle} numberOfLines={2}>
-                        {event?.title ?? "Registered Event"}
-                      </Text>
-                      <Text style={styles.eventMeta} numberOfLines={1}>
-                        {formatDateRange(event?.start_date, event?.end_date)}
-                      </Text>
-                      <Text style={styles.eventMeta} numberOfLines={1}>
-                        {event?.venue?.name ?? event?.platform ?? "NU Lipa"}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
             </View>
           )}
         </ScrollView>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -137,8 +137,20 @@ const ViewEventsScreen = () => {
     : venueSearchQuery ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(venueSearchQuery)}` : null;
 
   const isAlreadyRegistered = Boolean(event?.id && registeredEventIds.includes(Number(event.id)));
-  const canRegister = !registrationsLoading && !isAlreadyRegistered;
-  const canRemoveRegistration = !registrationsLoading && isAlreadyRegistered;
+  
+  // Calculate if the event has passed[cite: 13]
+  const isEventOver = useMemo(() => {
+    if (!event?.start_date) return false;
+    const now = new Date();
+    const compareDate = new Date(event.end_date || event.start_date);
+    // Set to end of day
+    compareDate.setHours(23, 59, 59, 999);
+    return compareDate < now;
+  }, [event?.start_date, event?.end_date]);
+
+  // Adjust button logic
+  const canRegister = !registrationsLoading && !isAlreadyRegistered && !isEventOver;
+  const canRemoveRegistration = !registrationsLoading && isAlreadyRegistered && !isEventOver;
 
   React.useEffect(() => {
     setResolvedEvent(routeEvent);
@@ -488,19 +500,31 @@ const ViewEventsScreen = () => {
 
           </View>
 
-          <Pressable 
-            style={[styles.registerButtonOutline, isAlreadyRegistered && styles.registerButtonDestructive]} 
-            onPress={isAlreadyRegistered ? handleRemoveRegistrationPress : handleRegisterPress}
-            disabled={registrationsLoading || (!isAlreadyRegistered && !canRegister)}
-          >
-            {registrationsLoading ? (
-              <ActivityIndicator color="#31429B" />
-            ) : (
-              <Text style={[styles.registerButtonOutlineText, isAlreadyRegistered && styles.registerButtonDestructiveText]}>
-                {isAlreadyRegistered ? "Remove Registration" : "Pre-Register Now!"}
+          {/* Conditional Button Render */}
+          {isEventOver ? (
+            <Pressable 
+              style={[styles.registerButtonOutline, { borderColor: "#9CA3AF" }]} 
+              disabled={true}
+            >
+              <Text style={[styles.registerButtonOutlineText, { color: "#9CA3AF" }]}>
+                Event Over
               </Text>
-            )}
-          </Pressable>
+            </Pressable>
+          ) : (
+            <Pressable 
+              style={[styles.registerButtonOutline, isAlreadyRegistered && styles.registerButtonDestructive]} 
+              onPress={isAlreadyRegistered ? handleRemoveRegistrationPress : handleRegisterPress}
+              disabled={registrationsLoading || (!isAlreadyRegistered && !canRegister)}
+            >
+              {registrationsLoading ? (
+                <ActivityIndicator color="#31429B" />
+              ) : (
+                <Text style={[styles.registerButtonOutlineText, isAlreadyRegistered && styles.registerButtonDestructiveText]}>
+                  {isAlreadyRegistered ? "Remove Registration" : "Pre-Register Now!"}
+                </Text>
+              )}
+            </Pressable>
+          )}
 
         </ScrollView>
       </SafeAreaView>

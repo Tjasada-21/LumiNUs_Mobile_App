@@ -258,3 +258,41 @@ export const getFollowingCount = async (alumniId) => {
     throw error;
   }
 };
+
+/**
+ * Accept a pending connection request
+ */
+export const acceptConnectionRequest = async (connectionId) => {
+  try {
+    const { data, error } = await supabase
+      .from('connections')
+      .update({ status: 'accepted' })
+      .eq('id', connectionId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[connectionQueries] Accept connection error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Reject/Delete a connection request
+ */
+export const rejectConnectionRequest = async (connectionId) => {
+  try {
+    const { error } = await supabase
+      .from('connections')
+      .delete()
+      .eq('id', connectionId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('[connectionQueries] Reject connection error:', error.message);
+    throw error;
+  }
+};

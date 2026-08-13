@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  FlatList,
   ImageBackground,
   Linking,
   Animated,
@@ -307,8 +306,13 @@ const HomeScreen = ({ navigation }) => {
       if (user?.email) {
         await supabase.from("alumnis").update({ is_online: false, push_token: null }).eq("email", user.email);
       }
-      try { await supabase.auth.signOut(); } catch (err) {}
-    } catch (err) {}
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (err) {
+      console.error("Sign out error:", err);
+      Alert.alert("Sign Out Failed", "There was an issue signing out. Please check your connection and try again.");
+      return; 
+    }
     const parent = navigation.getParent?.();
     const root = parent?.getParent?.() ?? parent;
     if (root?.dispatch) {
@@ -348,7 +352,7 @@ const HomeScreen = ({ navigation }) => {
   const frontOpacity = flipAnimation.interpolate({ inputRange: [0, 0.5, 0.5, 1], outputRange: [1, 1, 0, 0] });
   const backOpacity = flipAnimation.interpolate({ inputRange: [0, 0.5, 0.5, 1], outputRange: [0, 0, 1, 1] });
 
-  const graduationYear = userData?.year_graduated ? String(userData.year_graduated).slice(0, 4) : "LOADING...";
+  const graduationYear = userData?.year_graduated ? String(userData.year_graduated).slice(0, 4) : "N/A";
   
   const notificationCount = Array.isArray(notifications) ? notifications.length : 0;
   
@@ -422,8 +426,8 @@ const HomeScreen = ({ navigation }) => {
                     <ImageBackground source={require("../../assets/images/BlankID_Front 1.png")} style={styles.idBackground} imageStyle={styles.idBackgroundImage} resizeMode="contain">
                       <Image source={{ uri: getAvatarUri(`${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || "Alumni", userData?.card_photo) }} style={styles.idPhoto} resizeMode="cover" />
                       <View style={styles.idCardContent}>
-                        <Text style={styles.idName}>{userData ? `${userData.first_name}\n${userData.last_name}`.toUpperCase() : "LOADING..."}</Text>
-                        <Text style={styles.idCourse}>{userData?.program ? userData.program.toUpperCase() : "LOADING..."}</Text>
+                        <Text style={styles.idName}>{userData ? `${userData.first_name}\n${userData.last_name}`.toUpperCase() : " "}</Text>
+                        <Text style={styles.idCourse}>{userData?.program ? userData.program.toUpperCase() : " "}</Text>
                         <Text style={styles.idClass}>Class of {graduationYear}</Text>
                       </View>
                     </ImageBackground>
@@ -435,9 +439,9 @@ const HomeScreen = ({ navigation }) => {
               </Pressable>
 
               <View style={styles.accountIdRow}>
-                <Text style={styles.accountIdLabel}>Account ID: </Text>
-                <Text style={styles.accountIdValue}>LIPA2026123456</Text>
-              </View>
+  <Text style={styles.accountIdLabel}>Account ID: </Text>
+  <Text style={styles.accountIdValue}>{userData?.student_id_number ?? userData?.student_id ?? "N/A"}</Text>
+</View>
             </View>
 
             <View style={styles.servicesSection}>

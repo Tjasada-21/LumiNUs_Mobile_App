@@ -256,6 +256,7 @@ export const getFeedPosts = async (alumniId, limit = 20, offset = 0) => {
           .eq("visibility", "public")
           .is("is_draft", false)
           .neq("moderation_status", "rejected")
+          .eq("is_hidden", false)
           .order("created_at", { ascending: false })
           .range(offset, offset + limit - 1),
         supabase
@@ -524,6 +525,7 @@ export const getUserPosts = async (alumniId, limit = 20, offset = 0) => {
       `,
       )
       .eq("alumni_id", alumniId)
+      .eq("is_hidden", false)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 

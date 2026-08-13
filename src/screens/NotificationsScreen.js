@@ -19,6 +19,7 @@ import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { getUserPosts } from "../services/postQueries";
 import { getDismissedNotifications, dismissNotification } from "../services/utilityQueries";
+import { acceptConnectionRequest, rejectConnectionRequest } from "../services/connectionQueries";
 import { getAvatarUri } from "../utils/imageUtils";
 import styles from "../styles/NotificationsScreen.styles";
 import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
@@ -51,22 +52,29 @@ export default function NotificationsScreen({ navigation }) {
       const ownedPostsById = new Map((ownedPosts || []).map((post) => [post.id, post]));
       const postIds = (ownedPosts || []).map((post) => post?.id).filter(Boolean);
 
-      const [commentsResult, reactionsResult, repostsResult, announcementsResult] = await Promise.all([
+      // Fetch all relevant notification data concurrently
+      const [commentsResult, reactionsResult, repostsResult, announcementsResult, connectionsResult] = await Promise.all([
         postIds.length > 0 ? supabase.from("comments").select(`id, post_id, comment, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
         postIds.length > 0 ? supabase.from("reactions").select(`id, post_id, reaction, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
         postIds.length > 0 ? supabase.from("reposts").select(`id, post_id, caption, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).in("post_id", postIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
         supabase.from("announcements").select(`id, title, announcement_description, date_posted, admin:admin_id(id, admin_first_name, admin_last_name, photo)`).order("date_posted", { ascending: false }).limit(20),
+        supabase.from("connections").select(`id, created_at, alumni:alumni_id(id, first_name, last_name, alumni_photo)`).eq("connection_id", currentUserId).eq("status", "pending").order("created_at", { ascending: false })
       ]);
 
       const buildActor = (row) => row?.alumni ?? row?.alumnis ?? null;
       const notificationsFeed = [];
 
-      // Mock connection request 
-      notificationsFeed.push({
-        id: 'mock-connection-1',
-        type: 'connection',
-        actor: { first_name: 'Timothy John', last_name: 'Asada', alumni_photo: null },
-        created_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+      // Process live connection requests
+      (connectionsResult.data ?? []).forEach((conn) => {
+        const actor = buildActor(conn);
+        if (!actor?.id) return;
+        notificationsFeed.push({ 
+          id: `connection-${conn.id}`, 
+          db_id: conn.id, // Store DB id for actual accept/reject actions
+          type: "connection", 
+          actor, 
+          created_at: conn.created_at ?? null 
+        });
       });
 
       (commentsResult.data ?? []).forEach((comment) => {
@@ -136,6 +144,25 @@ export default function NotificationsScreen({ navigation }) {
     // Trigger animation right before state update
     triggerLayoutAnimation();
     setNotifications((curr) => curr.filter((item) => item.id !== id));
+  };
+
+  // --- Database Action Handlers for Connections using Clean Queries ---
+  const handleAcceptConnection = async (connectionId, notificationId) => {
+    try {
+      await acceptConnectionRequest(connectionId);
+      handleDismiss(notificationId);
+    } catch (err) {
+      console.error("Error accepting connection:", err);
+    }
+  };
+
+  const handleRejectConnection = async (connectionId, notificationId) => {
+    try {
+      await rejectConnectionRequest(connectionId);
+      handleDismiss(notificationId);
+    } catch (err) {
+      console.error("Error rejecting connection:", err);
+    }
   };
 
   // --- Mark All As Read ---
@@ -227,10 +254,10 @@ export default function NotificationsScreen({ navigation }) {
           {/* Render Action Buttons for Connection Requests */}
           {isConnection && (
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity style={styles.acceptButton} onPress={() => handleDismiss(item.id)}>
-                <Text style={styles.acceptButtonText}>Accepted</Text>
+              <TouchableOpacity style={styles.acceptButton} onPress={() => handleAcceptConnection(item.db_id, item.id)}>
+                <Text style={styles.acceptButtonText}>Accept</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteButton} onPress={() => handleDismiss(item.id)}>
+              <TouchableOpacity style={styles.deleteButton} onPress={() => handleRejectConnection(item.db_id, item.id)}>
                 <Text style={styles.deleteButtonText}>Delete</Text>
               </TouchableOpacity>
             </View>

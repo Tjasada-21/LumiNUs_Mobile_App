@@ -47,7 +47,7 @@ export async function sendPushNotification(
     const chunk = messages.slice(i, i + chunkSize);
 
     try {
-      const resp = await fetch("https://exp.host/--/api/v2/push/send", {
+      await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
         headers: {
           Accept: "application/json",

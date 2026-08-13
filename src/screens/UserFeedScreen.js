@@ -17,6 +17,7 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -49,6 +50,18 @@ const VIEWER_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.72;
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
 const SWIPE_DISMISS_THRESHOLD = 100;
 const FEED_PAGE_SIZE = 20;
+
+const REPORT_REASONS = [
+  "Spam or Fraud",
+  "Nudity or Sexual Content",
+  "Hate Speech or Symbols",
+  "Violence or Dangerous Organizations",
+  "Bullying or Harassment",
+  "Sale of Illegal or Regulated Goods",
+  "Intellectual Property Violation",
+  "False Information",
+  "Other"
+];
 
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
@@ -287,6 +300,7 @@ const UserFeedScreen = ({ navigation }) => {
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState('');
+  
   const [commentActionsVisible, setCommentActionsVisible] = useState(false);
   const [activeCommentActionComment, setActiveCommentActionComment] = useState(null);
   const [isCommentActionSaving, setIsCommentActionSaving] = useState(false);
@@ -304,6 +318,11 @@ const UserFeedScreen = ({ navigation }) => {
   const [connections, setConnections] = useState([]);
   const [feedSortMode, setFeedSortMode] = useState('relevant');
   const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
+
+  // New states for Report Logic
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState({ id: null, type: null });
+
   const reactionPulseScale = useRef(new RNAnimated.Value(1)).current;
 
   const postActionsTranslateY = useRef(new RNAnimated.Value(0)).current;
@@ -558,6 +577,26 @@ const UserFeedScreen = ({ navigation }) => {
     }, [fetchPosts, posts.length])
   );
 
+  const handleRefreshPosts = useCallback(() => {
+    setFeedRefreshNonce((curr) => curr + 1);
+    feedPageRef.current = 0;
+    setHasMorePosts(true);
+    fetchPosts({ showLoadingState: true, reset: true });
+  }, [fetchPosts]);
+
+  // Listen for background refresh events from CreatePostScreen
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener("REFRESH_FEED", () => {
+      handleRefreshPosts();
+    });
+    return () => subscription.remove();
+  }, [handleRefreshPosts]);
+
+  const handleLoadMorePosts = useCallback(() => {
+    if (isLoadingPosts || isRefreshingPosts || isFetchingMorePosts || !hasMorePosts) return;
+    fetchPosts({ reset: false });
+  }, [fetchPosts, hasMorePosts, isFetchingMorePosts, isLoadingPosts, isRefreshingPosts]);
+
   const renderPostAuthorName = (post) => {
     const source = post?.author ?? post?.alumni ?? {};
     return [source.first_name, source.middle_name, source.last_name].filter(Boolean).join(' ').trim() || 'Alumni';
@@ -619,6 +658,14 @@ const UserFeedScreen = ({ navigation }) => {
     return 'Public';
   };
 
+  const resolveActiveAlumniId = useCallback(async () => {
+    if (userData?.id) return userData.id;
+    const authUser = await getCurrentUser();
+    if (!authUser?.email) return null;
+    const profile = await getAlumniByEmail(authUser.email).catch(() => null);
+    return profile?.id ?? null;
+  }, [userData?.id]);
+
   const canManagePost = useCallback(
     (post) =>
       Boolean(
@@ -666,20 +713,100 @@ const UserFeedScreen = ({ navigation }) => {
     }
   }, [isCommentActionSaving]);
 
-  const handleReportPost = useCallback(async () => {
+  // --- REPORTING SYSTEM INTEGRATION ---
+  const openPostReportModal = useCallback(() => {
     if (!activePostActionPost?.id) return;
+    setReportTarget({ id: activePostActionPost.id, type: 'post' });
     setPostActionsVisible(false);
+    setTimeout(() => {
+      setReportModalVisible(true);
+    }, 350); // slight delay ensures smooth modal transition
+  }, [activePostActionPost]);
+
+  const openCommentReportModal = useCallback(() => {
+    if (!activeCommentActionComment?.id) return;
+    setReportTarget({ id: activeCommentActionComment.id, type: 'comment' });
+    setCommentActionsVisible(false);
+    setTimeout(() => {
+      setReportModalVisible(true);
+    }, 350);
+  }, [activeCommentActionComment]);
+
+  const submitReport = useCallback(async (reason) => {
+    if (!reportTarget.id) return;
+
+    const targetId = reportTarget.id;
+    const targetType = reportTarget.type;
+    setReportModalVisible(false);
+    
     try {
-      try {
-        await supabase.from('post_reports').insert([{ post_id: activePostActionPost.id, reason: 'Inappropriate' }]);
-      } catch (e) {
-        console.warn('Report failed', e);
+      const currentUserId = userData?.id || await resolveActiveAlumniId();
+      
+      if (!currentUserId) throw new Error("User not authenticated");
+
+      if (targetType === 'post') {
+        const { error } = await supabase.from('post_reports').insert([{ 
+          post_id: targetId, 
+          reporter_id: currentUserId,
+          reason: reason 
+        }]);
+
+        if (error) throw error;
+
+        // Optimistically remove the reported post from the user's feed
+        setPosts((curr) => curr.filter((p) => p.id !== targetId));
+
+      } else if (targetType === 'comment') {
+        const { error } = await supabase.from('comment_reports').insert([{ 
+          comment_id: targetId, 
+          reporter_id: currentUserId,
+          reason: reason 
+        }]);
+
+        if (error) throw error;
+
+        // Check the total number of reports for this comment
+        const { count, error: countError } = await supabase
+          .from('comment_reports')
+          .select('*', { count: 'exact', head: true })
+          .eq('comment_id', targetId);
+
+        // Only remove from UI if it has reached 10 or more reports
+        if (!countError && count >= 10) {
+          // Flag the comment for moderation in the database
+          await supabase.from('comments').update({ moderation_status: 'under_review' }).eq('id', targetId);
+          
+          // Remove the reported comment from the UI
+          setComments((curr) => curr.filter((c) => c.id !== targetId));
+          
+          // Adjust the comment count on the post
+          setPosts((curr) =>
+            curr.map((p) =>
+              p.id === activeCommentPost?.id
+                ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) }
+                : p
+            )
+          );
+        }
       }
-      showThemedAlert({ title: 'Reported', message: 'Thanks — the post has been reported.' });
+
+      showThemedAlert({ 
+        title: 'Reported', 
+        message: targetType === 'post' 
+          ? 'Thanks — we received your report and removed this post from your feed.'
+          : 'Thanks — your report has been submitted for review.'
+      });
+      
     } catch (e) {
-      showThemedAlert({ title: 'Error', message: 'Could not report the post.' });
+      console.warn('Report failed:', e);
+      showThemedAlert({ 
+        title: 'Reported', 
+        message: 'You have already reported this item, or an error occurred.' 
+      });
     }
-  }, [activePostActionPost, showThemedAlert]);
+  }, [reportTarget, userData?.id, resolveActiveAlumniId, showThemedAlert, activeCommentPost?.id]);
+
+  // ------------------------------------
 
   const handleMuteAuthor = useCallback(async () => {
     if (!activePostActionPost?.alumni?.id) return;
@@ -1077,14 +1204,6 @@ const closeCommentsModal = () => {
 
   const handleCommentInputContentSizeChange = (e) =>
     setCommentInputHeight(Math.max(48, Math.min(e?.nativeEvent?.contentSize?.height ?? 48, 100)));
-
-  const resolveActiveAlumniId = useCallback(async () => {
-    if (userData?.id) return userData.id;
-    const authUser = await getCurrentUser();
-    if (!authUser?.email) return null;
-    const profile = await getAlumniByEmail(authUser.email).catch(() => null);
-    return profile?.id ?? null;
-  }, [userData?.id]);
 
   const handleSubmitComment = () => {
     const trimmedComment = commentDraft.trim();
@@ -1605,16 +1724,6 @@ const closeCommentsModal = () => {
     );
   };
 
-  const handleRefreshPosts = () => {
-    setFeedRefreshNonce((curr) => curr + 1);
-    feedPageRef.current = 0;
-    setHasMorePosts(true);
-    fetchPosts({ showLoadingState: true, reset: true });
-  };
-  const handleLoadMorePosts = useCallback(() => {
-    if (isLoadingPosts || isRefreshingPosts || isFetchingMorePosts || !hasMorePosts) return;
-    fetchPosts({ reset: false });
-  }, [fetchPosts, hasMorePosts, isFetchingMorePosts, isLoadingPosts, isRefreshingPosts]);
   const activePostActionVisibilityLabel = getPostVisibilityLabel(activePostActionPost);
 
   const renderSinglePostContent = (postObj, isNested = false) => {
@@ -1946,7 +2055,7 @@ const closeCommentsModal = () => {
                     <View style={styles.postActionsRow}>
                       <Pressable
                         style={styles.postActionChoiceButton}
-                        onPress={handleReportPost}
+                        onPress={openPostReportModal}
                       >
                         <Ionicons name="flag-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Report</Text>
@@ -2046,13 +2155,7 @@ const closeCommentsModal = () => {
                     <View style={styles.postActionsRow}>
                       <Pressable
                         style={styles.postActionChoiceButton}
-                        onPress={() => {
-                          closeCommentActions();
-                          showThemedAlert({
-                            title: 'Reported',
-                            message: 'Thanks - the comment has been reported.',
-                          });
-                        }}
+                        onPress={openCommentReportModal}
                       >
                         <Ionicons name="flag-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Report</Text>
@@ -2409,6 +2512,77 @@ const closeCommentsModal = () => {
             </RNAnimated.View>
           </View>
           </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {/* --- REPORT REASON MODAL --- */}
+      {reportModalVisible && (
+        <Modal
+          transparent
+          visible={reportModalVisible}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={() => setReportModalVisible(false)}
+        >
+          <View style={styles.postActionsBackdrop}>
+            <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
+              <View style={styles.postActionsCard}>
+                <View
+                  style={{
+                    height: 4,
+                    width: 40,
+                    backgroundColor: '#D1D5DB',
+                    borderRadius: 2,
+                    alignSelf: 'center',
+                    marginTop: 8,
+                    marginBottom: 4,
+                  }}
+                />
+                <View style={styles.postActionsHeader}>
+                  <Text style={styles.postActionsTitle}>Report Content</Text>
+                  <Pressable
+                    style={styles.postActionsCloseButton}
+                    onPress={() => setReportModalVisible(false)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={20} color="#31429B" />
+                  </Pressable>
+                </View>
+                <Text style={{
+                  color: '#64748B',
+                  fontSize: 14,
+                  paddingHorizontal: 24,
+                  marginBottom: 8,
+                }}>
+                  Why are you reporting this? Your report is anonymous.
+                </Text>
+
+                <ScrollView style={{ maxHeight: SCREEN_HEIGHT * 0.5, marginTop: 10 }}>
+                  {REPORT_REASONS.map((reason, index) => (
+                    <Pressable
+                      key={index}
+                      style={({ pressed }) => [
+                        {
+                          paddingVertical: 14,
+                          paddingHorizontal: 24,
+                          borderBottomWidth: 1,
+                          borderBottomColor: '#F3F4F6',
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        },
+                        pressed && { backgroundColor: '#F9FAFB' }
+                      ]}
+                      onPress={() => submitReport(reason)}
+                    >
+                      <Text style={{ fontSize: 15, color: '#1F2937', fontWeight: '500' }}>{reason}</Text>
+                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </SafeAreaView>
+          </View>
         </Modal>
       )}
 

@@ -26,24 +26,11 @@ import { getCurrentUser } from "../services/supabaseAuth";
 import { getFollowers, getFollowing } from "../services/connectionQueries";
 import { ThemedAlert } from "../components/ThemedAlert";
 import supabase from "../services/supabase";
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
 import styles from "../styles/ChatDetailsScreen.styles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// Helper for media URIs (chat attachments - supports local and public URLs)
-const getMediaUri = (raw) => {
-  if (!raw) return "";
-  if (/^https?:\/\//i.test(raw) || /^file:\/\//i.test(raw)) return raw; 
-  
-  const cleanPath = String(raw).replace(/^\/+/, "");
-  const { data } = supabase.storage
-    .from('luminus_messages_attachments')
-    .getPublicUrl(cleanPath);
-  
-  return data?.publicUrl || "";
-};
 
 // Convert full URL back to relative storage path
 const getRelativePath = (raw) => {
@@ -75,7 +62,7 @@ const getRelativePath = (raw) => {
 };
 
 // Helper to get signed avatar URL for better reliability
-const getSignedAvatarUrl = async (path) => {
+const getSignedStorageUrl = async (path) => {
   if (!path) return null;
   try {
     const cleanPath = String(path).replace(/^\/+/, "");
@@ -84,7 +71,7 @@ const getSignedAvatarUrl = async (path) => {
     
     const { data, error } = await supabase.storage
       .from('luminus_messages_attachments')
-      .createSignedUrl(cleanPath, 60 * 60);
+      .createSignedUrl(cleanPath, 60 * 60); // 1 hour expiry
     
     if (error) return null;
     return data?.signedUrl || null;
@@ -252,7 +239,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
       
       const relativePath = getRelativePath(avatarSource);
       if (relativePath) {
-        const signedUrl = await getSignedAvatarUrl(relativePath);
+        const signedUrl = await getSignedStorageUrl(relativePath);
         if (active && signedUrl) {
           setDmAvatarUrl(signedUrl);
           setDmAvatarError(false);
@@ -314,7 +301,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
       // Try signed URL from messages bucket
       const relativePath = getRelativePath(avatarPath);
       if (relativePath) {
-        const signedUrl = await getSignedAvatarUrl(relativePath);
+        const signedUrl = await getSignedStorageUrl(relativePath);
         if (active && signedUrl) {
           setGroupAvatarUrl(signedUrl);
           setGroupAvatarError(false);
@@ -364,7 +351,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, []);
 
-  // 5. Fetch media files
+  // 5. Fetch media files and generate Signed URLs securely
   useEffect(() => {
     let active = true;
     const fetchChatMedia = async () => {
@@ -372,7 +359,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
       
       setIsLoadingMedia(true);
       try {
-        let mediaUris = [];
+        let rawMediaPaths = [];
 
         if (isDM && dmProfileUserId) {
           const { data: dmMessages } = await supabase
@@ -388,7 +375,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               .in("message_id", messageIds)
               .eq("attachment_type", "image");
 
-            mediaUris = attachments?.map(a => a.attachment_path) || [];
+            rawMediaPaths = attachments?.map(a => a.attachment_path) || [];
           }
         } else if (!isDM && routeGroupId) {
           const { data: groupMessages } = await supabase
@@ -404,13 +391,26 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               .in("message_id", messageIds)
               .eq("attachment_type", "image");
 
-            mediaUris = attachments?.map(a => a.attachment_path) || [];
+            rawMediaPaths = attachments?.map(a => a.attachment_path) || [];
           }
         }
 
-        if (active) setChatMedia(mediaUris);
+        // Convert the raw private bucket paths into authorized signed URLs
+        if (rawMediaPaths.length > 0) {
+          const authorizedUris = await Promise.all(
+            rawMediaPaths.map(async (path) => {
+              if (/^https?:\/\//i.test(path) || /^file:\/\//i.test(path)) return path;
+              const signedUrl = await getSignedStorageUrl(path);
+              return signedUrl || path; 
+            })
+          );
+          if (active) setChatMedia(authorizedUris.filter(Boolean));
+        } else {
+          if (active) setChatMedia([]);
+        }
+
       } catch (err) {
-        // Silently fail
+        console.error("Failed to load chat media:", err);
       } finally {
         if (active) setIsLoadingMedia(false);
       }
@@ -639,7 +639,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               if (error) throw error;
               ThemedAlert.alert("Left Group", "You have left the group chat.");
               
-              // Redirect immediately to the Chat Screen instead of the Convo Screen
               const parentNavigator = navigation.getParent?.();
               if (parentNavigator?.navigate) {
                 parentNavigator.navigate("ChatScreen");
@@ -808,7 +807,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           ) : chatMedia.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaScroll}>
               {chatMedia.map((itemUri, index) => (
-                <Image key={index} source={{ uri: getMediaUri(itemUri) }} style={styles.mediaBox} resizeMode="cover" />
+                <Image key={index} source={{ uri: itemUri }} style={styles.mediaBox} resizeMode="cover" />
               ))}
             </ScrollView>
           ) : (

@@ -1,69 +1,60 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
 import supabase from "./supabase";
 
-// Only import notifications on Android
-let Notifications = null;
-if (Platform.OS === 'android') {
-  try {
-    Notifications = require("expo-notifications");
-    
-    // Set notification handler ONLY on Android
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
-    });
-  } catch (e) {
-    console.log('[notificationService] Notifications not available');
-  }
-}
+// Set notification handler for all platforms
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export async function registerForPushNotificationsAsync() {
-  // Skip on iOS Expo Go
-  if (Platform.OS === 'ios' || !Notifications) {
-    console.log('[notificationService] Push notifications not available on this platform');
-    return null;
-  }
-
   let token;
 
-  try {
-    // Check existing permissions first.
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+  // Android specific channel setup
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#31429B",
+    });
+  }
 
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+  // Only request push tokens on physical devices to prevent simulator crashes
+  if (Device.isDevice) {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
 
-    if (finalStatus !== "granted") {
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        console.log('[notificationService] Failed to get push token permissions!');
+        return null;
+      }
+
+      // Get the unique token for this specific device.
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId;
+      
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    } catch (error) {
+      console.log('[notificationService] Error registering:', error.message);
       return null;
     }
-
-    // Get the unique token for this specific device.
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      Constants.easConfig?.projectId;
-    
-    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-
-    // Android specific channel setup
-    if (Platform.OS === "android") {
-      Notifications.setNotificationChannelAsync("default", {
-        name: "default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#31429B",
-      });
-    }
-  } catch (error) {
-    console.log('[notificationService] Error registering:', error.message);
-    return null;
+  } else {
+    console.log('[notificationService] Must use a physical device for Push Notifications');
   }
 
   return token;

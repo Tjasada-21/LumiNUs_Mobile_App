@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import {
   View,
   Text,
@@ -89,98 +89,86 @@ const ExploreScreen = ({ navigation }) => {
   const scrollPaddingHorizontal = width < 375 ? 12 : 14;
 
   // HANDLER: Open a section destination
-  const handleItemPress = (item) => {
-    if (item.action === "goToViewYearbook") {
-      if (typeof navigation.navigate === "function") {
+  const handleItemPress = useCallback((item) => {
+    const parentNavigator = navigation.getParent?.();
+
+    switch (item.action) {
+      case "goToViewYearbook":
         navigation.navigate("ViewYearbook");
-      }
-      return;
-    }
+        break;
 
-    if (item.action === "goToAlumniTracer") {
-      if (typeof navigation.navigate === "function") {
-        navigation.navigate("TracerMenu");  // Changed from "AlumniTracer" to "TracerMenu"
-      }
-      return;
-    }
+      case "goToAlumniTracer":
+        navigation.navigate("TracerMenu");
+        break;
 
-    if (item.action === "goToEventRegistration") {
-      const parentNavigator = navigation.getParent?.();
+      case "goToEventRegistration":
+        if (parentNavigator?.navigate) {
+          parentNavigator.navigate("RegisteredEventsScreen");
+        } else {
+          navigation.navigate("RegisteredEventsScreen");
+        }
+        break;
 
-      if (parentNavigator?.navigate) {
-        parentNavigator.navigate("RegisteredEventsScreen");
-      } else if (typeof navigation.navigate === "function") {
-        navigation.navigate("RegisteredEventsScreen");
-      }
-      return;
-    }
+      case "goToEventsScreen":
+        if (parentNavigator?.navigate) {
+          parentNavigator.navigate("EventsScreen");
+        } else {
+          navigation.navigate("Home", { screen: "EventsScreen" });
+        }
+        break;
 
-    if (item.action === "goToEventsScreen") {
-      const parentNavigator = navigation.getParent?.();
+      case "goToFeed":
+        if (typeof navigation.jumpTo === "function") {
+          navigation.jumpTo("Feed");
+        } else {
+          navigation.navigate("Feed");
+        }
+        break;
 
-      if (parentNavigator?.navigate) {
-        parentNavigator.navigate("EventsScreen");
-      } else if (typeof navigation.navigate === "function") {
-        navigation.navigate("Home", { screen: "EventsScreen" });
-      }
-      return;
-    }
-
-    if (item.action === "goToFeed") {
-      if (typeof navigation.jumpTo === "function") {
-        navigation.jumpTo("Feed");
-        return;
-      }
-      navigation.navigate("Feed");
-      return;
-    }
-
-    if (item.action === "goToPerks") {
-      if (typeof navigation.navigate === "function") {
+      case "goToPerks":
         navigation.navigate("Perks");
-      }
-      return;
+        break;
+
+      case "goToAlumniId":
+        if (parentNavigator?.navigate) {
+          parentNavigator.navigate("HomeTab");
+        } else {
+          navigation.navigate("HomeTab");
+        }
+        break;
+
+      case "goToMessages":
+        if (typeof navigation.jumpTo === "function") {
+          navigation.jumpTo("Messages");
+        } else {
+          navigation.navigate("Messages");
+        }
+        break;
+
+      case "openUrl":
+        if (item.url) {
+          Linking.canOpenURL(item.url)
+            .then((supported) => {
+              if (supported) {
+                return Linking.openURL(item.url);
+              }
+              throw new Error("Cannot open URL");
+            })
+            .catch((err) => {
+              console.error("Failed to open URL", err);
+              ThemedAlert.alert(
+                "Unable to open link",
+                "Could not open the website."
+              );
+            });
+        }
+        break;
+
+      default:
+        console.warn(`Unhandled action: ${item.action}`);
+        break;
     }
-
-    if (item.action === "goToAlumniId") {
-      const parentNavigator = navigation.getParent?.();
-
-      if (parentNavigator?.navigate) {
-        parentNavigator.navigate("HomeTab");
-        return;
-      }
-
-      if (typeof navigation.navigate === "function") {
-        navigation.navigate("HomeTab");
-      }
-      return;
-    }
-
-    if (item.action === "goToMessages") {
-      if (typeof navigation.jumpTo === "function") {
-        navigation.jumpTo("Messages");
-        return;
-      }
-      navigation.navigate("Messages");
-    }
-
-    if (item.action === "openUrl" && item.url) {
-      Linking.canOpenURL(item.url)
-        .then((supported) => {
-          if (supported) {
-            return Linking.openURL(item.url);
-          }
-          throw new Error("Cannot open URL");
-        })
-        .catch((err) => {
-          console.error("Failed to open URL", err);
-          ThemedAlert.alert(
-            "Unable to open link",
-            "Could not open the website.",
-          );
-        });
-    }
-  };
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -240,4 +228,5 @@ const ExploreScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
+
 export default ExploreScreen;

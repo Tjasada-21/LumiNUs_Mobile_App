@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,69 @@ import {
   Linking,
 } from "react-native";
 import AvatarInitials from "./AvatarInitials";
+import supabase from "../services/supabase"; 
 
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
+
+// Convert full URL back to relative storage path
+const getRelativePath = (raw) => {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  
+  if (/^https?:\/\//i.test(str)) {
+    // Check if it's from the messages bucket
+    const assetIndex = str.indexOf('luminus_messages_attachments/');
+    if (assetIndex !== -1) {
+      const relativePath = str.substring(assetIndex + 'luminus_messages_attachments/'.length);
+      const cleanPath = relativePath.split('?')[0];
+      if (cleanPath.length > 255) return null;
+      return cleanPath;
+    }
+
+    // Check if it's from the old assets bucket
+    const oldAssetIndex = str.indexOf('luminus_assets/');
+    if (oldAssetIndex !== -1) {
+      const relativePath = str.substring(oldAssetIndex + 'luminus_assets/'.length);
+      const cleanPath = relativePath.split('?')[0];
+      if (cleanPath.length > 255) return null;
+      return cleanPath;
+    }
+
+    return null;
+  }
+  
+  if (str.length > 255) return null;
+  return str;
+};
+
+// Helper to get signed storage URL
+const getSignedStorageUrl = async (path) => {
+  if (!path) return null;
+  
+  // Always allow local device files immediately (for optimistic UI while sending)
+  if (/^file:\/\//i.test(path)) return path;
+
+  try {
+    const relativePath = getRelativePath(path);
+    
+    // If it's a completely external URL (not from our buckets), return as is
+    if (!relativePath && /^https?:\/\//i.test(path)) {
+      return path;
+    }
+    
+    const cleanPath = String(relativePath || path).replace(/^\/+/, "");
+    if (cleanPath.length > 255) return null;
+    
+    const { data, error } = await supabase.storage
+      .from('luminus_messages_attachments')
+      .createSignedUrl(cleanPath, 60 * 60); // 1 hour expiry
+    
+    if (error) return null;
+    return data?.signedUrl || null;
+  } catch (err) {
+    return null;
+  }
+};
 
 const renderMessageContentWithMentions = (
   content,
@@ -78,6 +139,40 @@ const MessageBubble = ({
   const translateX = useRef(new Animated.Value(0)).current;
   const entranceProgress = useRef(new Animated.Value(0)).current;
   const swipeDirection = isOutgoing ? -1 : 1;
+
+  // State to hold authorized URLs
+  const [signedAttachments, setSignedAttachments] = useState([]);
+
+  // Generate signed URLs when attachments change
+  useEffect(() => {
+    let active = true;
+    
+    const resolveAttachments = async () => {
+      const atts = Array.isArray(message?.attachments) ? message.attachments : 
+                   message?.attachment ? [{ attachment_path: message.attachment }] : [];
+                   
+      if (atts.length === 0) {
+        if (active) setSignedAttachments([]);
+        return;
+      }
+
+      const authorizedUris = await Promise.all(
+        atts.map(async (att) => {
+          const rawUri = att?.attachment_path || att?.attachment || null;
+          if (!rawUri) return null;
+          // If the attachment has an isLocal flag (from CreatePost/Send), it's a local cache URI
+          if (att.isLocal) return rawUri;
+          const signedUrl = await getSignedStorageUrl(rawUri);
+          return signedUrl || rawUri;
+        })
+      );
+      
+      if (active) setSignedAttachments(authorizedUris.filter(Boolean));
+    };
+
+    resolveAttachments();
+    return () => { active = false; };
+  }, [message?.attachments, message?.attachment]);
 
   useEffect(() => {
     entranceProgress.setValue(0);
@@ -181,33 +276,23 @@ const MessageBubble = ({
             hasReactions && styles.bubbleWithReaction,
           ]}
         >
-          {Array.isArray(message?.attachments) &&
-          message.attachments.length > 0 ? (
+          {signedAttachments.length > 0 ? (
             <View style={styles.attachmentsRow}>
-              {message.attachments.map((att, idx) => {
-                const uri = att?.attachment_path || att?.attachment || null;
-                if (!uri) return null;
-                return (
-                  <TouchableOpacity
-                    key={`att-${String(message.id ?? "")}-${idx}`}
-                    onPress={() => {
-                      try {
-                        if (uri) Linking.openURL(uri);
-                      } catch (e) {}
-                    }}
-                    activeOpacity={0.8}
-                    style={styles.attachmentWrap}
-                  >
-                    <Image source={{ uri }} style={styles.attachmentImage} />
-                  </TouchableOpacity>
-                );
-              })}
+              {signedAttachments.map((uri, idx) => (
+                <TouchableOpacity
+                  key={`att-${String(message.id ?? "")}-${idx}`}
+                  onPress={() => {
+                    try {
+                      if (uri) Linking.openURL(uri);
+                    } catch (e) {}
+                  }}
+                  activeOpacity={0.8}
+                  style={styles.attachmentWrap}
+                >
+                  <Image source={{ uri }} style={styles.attachmentImage} />
+                </TouchableOpacity>
+              ))}
             </View>
-          ) : message?.attachment ? (
-            <Image
-              source={{ uri: message.attachment }}
-              style={styles.attachmentImage}
-            />
           ) : null}
 
           {message?.content ? (

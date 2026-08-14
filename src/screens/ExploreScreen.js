@@ -130,10 +130,13 @@ const ExploreScreen = ({ navigation }) => {
         break;
 
       case "goToAlumniId":
+        // Append a timestamp so that consecutive taps continually trigger the scroll
+        const scrollParams = { scrollToVirtualId: true, timestamp: Date.now() };
+        
         if (parentNavigator?.navigate) {
-          parentNavigator.navigate("HomeTab");
+          parentNavigator.navigate("HomeTab", scrollParams);
         } else {
-          navigation.navigate("HomeTab");
+          navigation.navigate("HomeTab", scrollParams);
         }
         break;
 

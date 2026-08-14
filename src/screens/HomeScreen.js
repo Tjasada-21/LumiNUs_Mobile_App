@@ -17,7 +17,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { CommonActions, useFocusEffect } from "@react-navigation/native";
+import { CommonActions, useFocusEffect, useRoute } from "@react-navigation/native";
 import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { getAllEvents } from "../services/eventQueries";
@@ -48,6 +48,7 @@ const getEventLocationLabel = (event) => {
 };
 
 const HomeScreen = ({ navigation }) => {
+  const route = useRoute();
   const { currentUserProfile } = useCurrentUserProfile();
   const { width, height } = useWindowDimensions();
   const isCompactWidth = width < 375;
@@ -76,6 +77,13 @@ const HomeScreen = ({ navigation }) => {
   const menuTranslateX = useRef(new Animated.Value(-Math.min(width * 0.92, 360))).current;
   
   const curveSize = width * 2.5;
+
+  // Listen for the parameter passed from ExploreScreen to scroll to the Virtual ID
+  useEffect(() => {
+    if (route.params?.scrollToVirtualId) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, [route.params?.timestamp]);
 
   const openNotifications = () => {
     navigation.navigate("NotificationsScreen");

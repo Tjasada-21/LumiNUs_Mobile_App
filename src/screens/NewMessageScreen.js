@@ -18,9 +18,63 @@ import { Ionicons } from "@expo/vector-icons";
 import supabase from "../services/supabase";
 import { getCurrentUser } from "../services/supabaseAuth";
 import { createGroupChat } from "../services/messageQueries";
-import AvatarInitials from "../components/AvatarInitials";
+import { getAvatarUri } from "../utils/imageUtils"; 
 import styles from "../styles/NewMessageScreen.styles";
 import { useRoute } from "@react-navigation/native";
+
+/**
+ * Robust inline avatar component.
+ * Attempts to load the user's actual profile photo. If it fails, or if 
+ * they don't have one, it cleanly falls back to their initials.
+ */
+const UserAvatar = ({ name, photo, size = 50, style }) => {
+  const [hasError, setHasError] = useState(false);
+  const avatarUrl = getAvatarUri(name, photo);
+
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "?";
+
+  if (!avatarUrl || hasError) {
+    return (
+      <View 
+        style={[
+          styles.avatarFallback,
+          style, 
+          { 
+            width: size, 
+            height: size, 
+            borderRadius: size / 2, 
+          }
+        ]}
+      >
+        <Text style={[styles.avatarFallbackText, { fontSize: size * 0.4 }]}>
+          {initials}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image 
+      source={{ uri: avatarUrl }} 
+      style={[
+        styles.avatarImage,
+        style, 
+        { 
+          width: size, 
+          height: size, 
+          borderRadius: size / 2, 
+        }
+      ]} 
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 export default function NewMessageScreen({ navigation }) {
   const route = useRoute();
@@ -33,7 +87,6 @@ export default function NewMessageScreen({ navigation }) {
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
-  // ===== NEW: Handle prefill params from ChatScreen =====
   useEffect(() => {
     const prefillMembers = route?.params?.prefillMembers;
     const prefillName = route?.params?.prefillName;
@@ -53,12 +106,10 @@ export default function NewMessageScreen({ navigation }) {
     try {
       setIsLoading(true);
       
-      // Get the currently logged-in user so we don't show them in their own list
       const currentUser = await getCurrentUser().catch(() => null);
       const currentUserId = currentUser?.id;
       setCurrentUserId(currentUserId ?? null);
 
-      // Fetch all alumni from Supabase
       const { data, error } = await supabase
         .from("alumnis")
         .select("id, first_name, last_name, alumni_photo")
@@ -66,7 +117,6 @@ export default function NewMessageScreen({ navigation }) {
 
       if (error) throw error;
 
-      // Filter out the active user and set the state
       const filteredUsers = (data || []).filter(user => user.id !== currentUserId);
       setUsers(filteredUsers);
     } catch (error) {
@@ -76,7 +126,6 @@ export default function NewMessageScreen({ navigation }) {
     }
   };
 
-  // Real-time local search filtering
   const displayedUsers = users.filter(user => {
     const fullName = `${user.first_name || ""} ${user.last_name || ""}`.toLowerCase();
     return fullName.includes(searchQuery.toLowerCase());
@@ -129,16 +178,17 @@ export default function NewMessageScreen({ navigation }) {
 
   const openChat = (selectedUser) => {
     const fullName = `${selectedUser.first_name || ""} ${selectedUser.last_name || ""}`.trim();
+    const avatarUrl = getAvatarUri(fullName, selectedUser.alumni_photo);
+    
     navigation.navigate("ConvoScreen", {
       contactId: selectedUser.id,
       contactName: fullName,
-      contactAvatar: selectedUser.alumni_photo
+      contactAvatar: avatarUrl
     });
   };
 
   const renderItem = ({ item }) => {
     const fullName = `${item.first_name || ""} ${item.last_name || ""}`.trim();
-    const isSelected = selectedMemberIds.includes(item.id);
 
     return (
       <TouchableOpacity
@@ -146,7 +196,7 @@ export default function NewMessageScreen({ navigation }) {
         activeOpacity={0.7}
         onPress={() => openChat(item)}
       >
-        <AvatarInitials name={fullName} uri={item.alumni_photo} size={50} style={styles.avatar} />
+        <UserAvatar name={fullName} photo={item.alumni_photo} size={50} style={styles.avatar} />
         <Text style={styles.nameText}>{fullName}</Text>
       </TouchableOpacity>
     );
@@ -158,7 +208,6 @@ export default function NewMessageScreen({ navigation }) {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-undo-outline" size={26} color="#333333" />
@@ -166,7 +215,6 @@ export default function NewMessageScreen({ navigation }) {
           <Text style={styles.headerTitle}>New message</Text>
         </View>
 
-        {/* SEARCH INPUT ROW */}
         <View style={styles.searchRow}>
           <Text style={styles.toLabel}>To:</Text>
           <TextInput
@@ -179,7 +227,6 @@ export default function NewMessageScreen({ navigation }) {
           />
         </View>
 
-        {/* THIN DIVIDER LINE */}
         <View style={styles.divider} />
 
         <TouchableOpacity style={styles.createGroupButton} activeOpacity={0.85} onPress={openGroupModal}>
@@ -187,7 +234,6 @@ export default function NewMessageScreen({ navigation }) {
           <Text style={styles.createGroupButtonText}>Create Group Chat</Text>
         </TouchableOpacity>
 
-        {/* LIST */}
         {isLoading ? (
           <View style={styles.centerWrap}>
             <ActivityIndicator size="large" color="#31429B" />
@@ -208,7 +254,6 @@ export default function NewMessageScreen({ navigation }) {
           />
         )}
 
-        {/* BLUE FOOTER */}
         <View style={styles.footer}>
           <Image
             source={require("../../assets/images/luminus_text_logo.png")}
@@ -260,7 +305,7 @@ export default function NewMessageScreen({ navigation }) {
                     style={[styles.groupMemberRow, isSelected && styles.groupMemberRowSelected]}
                     onPress={() => toggleSelectedMember(item.id)}
                   >
-                    <AvatarInitials name={fullName} uri={item.alumni_photo} size={38} style={styles.groupMemberAvatar} />
+                    <UserAvatar name={fullName} photo={item.alumni_photo} size={38} style={styles.groupMemberAvatar} />
                     <Text style={styles.groupMemberName} numberOfLines={1}>{fullName}</Text>
                     <View style={[styles.groupMemberCheck, isSelected && styles.groupMemberCheckSelected]}>
                       {isSelected ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}

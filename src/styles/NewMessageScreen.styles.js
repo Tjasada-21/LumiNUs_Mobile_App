@@ -235,6 +235,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Poppins_700Bold",
   },
+  avatarFallback: {
+    backgroundColor: "#31429B",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarFallbackText: {
+    color: "#FBD117",
+    fontWeight: "bold",
+  },
+  avatarImage: {
+    backgroundColor: "#E2E8F0",
+  },
 });
 
 export default styles;

@@ -22,6 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av'; // ADDED EXPO-AV
 import HomeHeader from '../components/HomeHeader';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabaseAuth';
@@ -63,6 +64,13 @@ const REPORT_REASONS = [
   "False Information",
   "Other"
 ];
+
+// Helper to detect if a file is a video
+const isVideoUri = (uri) => {
+  if (!uri) return false;
+  const lowerUri = String(uri).toLowerCase();
+  return lowerUri.includes('.mp4') || lowerUri.includes('.mov') || lowerUri.includes('.webm') || lowerUri.includes('.mkv');
+};
 
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
@@ -175,21 +183,39 @@ const ZoomableViewer = ({
           >
             {resolvedImages.map((image, index) => {
               const imageKey = image?.uri ?? String(index);
+              const isVideo = isVideoUri(image.uri);
+
               return (
                 <View key={imageKey} style={styles.viewerScrollItem}>
                   <View style={styles.viewerImageCard}>
                     <View style={styles.viewerImagePressable}>
-                      <Image
-                        source={{ uri: image.uri }}
-                        style={[
-                          styles.viewerImage,
-                          {
-                            width: VIEWER_IMAGE_WIDTH,
-                            height: VIEWER_IMAGE_HEIGHT,
-                          },
-                        ]}
-                        resizeMode="contain"
-                      />
+                      {isVideo ? (
+                        <Video
+                          source={{ uri: image.uri }}
+                          style={[
+                            styles.viewerImage,
+                            {
+                              width: VIEWER_IMAGE_WIDTH,
+                              height: VIEWER_IMAGE_HEIGHT,
+                            },
+                          ]}
+                          resizeMode={ResizeMode.CONTAIN}
+                          useNativeControls
+                          shouldPlay
+                        />
+                      ) : (
+                        <Image
+                          source={{ uri: image.uri }}
+                          style={[
+                            styles.viewerImage,
+                            {
+                              width: VIEWER_IMAGE_WIDTH,
+                              height: VIEWER_IMAGE_HEIGHT,
+                            },
+                          ]}
+                          resizeMode="contain"
+                        />
+                      )}
                     </View>
                   </View>
                 </View>
@@ -1095,17 +1121,39 @@ const UserFeedScreen = ({ navigation }) => {
     setPostImageRatios((curr) => (curr[imageKey] === nextRatio ? curr : { ...curr, [imageKey]: nextRatio }));
   }, []);
 
-  const renderPostImage = (postId, image, imageIndex, imageStyle) => (
-    <Image
-      source={{ uri: renderPostImageUri(image) }}
-      style={[styles.postMediaImage, imageStyle]}
-      resizeMode="cover"
-      onLoad={(e) => {
-        const { width, height } = e.nativeEvent.source;
-        updatePostImageRatio(getPostImageKey(postId, image, imageIndex), width, height);
-      }}
-    />
-  );
+  const renderPostImage = (postId, image, imageIndex, imageStyle) => {
+    const uri = renderPostImageUri(image);
+    const isVideo = isVideoUri(uri);
+
+    if (isVideo) {
+      return (
+        <Video
+          source={{ uri }}
+          style={[styles.postMediaImage, imageStyle]}
+          resizeMode={ResizeMode.COVER}
+          isMuted={true}
+          shouldPlay={true}
+          isLooping
+          onReadyForDisplay={(e) => {
+            const { width, height } = e.naturalSize;
+            updatePostImageRatio(getPostImageKey(postId, image, imageIndex), width, height);
+          }}
+        />
+      );
+    }
+
+    return (
+      <Image
+        source={{ uri }}
+        style={[styles.postMediaImage, imageStyle]}
+        resizeMode="cover"
+        onLoad={(e) => {
+          const { width, height } = e.nativeEvent.source;
+          updatePostImageRatio(getPostImageKey(postId, image, imageIndex), width, height);
+        }}
+      />
+    );
+  };
 
   const renderOverlayCount = (remainingCount, onPress) =>
     remainingCount <= 0 ? null : (

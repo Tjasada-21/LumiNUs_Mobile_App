@@ -38,7 +38,8 @@ export const getFeedItemTimestamp = (item) => {
 };
 
 /**
- * The FB/IG/LinkedIn Hybrid Feed Algorithm (with Logarithmic & Storyteller Fixes).
+ * The FB/IG/LinkedIn Hybrid Feed Algorithm 
+ * Integrates Logarithmic Engagement, Storyteller Bumps, Active Conversation, Media Diversity, and Career Milestones.
  */
 export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections, userData) => {
   const sourcePosts = Array.isArray(posts) ? [...posts] : [];
@@ -66,108 +67,138 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
     shuffleMap.set(String(itemKey), Math.random());
   });
 
-  return sourcePosts.sort((a, b) => {
-    const calculateScore = (item) => {
-      let score = 0;
-      
-      const isAnnouncement = item?.feed_type === 'announcement';
-      const authorId = String(item?.alumni?.id ?? '');
-      
-      const authorRawProgram = String(
-        item?.alumni?.program || item?.alumni?.course || ''
-      ).toLowerCase().trim();
-      const authorProgramClean = authorRawProgram.replace(/[^a-z0-9]/g, '');
-      const authorDiscipline = getDisciplineCategory(authorRawProgram);
-
-      const authorBatch = String(
-        item?.alumni?.batch || item?.alumni?.grad_year || item?.alumni?.year_graduated || ''
-      ).trim();
-
-      const ageInHours = (Date.now() - getFeedItemTimestamp(item)) / (1000 * 60 * 60);
-
-      // ---------------------------------------------------------
-      // 1. THE INSTAGRAM DNA (Visuals & Recency)
-      // ---------------------------------------------------------
-      
-      // Freshness Multiplier: Posts under 24 hours old get up to 50 bonus points.
-      if (ageInHours < 24) {
-        score += Math.max(0, 50 - (ageInHours * 2)); 
-      } else {
-        // Slow decay for older posts (-0.5 pts per hour)
-        score -= (ageInHours * 0.5); 
-      }
-
-      // Visual Content Bump: Posts with images/attachments get a boost
-      const hasImages = Array.isArray(item?.images) && item.images.length > 0;
-      if (hasImages) score += 15;
-
-      // ---------------------------------------------------------
-      // 2. THE FACEBOOK DNA (Social Graph & Deep Engagement)
-      // ---------------------------------------------------------
-      
-      // Connections: Massive boost if the user follows the author
-      if (connectionIds.has(authorId)) score += 40;
-
-      // Deep Engagement (The Logarithmic Fix): Not all interactions are equal
-      // Weighted engagement gives more value to comments and shares
-      const weightedEngagement = (item?.reaction_count ?? 0) * 1 
-                               + (item?.comment_count ?? 0) * 3 
-                               + (item?.repost_count ?? 0) * 4;
-                               
-      // Logarithmic scaling prevents "Zombie Posts" from staying on top forever
-      if (weightedEngagement > 0) {
-        score += Math.log10(weightedEngagement + 1) * 25;
-      }
-
-      // ---------------------------------------------------------
-      // 3. THE LINKEDIN DNA (Professional/Academic Affinity & Content Depth)
-      // ---------------------------------------------------------
-      
-      // Academic Overlap
-      if (myProgramClean && authorProgramClean) {
-        if (myProgramClean === authorProgramClean) {
-          score += 25; // Exact course match
-        } else if (myDiscipline && authorDiscipline && myDiscipline === authorDiscipline) {
-          score += 10; // Sister-course match (same department)
-        }
-      }
-
-      // Batch Overlap
-      if (myBatch && authorBatch && myBatch === authorBatch) {
-        score += 20; // Graduated same year
-      }
-
-      // The Storyteller Bump: Reward deep, long-form content over quick one-liners
-      const captionText = item?.caption || item?.announcement_description || '';
-      const captionLength = captionText.length;
-      
-      if (captionLength > 300) {
-        score += 15; // Mega-boost for detailed updates/mini-blogs
-      } else if (captionLength > 150) {
-        score += 10; // Standard boost for substantive posts
-      }
-
-      // ---------------------------------------------------------
-      // 4. PLATFORM RULES & TIE-BREAKERS
-      // ---------------------------------------------------------
-      
-      // Admin Announcements need to be visible, but a highly viral, fresh friend post can still outrank them
-      if (isAnnouncement) score += 60; 
-
-      // Micro-Jitter: Just enough variance (0 to 10 points) to break ties dynamically
-      const itemKey = String(item?.id ?? item?.feed_id ?? '');
-      score += (shuffleMap.get(itemKey) ?? 0) * 10;
-
-      return score;
-    };
-
-    const aScore = calculateScore(a);
-    const bScore = calculateScore(b);
-
-    // Sort descending by calculated score
-    if (bScore !== aScore) return bScore - aScore;
+  // 3. First Pass: Calculate Base Scores for all posts
+  const scoredPosts = sourcePosts.map((item) => {
+    let score = 0;
     
-    // Fallback to strict date order if scores perfectly tie
-    return getFeedItemTimestamp(b) - getFeedItemTimestamp(a);
+    const isAnnouncement = item?.feed_type === 'announcement';
+    const authorId = String(item?.alumni?.id ?? '');
+    
+    const authorRawProgram = String(
+      item?.alumni?.program || item?.alumni?.course || ''
+    ).toLowerCase().trim();
+    const authorProgramClean = authorRawProgram.replace(/[^a-z0-9]/g, '');
+    const authorDiscipline = getDisciplineCategory(authorRawProgram);
+
+    const authorBatch = String(
+      item?.alumni?.batch || item?.alumni?.grad_year || item?.alumni?.year_graduated || ''
+    ).trim();
+
+    const postTimestamp = getFeedItemTimestamp(item);
+    const ageInHours = (Date.now() - postTimestamp) / (1000 * 60 * 60);
+
+    // ---------------------------------------------------------
+    // THE INSTAGRAM DNA (Visuals & Recency)
+    // ---------------------------------------------------------
+    
+    if (ageInHours < 24) {
+      score += Math.max(0, 50 - (ageInHours * 2)); 
+    } else {
+      score -= (ageInHours * 0.5); 
+    }
+
+    const hasImages = Array.isArray(item?.images) && item.images.length > 0;
+    if (hasImages) score += 15;
+
+    // FEATURE 2: Interaction Recency Decay (The "Active Conversation" Bump)
+    if (ageInHours < 4) {
+      score += 15; // Massive surge for currently trending/hyper-fresh posts
+    }
+
+    // ---------------------------------------------------------
+    // THE FACEBOOK DNA (Social Graph & Deep Engagement)
+    // ---------------------------------------------------------
+    
+    if (connectionIds.has(authorId)) score += 40;
+
+    const weightedEngagement = (item?.reaction_count ?? 0) * 1 
+                             + (item?.comment_count ?? 0) * 3 
+                             + (item?.repost_count ?? 0) * 4;
+                             
+    if (weightedEngagement > 0) {
+      score += Math.log10(weightedEngagement + 1) * 25;
+    }
+
+    // ---------------------------------------------------------
+    // THE LINKEDIN DNA (Affinity, Content Depth & Milestones)
+    // ---------------------------------------------------------
+    
+    if (myProgramClean && authorProgramClean) {
+      if (myProgramClean === authorProgramClean) {
+        score += 25; 
+      } else if (myDiscipline && authorDiscipline && myDiscipline === authorDiscipline) {
+        score += 10; 
+      }
+    }
+
+    if (myBatch && authorBatch && myBatch === authorBatch) {
+      score += 20; 
+    }
+
+    const captionText = String(item?.caption || item?.announcement_description || '').toLowerCase();
+    const captionLength = captionText.length;
+    
+    if (captionLength > 300) {
+      score += 15; 
+    } else if (captionLength > 150) {
+      score += 10; 
+    }
+
+    // FEATURE 4: Alumni Status & Career Milestone Boost
+    const professionalKeywords = [
+      'hiring', 'promotion', 'opening', 'business', 'opportunity', 
+      'referral', 'graduated', 'upwork', 'freelance', 'figma', 
+      'firebase', 'github', 'transcribe'
+    ];
+    
+    if (professionalKeywords.some(keyword => captionText.includes(keyword))) {
+      score += 20; 
+    }
+
+    // ---------------------------------------------------------
+    // PLATFORM RULES & TIE-BREAKERS
+    // ---------------------------------------------------------
+    
+    if (isAnnouncement) score += 60; 
+
+    const itemKey = String(item?.id ?? item?.feed_id ?? '');
+    score += (shuffleMap.get(itemKey) ?? 0) * 10;
+
+    return { 
+      item, 
+      score, 
+      authorId, 
+      isAnnouncement,
+      timestamp: postTimestamp 
+    };
   });
+
+  // 4. Initial Sort based on calculated scores
+  scoredPosts.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.timestamp - a.timestamp;
+  });
+
+  // 5. FEATURE 3: Media Diversity Penalty (Preventing Feed Monopolization)
+  // Scans the sorted feed and penalizes consecutive posts by the same author
+  for (let i = 1; i < scoredPosts.length; i++) {
+    // Skip penalty for announcements so multiple official updates don't bury each other
+    if (scoredPosts[i].isAnnouncement) continue;
+
+    const currentAuthor = scoredPosts[i].authorId;
+    const prevAuthor = scoredPosts[i - 1].authorId;
+
+    if (currentAuthor === prevAuthor && currentAuthor !== '') {
+      scoredPosts[i].score -= 15; // Apply the diversity penalty
+    }
+  }
+
+  // 6. Final Sort to lock in the Diversity Penalties
+  scoredPosts.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.timestamp - a.timestamp;
+  });
+
+  // 7. Strip out the scoring wrapper and return the clean array
+  return scoredPosts.map(obj => obj.item);
 };

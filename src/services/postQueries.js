@@ -880,7 +880,7 @@ export const updatePost = async (postId, updates) => {
 };
 
 /**
- * Upload post image - REWRITTEN TO USE FORMDATA
+ * Upload post media - REWRITTEN TO FORCE UNIQUE FILE NAMES
  * @param {number|null} postId - Post ID (can be null when uploading before post creation)
  * @param {object|string} imageSource - The formatted {uri, name, type} object from the UI
  * @param {string} bucket - Storage bucket name (default: luminus_assets)
@@ -892,62 +892,49 @@ export const uploadPostImage = async (
   bucket = "luminus_assets",
 ) => {
   try {
-    // 1. Sanitize the incoming data (fallback for strings just in case)
     const isObject = typeof imageSource === "object" && imageSource !== null;
     const uri = isObject ? imageSource.uri : imageSource;
-    const safeName =
-      isObject && imageSource.name
-        ? imageSource.name
-        : `post-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
-    const mimeType =
-      isObject && imageSource.type ? imageSource.type : "image/jpeg";
+    
+    // Extract the original extension so the browser knows if it's a video or image
+    const originalName = isObject && imageSource.name ? imageSource.name : 'media';
+    const extension = originalName.includes('.') 
+      ? originalName.split('.').pop() 
+      : (isObject && imageSource.type && imageSource.type.includes('video') ? 'mp4' : 'jpg');
 
-    const objectPath = `post_images/${safeName}`;
+    // FORCE A GLOBALLY UNIQUE NAME: Combines timestamp + random string + correct extension
+    const uniqueFileName = `media-${Date.now()}-${Math.random().toString(36).substring(2, 12)}.${extension}`;
+    
+    const mimeType = isObject && imageSource.type ? imageSource.type : "application/octet-stream";
+    const objectPath = `post_images/${uniqueFileName}`;
 
-    // 2. Wrap the payload in FormData to bypass React Native ArrayBuffer issues
     const formData = new FormData();
     formData.append("file", {
       uri: uri,
-      name: safeName,
+      name: uniqueFileName,
       type: mimeType,
     });
 
-    // 3. Send the FormData directly to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(objectPath, formData);
 
     if (uploadError) {
-      console.error(
-        "[posts] Supabase Storage Upload Error:",
-        uploadError.message,
-      );
+      console.error("[posts] Supabase Storage Upload Error:", uploadError.message);
       throw uploadError;
     }
 
-    const storedPath = objectPath;
-
-    // 4. Only insert into images_posts when a postId is already known
     if (postId) {
       const { error: insertError } = await supabase
         .from("images_posts")
-        .insert([
-          {
-            post_id: postId,
-            image_path: storedPath,
-          },
-        ]);
+        .insert([{ post_id: postId, image_path: objectPath }]);
 
       if (insertError) {
-        console.error(
-          "[posts] Failed to insert image record:",
-          insertError.message,
-        );
+        console.error("[posts] Failed to insert image record:", insertError.message);
         throw insertError;
       }
     }
 
-    return storedPath;
+    return objectPath;
   } catch (error) {
     console.error("[posts] Upload image error:", error.message);
     throw error;

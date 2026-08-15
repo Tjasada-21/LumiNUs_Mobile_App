@@ -404,6 +404,42 @@ const ChatScreen = ({ navigation }) => {
     }
   }, [currentUserProfile?.id]);
 
+  // --- NEW: SUPABASE REALTIME LISTENER ---
+  useEffect(() => {
+    if (!userData?.id) return;
+
+    // Create a uniquely named channel to prevent "already subscribed" collision errors during re-renders
+    const channelName = `chat-screen-group-members-${userData.id}-${Date.now()}`;
+    
+    const groupMemberSubscription = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'group_chat_members',
+          filter: `alumni_id=eq.${userData.id}`,
+        },
+        () => loadChatData()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'group_chat_members',
+          filter: `alumni_id=eq.${userData.id}`,
+        },
+        () => loadChatData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(groupMemberSubscription);
+    };
+  }, [userData?.id, loadChatData]);
+
   const handleLoadMore = async () => {
     if (isFetchingMore || !hasMoreChats || isLoadingChatData || !userData?.id) return;
     try {
@@ -533,11 +569,21 @@ const ChatScreen = ({ navigation }) => {
     const contactAvatar = getAvatarUri(contactName, item?.alumni_photo);
     const unreadCount = Number(item?.unread_count ?? (item?.is_read === false ? 1 : 0));
     
-    const latestMessage =
-      item?.latest_message?.content ||
-      item?.last_message ||
-      (typeof item?.latest_message === 'string' ? item.latest_message : null) ||
-      "No messages yet";
+    // Check if the latest message is an image attachment based on empty content
+    const msgObj = item?.latest_message;
+    let rawContent = msgObj?.content || item?.last_message || (typeof msgObj === 'string' ? msgObj : null);
+    
+    let displayMessage = "No messages yet";
+    if (msgObj && typeof msgObj === 'object' && (!rawContent || String(rawContent).trim() === "")) {
+      const senderId = msgObj.sender_id;
+      let senderName = contactName;
+      if (senderId && currentUserProfile?.id && String(senderId) === String(currentUserProfile.id)) {
+        senderName = "You";
+      }
+      displayMessage = `${senderName} sent an attachment`;
+    } else if (rawContent) {
+      displayMessage = rawContent;
+    }
 
     const latestMessageTime =
       item?.latest_message?.created_at ||
@@ -574,7 +620,7 @@ const ChatScreen = ({ navigation }) => {
           </View>
           <View style={styles.chatSubRow}>
             <Text style={[styles.chatMessage, unreadCount > 0 && styles.chatMessageUnread]} numberOfLines={1}>
-              {latestMessage}
+              {displayMessage}
             </Text>
             {messageTimestampLabel ? <Text style={styles.chatTime}>{messageTimestampLabel}</Text> : null}
           </View>
@@ -717,7 +763,28 @@ const ChatScreen = ({ navigation }) => {
   const renderGroupChatItem = ({ item }) => {
     const groupName = item?.name ?? "Group Chat";
     const groupAvatar = groupAvatarUrls[item?.id] || null;
-    const latestMessage = item?.latest_message?.content ?? "No messages yet";
+    
+    // Check if the latest message is an image attachment based on empty content
+    const msgObj = item?.latest_message;
+    let rawContent = msgObj?.content;
+
+    let displayMessage = "No messages yet";
+    if (msgObj && (!rawContent || String(rawContent).trim() === "")) {
+      const senderId = msgObj.sender_id;
+      let senderName = "Someone";
+      if (senderId && currentUserProfile?.id && String(senderId) === String(currentUserProfile.id)) {
+        senderName = "You";
+      } else if (senderId) {
+        const member = item?.members?.find((m) => String(m.alumni?.id ?? m.alumni_id) === String(senderId));
+        if (member?.alumni) {
+          senderName = `${member.alumni.first_name ?? ""} ${member.alumni.last_name ?? ""}`.trim() || "Someone";
+        }
+      }
+      displayMessage = `${senderName} sent an attachment`;
+    } else if (rawContent) {
+      displayMessage = rawContent;
+    }
+
     const unreadCount = Number(item?.unread_count ?? 0);
     const latestMessageTime = item?.latest_message?.created_at || item?.updated_at || item?.created_at;
     const messageTimestampLabel = formatChatTimestamp(latestMessageTime);
@@ -754,7 +821,7 @@ const ChatScreen = ({ navigation }) => {
             {isMuted && <Ionicons name="volume-mute" size={14} color="#94A3B8" style={{ marginLeft: 4 }} />}
           </View>
           <View style={styles.chatSubRow}>
-            <Text style={[styles.chatMessage, unreadCount > 0 && styles.chatMessageUnread]} numberOfLines={1}>{latestMessage}</Text>
+            <Text style={[styles.chatMessage, unreadCount > 0 && styles.chatMessageUnread]} numberOfLines={1}>{displayMessage}</Text>
             {messageTimestampLabel ? <Text style={styles.chatTime}>{messageTimestampLabel}</Text> : null}
           </View>
         </View>

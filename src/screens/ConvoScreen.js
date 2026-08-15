@@ -42,7 +42,6 @@ import {
   deleteMessage as deleteDirectMessage,
   deleteGroupMessage,
   updateGroupMessageReactions,
-  getMessageAttachments,
 } from "../services/messageQueries";
 import {
   subscribeToDirectMessages,
@@ -159,6 +158,83 @@ const sortMessagesDescending = (messageList) => {
       return secondId.localeCompare(firstId);
     },
   );
+};
+
+// --- SECURITY & DISPLAY FIX: Authorized Signed URLs for Attachments ---
+const getSignedStorageUrl = async (path) => {
+  if (!path) return null;
+  try {
+    const cleanPath = String(path).replace(/^\/+/, "");
+    if (cleanPath.length > 255) return null;
+    
+    const { data, error } = await supabase.storage
+      .from('luminus_messages_attachments')
+      .createSignedUrl(cleanPath, 60 * 60 * 24); // Authorize link for 24 hours
+    
+    if (!error && data?.signedUrl) {
+      return data.signedUrl;
+    }
+
+    // Fallback if the image accidentally landed in the public bucket
+    const { data: publicData } = supabase.storage
+      .from('luminus_assets')
+      .getPublicUrl(cleanPath);
+      
+    return publicData?.publicUrl || null;
+  } catch (err) {
+    return null;
+  }
+};
+
+const enrichMessagesWithAttachments = async (messagesBatch, isGroupChat) => {
+  if (!messagesBatch || !Array.isArray(messagesBatch) || messagesBatch.length === 0) return [];
+  
+  try {
+    const messageIds = messagesBatch.map((m) => m.id);
+    const tableName = isGroupChat ? "group_messages_attachments" : "messages_attachments";
+    const idColumn = isGroupChat ? "group_message_id" : "message_id";
+
+    // Bulk fetch attachments strictly belonging to this message batch
+    const { data: rawAttachments, error } = await supabase
+      .from(tableName)
+      .select("*")
+      .in(idColumn, messageIds);
+
+    if (error) throw error;
+
+    const attachmentsMap = {};
+    
+    if (rawAttachments && rawAttachments.length > 0) {
+      // Securely sign all extracted URLs
+      const resolvedAttachments = await Promise.all(
+        rawAttachments.map(async (att) => {
+          const path = att.attachment_path;
+          if (!path || /^https?:\/\//i.test(path) || /^file:\/\//i.test(path)) return att;
+          const signedUrl = await getSignedStorageUrl(path);
+          return { ...att, attachment_path: signedUrl || path };
+        })
+      );
+
+      resolvedAttachments.forEach((att) => {
+        const parentId = isGroupChat ? att.group_message_id : att.message_id;
+        if (!attachmentsMap[parentId]) attachmentsMap[parentId] = [];
+        attachmentsMap[parentId].push(att);
+      });
+    }
+
+    return messagesBatch.map((msg) => {
+      if (msg.attachments && msg.attachments.length > 0 && msg.attachments[0].isLocal) {
+        return msg; // Preserve optimistic UI uploads
+      }
+      return {
+        ...msg,
+        attachments: attachmentsMap[msg.id] || []
+      };
+    });
+  } catch (error) {
+    console.error("Failed to enrich attachments:", error);
+    return messagesBatch;
+  }
 };
 
 // ---------- main component ----------
@@ -433,6 +509,9 @@ export default function ConvoScreen() {
           messageList = await getDirectMessages(currentUserId, contactId, MESSAGE_LIMIT, 0, receiverType).catch(() => []);
         }
 
+        // Fetch & Sign attachments for both DMs and Group chats securely
+        messageList = await enrichMessagesWithAttachments(messageList, isGroup);
+
         const hasMore = messageList.length >= MESSAGE_LIMIT;
         setHasMoreMessages(hasMore);
         setPageOffset(0);
@@ -511,6 +590,8 @@ export default function ConvoScreen() {
         newBatch = await getDirectMessages(currentUserId, contactId, MESSAGE_LIMIT, nextOffset, receiverType).catch(() => []);
       }
 
+      newBatch = await enrichMessagesWithAttachments(newBatch, isGroup);
+
       if (newBatch.length < MESSAGE_LIMIT) setHasMoreMessages(false);
       if (newBatch.length > 0) {
         setMessages((prev) => {
@@ -554,19 +635,36 @@ export default function ConvoScreen() {
           return [newMessage, ...prev];
         });
 
-        setTimeout(() => {
-          getMessageAttachments(newMessage.id)
-            .then((atts) => {
-              if (atts.length) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    String(m.id) === String(newMessage.id) ? { ...m, attachments: atts } : m,
-                  ),
-                );
-              }
-            })
-            .catch(() => {});
-        }, 300);
+        // Use the realtime ping to instantly resolve and sign image attachments
+        setTimeout(async () => {
+          try {
+            const tableName = isGroup ? "group_messages_attachments" : "messages_attachments";
+            const idColumn = isGroup ? "group_message_id" : "message_id";
+
+            const { data: rawAtts } = await supabase
+              .from(tableName)
+              .select("*")
+              .eq(idColumn, newMessage.id);
+              
+            if (rawAtts && rawAtts.length > 0) {
+              const signedAtts = await Promise.all(
+                rawAtts.map(async (att) => {
+                  const path = att.attachment_path;
+                  if (!path || /^https?:\/\//i.test(path) || /^file:\/\//i.test(path)) return att;
+                  const signedUrl = await getSignedStorageUrl(path);
+                  return { ...att, attachment_path: signedUrl || path };
+                })
+              );
+              
+              setMessages((prev) =>
+                prev.map((m) =>
+                  String(m.id) === String(newMessage.id) ? { ...m, attachments: signedAtts } : m,
+                ),
+              );
+            }
+          } catch(e) {}
+        }, 500);
+
       } else if (event === "update") {
         setMessages((prev) =>
           sortMessagesDescending(
@@ -791,8 +889,28 @@ export default function ConvoScreen() {
         sentMessage = await sendDirectMessage(currentUserId, contactId, trimmed, attachmentsArray, senderType, receiverType);
       }
 
-      const finalAttachments = await getMessageAttachments(sentMessage.id);
-      sentMessage.attachments = finalAttachments;
+      const tableName = isGroup ? "group_messages_attachments" : "messages_attachments";
+      const idColumn = isGroup ? "group_message_id" : "message_id";
+
+      // Fetch the actual attachments post-send and immediately sign their URLs
+      const { data: rawAtts } = await supabase
+        .from(tableName)
+        .select("*")
+        .eq(idColumn, sentMessage.id);
+
+      if (rawAtts && rawAtts.length > 0) {
+        const signedAtts = await Promise.all(
+          rawAtts.map(async (att) => {
+            const path = att.attachment_path;
+            if (!path || /^https?:\/\//i.test(path) || /^file:\/\//i.test(path)) return att;
+            const signedUrl = await getSignedStorageUrl(path);
+            return { ...att, attachment_path: signedUrl || path };
+          })
+        );
+        sentMessage.attachments = signedAtts;
+      } else {
+        sentMessage.attachments = [];
+      }
 
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId || m.id === sentMessage.id ? { ...sentMessage, localStatus: "sent" } : m)),

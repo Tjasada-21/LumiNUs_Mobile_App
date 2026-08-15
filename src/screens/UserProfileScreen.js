@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { Video, ResizeMode } from "expo-av"; 
 import HomeHeader from "../components/HomeHeader"; 
 import styles from "../styles/UserProfileScreen.styles";
 import { getCurrentUser } from "../services/supabaseAuth";
@@ -36,7 +37,15 @@ import { useCurrentUserProfile } from "../context/CurrentUserProfileContext";
 import { getAvatarUri } from "../utils/imageUtils";
 import { ThemedAlert } from "../components/ThemedAlert";
 
-/* ------------- helper functions (unchanged) ------------- */
+/* ------------- helper functions ------------- */
+
+// Helper to detect if a file is a video
+const isVideoUri = (uri) => {
+  if (!uri) return false;
+  const lowerUri = String(uri).toLowerCase();
+  return lowerUri.includes('.mp4') || lowerUri.includes('.mov') || lowerUri.includes('.webm') || lowerUri.includes('.mkv');
+};
+
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
   const normalizedValue = typeof dateValue === 'string' ? (dateValue.includes('T') ? dateValue : dateValue.replace(' ', 'T')) : dateValue;
@@ -122,6 +131,27 @@ const UserProfileScreen = ({ navigation }) => {
     if (!raw) return "";
     if (/^https?:\/\//i.test(raw)) return raw;
     return `https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_assets/${String(raw).replace(/^\/+/, "")}`;
+  };
+
+  /* ------------- Dynamic Media Renderer ------------- */
+  const renderMediaItem = (image, style) => {
+    const uri = getPostImageUri(image);
+    const isVideo = isVideoUri(uri);
+
+    if (isVideo) {
+      return (
+        <Video
+          source={{ uri }}
+          style={style}
+          resizeMode={ResizeMode.COVER}
+          isMuted={true}
+          shouldPlay={true}
+          isLooping
+        />
+      );
+    }
+
+    return <Image source={{ uri }} style={style} resizeMode="cover" />;
   };
 
   /* ------------- load profile & enrich with images ------------- */
@@ -238,7 +268,7 @@ const UserProfileScreen = ({ navigation }) => {
     if (postImages.length === 1) {
       return (
         <View style={[styles.postSingleImageWrap, { aspectRatio: 1.2 }]}>
-          <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+          {renderMediaItem(postImages[0], styles.postCollageImage)}
         </View>
       );
     }
@@ -247,10 +277,10 @@ const UserProfileScreen = ({ navigation }) => {
       return (
         <View style={styles.postTwoGrid}>
           <View style={[styles.postTwoPrimaryTile, { aspectRatio: 1.05 }]}>
-            <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+            {renderMediaItem(postImages[0], styles.postCollageImage)}
           </View>
           <View style={[styles.postTwoSecondaryTile, { aspectRatio: 0.95 }]}>
-            <Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" />
+            {renderMediaItem(postImages[1], styles.postCollageImage)}
           </View>
         </View>
       );
@@ -260,14 +290,14 @@ const UserProfileScreen = ({ navigation }) => {
       return (
         <View style={styles.postThreeCollage}>
           <View style={styles.postThreeLeftTile}>
-            <Image source={{ uri: getPostImageUri(postImages[0]) }} style={styles.postCollageImage} resizeMode="cover" />
+            {renderMediaItem(postImages[0], styles.postCollageImage)}
           </View>
           <View style={styles.postThreeRightColumn}>
             <View style={styles.postThreeRightTile}>
-              <Image source={{ uri: getPostImageUri(postImages[1]) }} style={styles.postCollageImage} resizeMode="cover" />
+              {renderMediaItem(postImages[1], styles.postCollageImage)}
             </View>
             <View style={styles.postThreeRightTile}>
-              <Image source={{ uri: getPostImageUri(postImages[2]) }} style={styles.postCollageImage} resizeMode="cover" />
+              {renderMediaItem(postImages[2], styles.postCollageImage)}
             </View>
           </View>
         </View>
@@ -279,7 +309,7 @@ const UserProfileScreen = ({ navigation }) => {
         <View style={styles.postFourGrid}>
           {postImages.slice(0, 4).map((image, idx) => (
             <View key={image.id ?? idx} style={styles.postFourGridTile}>
-              <Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" />
+              {renderMediaItem(image, styles.postCollageImage)}
             </View>
           ))}
         </View>
@@ -291,7 +321,7 @@ const UserProfileScreen = ({ navigation }) => {
       <View style={styles.postFivePlusGrid}>
         {postImages.slice(0, 4).map((image, idx) => (
           <View key={image.id ?? idx} style={styles.postFivePlusTile}>
-            <Image source={{ uri: getPostImageUri(image) }} style={styles.postCollageImage} resizeMode="cover" />
+            {renderMediaItem(image, styles.postCollageImage)}
             {idx === 3 && (
               <View style={styles.postImageOverlay}>
                 <Text style={styles.postImageOverlayText}>+{remainingCount}</Text>
@@ -537,7 +567,7 @@ const UserProfileScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Biography Modal (unchanged) */}
+      {/* Biography Modal */}
       <Modal visible={isBioModalVisible} transparent animationType="fade" onRequestClose={() => setIsBioModalVisible(false)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalCard}>

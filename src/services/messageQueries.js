@@ -533,6 +533,72 @@ export const getMessageAttachments = async (messageId) => {
 };
 
 /**
+ * Upload group message attachment 
+ */
+export const uploadGroupMessageAttachment = async (groupMessageId, attachmentUri) => {
+  try {
+    const ext = attachmentUri.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic' };
+    const contentType = mimeMap[ext] || 'image/jpeg';
+    const bucketPath = `chat_media/${groupMessageId}-${Date.now()}.${ext}`;
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: attachmentUri,
+      name: `upload.${ext}`,
+      type: contentType,
+    });
+
+    const { error: uploadError } = await supabase.storage
+      .from('luminus_messages_attachments')
+      .upload(bucketPath, formData);
+
+    if (uploadError) throw uploadError;
+
+    const { error: insertError } = await supabase.from('group_messages_attachments').insert([
+      {
+        group_message_id: groupMessageId,
+        attachment_type: 'image',
+        attachment_path: bucketPath,
+      },
+    ]);
+
+    if (insertError) throw insertError;
+
+    return bucketPath;
+  } catch (error) {
+    console.error('[group_messages] Upload attachment error:', error?.message || error);
+    throw error;
+  }
+};
+
+/**
+ * Get group message attachments 
+ */
+export const getGroupMessageAttachments = async (groupMessageId) => {
+  try {
+    const { data, error } = await supabase
+      .from('group_messages_attachments')
+      .select('*')
+      .eq('group_message_id', groupMessageId);
+
+    if (error) throw error;
+
+    const publicBase = 'https://pmnirrvwibzqjlutbnwz.supabase.co/storage/v1/object/public/luminus_messages_attachments/';
+
+    return (data || []).map((att) => ({
+      ...att,
+      attachment_path: att.attachment_path?.startsWith('http')
+        ? att.attachment_path
+        : `${publicBase}${att.attachment_path}`,
+    }));
+  } catch (error) {
+    console.error('[group_messages] Get attachments error:', error.message);
+    throw error;
+  }
+};
+
+/**
  * Get conversations list for user (supports both alumni and admin)
  */
 export const getConversations = async (userId, userType = 'alumni', offset = 0, limit = 50) => {
@@ -777,7 +843,7 @@ export const getGroupMessages = async (groupChatId, userId, limit = 50, offset =
     const messagesWithAttachments = await Promise.all(
       messagesData.map(async (msg) => {
         const decryptedMsg = toDecryptedMessage(msg);
-        const attachments = await getMessageAttachments(msg.id).catch(() => []);
+        const attachments = await getGroupMessageAttachments(msg.id).catch(() => []);
         return {
           ...decryptedMsg,
           sender: senderMap.get(msg.sender_id) || null,
@@ -815,7 +881,7 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
 
     if (attachments.length > 0) {
       await Promise.all(
-        attachments.map((att) => uploadMessageAttachment(data.id, att))
+        attachments.map((att) => uploadGroupMessageAttachment(data.id, att))
       );
     }
 

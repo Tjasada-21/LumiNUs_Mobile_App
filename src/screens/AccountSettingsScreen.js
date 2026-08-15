@@ -1161,12 +1161,27 @@ const AccountSettingsScreen = ({ navigation }) => {
   };
 
   const openMapModal = () => {
-    setMapSearchQuery("");
-    setMapSearchResults([]);
-    setShowSearchResults(false);
-    mapSlideAnim.setValue(0);
-    setMapVisible(true);
-  };
+      setMapSearchQuery("");
+      setMapSearchResults([]);
+      setShowSearchResults(false);
+      mapSlideAnim.setValue(0);
+      
+      // CRITICAL FIX: Prevent infinite loading if no location is set
+      if (!selectedLocation) {
+        if (isInternational && selectedCountry) {
+          // Auto-search their selected international country
+          searchLocation(selectedCountry);
+        } else {
+          // Default to Manila if no country context exists
+          setSelectedLocation({
+            latitude: 14.5995,
+            longitude: 120.9842,
+          });
+        }
+      }
+      
+      setMapVisible(true);
+    };
 
   const closeMapModal = () => {
     mapSlideAnim.setValue(0);
@@ -3005,8 +3020,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                       <div class="center-pin">📍</div>
                       <div class="coords-display" id="coords"></div>
                       <script>
-                        var map=L.map('map',{zoomControl:true,attributionControl:false,dragging:true,tap:true,touchZoom:true,scrollWheelZoom:true}).setView([${selectedLocation.latitude},${selectedLocation.longitude}],16);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+                        var map=L.map('map',{zoomControl:true,attributionControl:false,dragging:true,tap:true,touchZoom:true,scrollWheelZoom:true,worldCopyJump:true,minZoom:2}).setView([${selectedLocation.latitude},${selectedLocation.longitude}],16);                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
                         function updateCoords(){var c=map.getCenter();document.getElementById('coords').textContent=c.lat.toFixed(6)+', '+c.lng.toFixed(6);window.ReactNativeWebView.postMessage(JSON.stringify({latitude:c.lat.toFixed(6),longitude:c.lng.toFixed(6)}))}
                         map.on('moveend',updateCoords);updateCoords();
                       </script>

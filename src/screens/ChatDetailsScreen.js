@@ -80,6 +80,19 @@ const getSignedStorageUrl = async (path) => {
   }
 };
 
+// Helper to resolve profile public avatars synchronously
+const resolvePublicAvatarUrl = (path) => {
+  if (!path || typeof path !== 'string' || path.trim() === '') return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  try {
+    const cleanPath = path.replace(/^\/+/, "");
+    const { data } = supabase.storage.from('luminus_assets').getPublicUrl(cleanPath);
+    return data?.publicUrl || null;
+  } catch (err) {
+    return null;
+  }
+};
+
 const ChatDetailsScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   
@@ -151,21 +164,12 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         return null;
       }
 
+      // 1. Define file path and content type
       const fileName = `group_avatar/${routeGroupId}_avatar.${extension}`;
-
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
       const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
       const contentType = mimeMap[extension] || 'image/jpeg';
 
+      // 2. Delete the old avatar from storage if it exists to prevent clutter
       if (groupAvatarDraft) {
         const oldPath = String(groupAvatarDraft).replace(/^\/+/, "");
         await supabase.storage
@@ -174,9 +178,18 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           .catch(() => {}); 
       }
 
+      // 3. Bypass React Native's FileSystem bug using standard FormData
+      const formData = new FormData();
+      formData.append('file', {
+        uri: asset.uri,
+        name: `avatar.${extension}`,
+        type: contentType,
+      });
+
+      // 4. Upload directly to Supabase
       const { error: uploadError } = await supabase.storage
         .from('luminus_messages_attachments')
-        .upload(fileName, bytes, { contentType, upsert: true });
+        .upload(fileName, formData, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -386,9 +399,9 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           if (groupMessages?.length > 0) {
             const messageIds = groupMessages.map(m => m.id);
             const { data: attachments } = await supabase
-              .from("messages_attachments")
+              .from("group_messages_attachments") 
               .select("attachment_path")
-              .in("message_id", messageIds)
+              .in("group_message_id", messageIds) 
               .eq("attachment_type", "image");
 
             rawMediaPaths = attachments?.map(a => a.attachment_path) || [];
@@ -474,13 +487,25 @@ const ChatDetailsScreen = ({ route, navigation }) => {
       const profile = member?.alumni ?? member ?? {};
       const fallbackName = [profile?.first_name ?? "", profile?.last_name ?? ""].filter(Boolean).join(" ").trim();
       const fullName = (profile?.name ?? member?.name ?? fallbackName) || "Member";
-      const avatar = profile?.alumni_photo ?? member?.avatar ?? null;
+      
+      const rawAvatar = profile?.alumni_photo ?? member?.avatar ?? null;
+      let resolvedAvatar = rawAvatar;
+      
+      // Resolve public URL synchronously if it's a relative path in the database
+      if (rawAvatar && typeof rawAvatar === 'string' && !/^https?:\/\//i.test(rawAvatar)) {
+        try {
+           const cleanPath = rawAvatar.replace(/^\/+/, "");
+           const { data } = supabase.storage.from('luminus_assets').getPublicUrl(cleanPath);
+           resolvedAvatar = data?.publicUrl || null;
+        } catch(e) {}
+      }
 
       return {
         id: profile?.id ?? member?.alumni_id ?? index,
         alumniId: profile?.id ?? member?.alumni_id ?? index,
         name: fullName,
-        avatar: getAvatarUri(fullName, avatar),
+        rawAvatar: rawAvatar, // Retain raw string to check if user uploaded a photo
+        avatar: getAvatarUri(fullName, resolvedAvatar),
         role: member?.role ?? profile?.role ?? "alumni",
       };
     });
@@ -523,7 +548,25 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         .filter((alumni) => alumni?.id && !existingMemberIds.has(String(alumni.id)))
         .map((alumni) => {
           const fullName = `${alumni?.first_name ?? ""} ${alumni?.last_name ?? ""}`.trim() || "Alumni";
-          return { id: alumni.id, name: fullName, avatar: getAvatarUri(fullName, alumni?.alumni_photo) };
+          
+          const rawAvatar = alumni?.alumni_photo;
+          let resolvedAvatar = rawAvatar;
+          
+          // Resolve public URL synchronously if it's a relative path
+          if (rawAvatar && typeof rawAvatar === 'string' && !/^https?:\/\//i.test(rawAvatar)) {
+            try {
+               const cleanPath = rawAvatar.replace(/^\/+/, "");
+               const { data } = supabase.storage.from('luminus_assets').getPublicUrl(cleanPath);
+               resolvedAvatar = data?.publicUrl || null;
+            } catch(e) {}
+          }
+
+          return { 
+            id: alumni.id, 
+            name: fullName, 
+            rawAvatar: rawAvatar, // Retain raw string to check if user uploaded a photo
+            avatar: getAvatarUri(fullName, resolvedAvatar) 
+          };
         });
 
       setCandidateMembers(nextCandidates);
@@ -556,6 +599,40 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleRemoveMember = (member) => {
+    if (!routeGroupId) return;
+    ThemedAlert.alert(
+      "Remove Member",
+      `Are you sure you want to remove ${member.name} from the group?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeGroupMember(routeGroupId, member.alumniId);
+              
+              // Refresh group details to remove them from the list visually
+              const fetchedGroup = await getGroupChat(routeGroupId).catch(() => null);
+              if (fetchedGroup) {
+                setResolvedGroup((previousGroup) => ({
+                  ...(previousGroup ?? {}),
+                  ...fetchedGroup,
+                  members: Array.isArray(fetchedGroup?.members) ? fetchedGroup.members : [],
+                }));
+              }
+              
+              ThemedAlert.alert("Removed", `${member.name} has been removed from the group.`);
+            } catch (error) {
+              ThemedAlert.alert("Error", "Could not remove member. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const openGroupEditor = () => {
     setGroupNameDraft(groupData?.name ?? "");
     const rawAvatar = groupData?.avatar_url ?? groupData?.avatar ?? "";
@@ -567,11 +644,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
   const handleSaveGroupDetails = async () => {
     if (!routeGroupId) {
       ThemedAlert.alert("Error", "Group ID is missing.");
-      return;
-    }
-
-    if (!isCurrentUserAdmin) {
-      ThemedAlert.alert("Permission Denied", "Only group admins can edit group details.");
       return;
     }
     
@@ -665,14 +737,66 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     } catch (e) { return false; }
   };
 
+  const handleDeleteChat = () => {
+    ThemedAlert.alert(
+      "Delete Chat",
+      "Are you sure you want to delete this chat?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (isDM) {
+                await updateDMSettings({ is_hidden: true, is_archived: false });
+              } else {
+                if (routeGroupId && currentUserId) {
+                  await supabase
+                    .from("group_chat_members")
+                    .update({ ignored: true })
+                    .eq("group_chat_id", routeGroupId)
+                    .eq("alumni_id", currentUserId);
+                }
+              }
+              ThemedAlert.alert("Deleted", "The chat has been removed from your inbox.");
+              const parentNavigator = navigation.getParent?.();
+              if (parentNavigator?.navigate) {
+                parentNavigator.navigate("ChatScreen");
+              } else {
+                navigation.navigate("ChatScreen");
+              }
+            } catch (e) {
+              ThemedAlert.alert("Error", "Could not delete the chat at this time.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleMute = () => {
     ThemedAlert.alert("Mute", "Mute notifications from this chat?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Mute",
         onPress: async () => {
-          if (isDM) await updateDMSettings({ is_muted: true });
-          ThemedAlert.alert("Muted", "Notifications for this chat are now muted.");
+          try {
+            if (isDM) {
+              await updateDMSettings({ is_muted: true });
+            } else {
+              if (routeGroupId && currentUserId) {
+                await supabase
+                  .from("group_chat_members")
+                  .update({ muted: true })
+                  .eq("group_chat_id", routeGroupId)
+                  .eq("alumni_id", currentUserId);
+              }
+            }
+            ThemedAlert.alert("Muted", "Notifications for this chat are now muted.");
+          } catch (e) {
+            ThemedAlert.alert("Error", "Could not mute the chat at this time.");
+          }
         },
       },
     ]);
@@ -792,7 +916,10 @@ const ChatDetailsScreen = ({ route, navigation }) => {
                   </>
                 ) : (
                   <>
-                    {renderQuickAction("person-add", "Add", "#31429B", () => setIsAddMemberModalVisible(true))}
+                    {renderQuickAction("person-add", "Add", "#31429B", () => {
+                      loadCandidateMembers();
+                      setIsAddMemberModalVisible(true);
+                    })}
                     {renderQuickAction("pencil", "Edit", "#31429B", openGroupEditor)}
                     {renderQuickAction("exit", "Leave", "#DC2626", handleLeaveGroup)}
                   </>
@@ -800,6 +927,47 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               </View>
             </View>
           </View>
+
+          {/* --- NEW: MEMBERS SECTION --- */}
+          {!isDM && (
+            <>
+              <Text style={styles.sectionHeading}>Members ({normalizedMembers.length})</Text>
+              <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                {normalizedMembers.map((member) => {
+                  // Explicitly check if the user actually uploaded a photo to bypass AvatarInitials
+                  const hasValidPhoto = member.rawAvatar && typeof member.rawAvatar === "string" && member.rawAvatar.trim() !== "" && !member.rawAvatar.includes("undefined") && !member.rawAvatar.includes("null");
+                  
+                  return (
+                    <View key={member.id} style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }}>
+                      <TouchableOpacity 
+                        style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingVertical: 10 }}
+                        activeOpacity={0.6}
+                        onPress={() => navigation.navigate("Home", { screen: "ProfileView", params: { userId: member.alumniId } })}
+                      >
+                        {hasValidPhoto && member.avatar ? (
+                          <Image 
+                            source={{ uri: member.avatar }} 
+                            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#E5E7EB" }} 
+                          />
+                        ) : (
+                          <AvatarInitials name={member.name} size={40} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                        )}
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={{ fontSize: 15, color: "#1F2937", fontFamily: "Poppins_600SemiBold" }} numberOfLines={1}>{member.name}</Text>
+                          <Text style={{ fontSize: 13, color: "#6B7280", fontFamily: "Poppins_400Regular", textTransform: "capitalize" }}>{member.role === 'admin' ? 'Admin' : 'Member'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                      {isCurrentUserAdmin && String(member.alumniId) !== String(currentUserId) && (
+                        <TouchableOpacity onPress={() => handleRemoveMember(member)} style={{ padding: 12 }}>
+                          <Ionicons name="person-remove" size={18} color="#DC2626" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
           <Text style={styles.sectionHeading}>Media</Text>
           {isLoadingMedia ? (
@@ -822,15 +990,12 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               <>
                 {renderActionRow("notifications-off", `Mute ${dmName.split(" ")[0]}`, false, handleMute)}
                 {renderActionRow("people", `Create Group Chat with ${dmName.split(" ")[0]}`, false, dummyAction)}
-                {renderActionRow("share-social", "Share User ID", false, dummyAction)}
-                {renderActionRow("trash", "Delete Chat", true, dummyAction)}
+                {renderActionRow("trash", "Delete Chat", true, handleDeleteChat)}
               </>
             ) : (
               <>
                 {renderActionRow("notifications-off", "Mute Channel", false, handleMute)}
-                {renderActionRow("time", "STANDBY MUNA YUNG SLOT NA 'TO", false, dummyAction)}
-                {renderActionRow("share-social", "Share Channel ID", false, dummyAction)}
-                {renderActionRow("trash", "Delete Chat", true, dummyAction)}
+                {renderActionRow("trash", "Delete Chat", true, handleDeleteChat)}
               </>
             )}
           </View>
@@ -919,15 +1084,34 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               <FlatList
                 data={filteredCandidates}
                 keyExtractor={(item) => String(item.id)}
-                renderItem={({ item }) => (
-                  <View style={styles.candidateRow}>
-                    <AvatarInitials name={item.name} uri={item.avatar} size={36} style={styles.candidateAvatar} />
-                    <Text style={styles.candidateName} numberOfLines={1}>{item.name}</Text>
-                    <TouchableOpacity style={styles.candidateAddButton} onPress={() => handleAddMember(item)}>
-                      <Text style={styles.candidateAddButtonText}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                renderItem={({ item }) => {
+                  const hasValidPhoto = item.rawAvatar && typeof item.rawAvatar === "string" && item.rawAvatar.trim() !== "" && !item.rawAvatar.includes("undefined") && !item.rawAvatar.includes("null");
+                  return (
+                    <View style={styles.candidateRow}>
+                      <TouchableOpacity 
+                        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                        activeOpacity={0.6}
+                        onPress={() => {
+                          setIsAddMemberModalVisible(false);
+                          navigation.navigate("Home", { screen: "ProfileView", params: { userId: item.id } });
+                        }}
+                      >
+                        {hasValidPhoto && item.avatar ? (
+                          <Image 
+                            source={{ uri: item.avatar }} 
+                            style={[styles.candidateAvatar, { width: 36, height: 36, borderRadius: 18, backgroundColor: "#E5E7EB" }]} 
+                          />
+                        ) : (
+                          <AvatarInitials name={item.name} size={36} style={[styles.candidateAvatar, { width: 36, height: 36, borderRadius: 18 }]} />
+                        )}
+                        <Text style={styles.candidateName} numberOfLines={1}>{item.name}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.candidateAddButton} onPress={() => handleAddMember(item)}>
+                        <Text style={styles.candidateAddButtonText}>Add</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }}
                 style={styles.candidateList}
               />
             )}

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import TopHeaderDark from "../components/TopHeaderDark";
+import AvatarInitials from "../components/AvatarInitials";
 import styles from "../styles/GlobalSearchScreen.styles";
 import { getCurrentUser } from "../services/supabaseAuth";
 import {
@@ -23,6 +24,20 @@ import {
 import { getAllAlumni, getAlumniByEmail } from "../services/alumniQueries";
 import { getAvatarUri } from "../utils/imageUtils";
 import { ThemedAlert } from "../components/ThemedAlert";
+import supabase from "../services/supabase";
+
+// Helper to resolve profile public avatars synchronously
+const resolvePublicAvatarUrl = (path) => {
+  if (!path || typeof path !== 'string' || path.trim() === '') return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  try {
+    const cleanPath = path.replace(/^\/+/, "");
+    const { data } = supabase.storage.from('luminus_assets').getPublicUrl(cleanPath);
+    return data?.publicUrl || null;
+  } catch (err) {
+    return null;
+  }
+};
 
 const GlobalSearchScreen = ({ navigation, route }) => {
   const initialQuery = route?.params?.query ?? "";
@@ -183,7 +198,13 @@ const GlobalSearchScreen = ({ navigation, route }) => {
     const program = item?.program || "Alumni";
     const isPending = pendingOutgoingIds.has(item.id);
     const isSending = sendingIds.has(item.id);
-    const avatarUri = getAvatarUri(fullName, item?.alumni_photo);
+
+    // Safely check if the user actually uploaded a photo
+    const rawPhoto = item?.alumni_photo;
+    const hasValidPhoto = rawPhoto && typeof rawPhoto === "string" && rawPhoto.trim() !== "" && !rawPhoto.includes("undefined") && !rawPhoto.includes("null");
+
+    const resolvedAvatar = resolvePublicAvatarUrl(rawPhoto);
+    const avatarUri = hasValidPhoto ? getAvatarUri(fullName, resolvedAvatar) : null;
 
     let actionLabel = "Connect";
     let actionDisabled = false;
@@ -204,7 +225,12 @@ const GlobalSearchScreen = ({ navigation, route }) => {
             activeOpacity={0.8}
             onPress={() => navigation.navigate("ProfileView", { userId: item.id })}
           >
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            {hasValidPhoto && avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <AvatarInitials name={fullName} size={64} style={styles.avatar} backgroundColor="#31429B" />
+            )}
+
             <Text style={styles.cardName} numberOfLines={2} textAlign="center">
               {firstName}
               {lastName ? `\n${lastName}` : ""}
@@ -217,7 +243,11 @@ const GlobalSearchScreen = ({ navigation, route }) => {
 
             {/* Simulated Mutual Connections row for Mockup matching */}
             <View style={styles.mutualRow}>
-              <Image source={{ uri: avatarUri }} style={styles.mutualAvatar} />
+              {hasValidPhoto && avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.mutualAvatar} />
+              ) : (
+                <AvatarInitials name={fullName} size={20} style={styles.mutualAvatar} backgroundColor="#31429B" />
+              )}
               <Text style={styles.mutualText}>David and 19 other{"\n"}mutual connections</Text>
             </View>
           </TouchableOpacity>

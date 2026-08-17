@@ -22,7 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av'; // ADDED EXPO-AV
+import { useVideoPlayer, VideoView } from 'expo-video'; // UPDATED TO EXPO-VIDEO
 import HomeHeader from '../components/HomeHeader';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabaseAuth';
@@ -142,6 +142,40 @@ const mergeFeedItems = (currentItems, nextItems) => {
   return merged;
 };
 
+// --- EXPO-VIDEO COMPONENTS ---
+const ZoomableVideo = ({ uri, style }) => {
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    player.play();
+  });
+  
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      allowsFullscreen
+      allowsPictureInPicture
+      contentFit="contain"
+    />
+  );
+};
+
+const PostFeedVideo = ({ uri, style }) => {
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+  
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      contentFit="cover"
+    />
+  );
+};
+
 const ZoomableViewer = ({
   images = [],
   initialIndex = 0,
@@ -190,8 +224,8 @@ const ZoomableViewer = ({
                   <View style={styles.viewerImageCard}>
                     <View style={styles.viewerImagePressable}>
                       {isVideo ? (
-                        <Video
-                          source={{ uri: image.uri }}
+                        <ZoomableVideo
+                          uri={image.uri}
                           style={[
                             styles.viewerImage,
                             {
@@ -199,9 +233,6 @@ const ZoomableViewer = ({
                               height: VIEWER_IMAGE_HEIGHT,
                             },
                           ]}
-                          resizeMode={ResizeMode.CONTAIN}
-                          useNativeControls
-                          shouldPlay
                         />
                       ) : (
                         <Image
@@ -1127,17 +1158,9 @@ const UserFeedScreen = ({ navigation }) => {
 
     if (isVideo) {
       return (
-        <Video
-          source={{ uri }}
+        <PostFeedVideo
+          uri={uri}
           style={[styles.postMediaImage, imageStyle]}
-          resizeMode={ResizeMode.COVER}
-          isMuted={true}
-          shouldPlay={true}
-          isLooping
-          onReadyForDisplay={(e) => {
-            const { width, height } = e.naturalSize;
-            updatePostImageRatio(getPostImageKey(postId, image, imageIndex), width, height);
-          }}
         />
       );
     }

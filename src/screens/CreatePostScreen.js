@@ -156,28 +156,121 @@ const CreatePostScreen = () => {
         ThemedAlert.alert("Permission required", "Permission to access media is required to choose an image or video.", [{ text: "OK" }], { variant: "error" });
         return;
       }
+
+      const activeExisting = existingMediaItems.filter((img) => !removedExistingMediaIds.includes(img.id));
+      let currentImageCount = 0;
+      let currentVideoCount = 0;
+
+      const checkMediaType = (uri, typeStr) => {
+        const mime = typeStr ?? getMediaMimeType(uri);
+        if (mime.startsWith("video/")) currentVideoCount++;
+        else currentImageCount++;
+      };
+
+      activeExisting.forEach((item) => checkMediaType(item.uri));
+      selectedMediaFiles.forEach((file) => checkMediaType(file.uri, file.type));
+
+      let mediaTypeOption = ImagePicker.MediaTypeOptions.All;
+      let maxSelectable = 6;
+
+      // Dynamically restrict the picker based on what the user has already selected
+      if (currentImageCount >= 5 && currentVideoCount >= 1) {
+        ThemedAlert.alert("Limit Reached", "You have reached the maximum limit of 5 images and 1 video per post.", [{ text: "OK" }]);
+        return;
+      } else if (currentImageCount >= 5) {
+        // Only videos allowed now
+        mediaTypeOption = ImagePicker.MediaTypeOptions.Videos;
+        maxSelectable = 1 - currentVideoCount;
+      } else if (currentVideoCount >= 1) {
+        // Only images allowed now
+        mediaTypeOption = ImagePicker.MediaTypeOptions.Images;
+        maxSelectable = 5 - currentImageCount;
+      } else {
+        // Can pick both
+        mediaTypeOption = ImagePicker.MediaTypeOptions.All;
+        maxSelectable = (5 - currentImageCount) + (1 - currentVideoCount);
+      }
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: mediaTypeOption,
         allowsEditing: false,
         allowsMultipleSelection: true,
-        selectionLimit: 10,
+        selectionLimit: maxSelectable, 
         base64: false,
         quality: 0.85,
       });
 
+      if (result.canceled) return;
+
       const pickedAssets = Array.isArray(result.assets)
         ? result.assets.filter((asset) => Boolean(asset?.uri))
-        : result.uri ? [{ uri: result.uri, fileName: null, mimeType: null }] : [];
+        : result.uri ? [{ uri: result.uri, fileName: null, mimeType: null, type: result.type, fileSize: result.fileSize }] : [];
 
-      if (pickedAssets.length > 0) {
-        setSelectedMediaUris(pickedAssets.map((asset) => asset.uri));
-        const formattedFiles = pickedAssets.map((asset, index) => ({
+      const validNewUris = [];
+      const validNewFiles = [];
+
+      let sizeErrorMessages = [];
+      let limitErrorMessages = [];
+
+      for (const asset of pickedAssets) {
+        const mimeType = asset.mimeType ?? getMediaMimeType(asset.uri);
+        const isVideo = asset.type === "video" || mimeType.startsWith("video/");
+        const fileSize = asset.fileSize || 0; 
+
+        // Size Constraints: 30MB for video, 8MB for image
+        const MAX_VIDEO_SIZE = 30 * 1024 * 1024;
+        const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
+
+        if (isVideo && fileSize > MAX_VIDEO_SIZE) {
+          if (!sizeErrorMessages.includes("Videos must be 30MB or less.")) {
+            sizeErrorMessages.push("Videos must be 30MB or less.");
+          }
+          continue;
+        }
+
+        if (!isVideo && fileSize > MAX_IMAGE_SIZE) {
+          if (!sizeErrorMessages.includes("Images must be 8MB or less.")) {
+            sizeErrorMessages.push("Images must be 8MB or less.");
+          }
+          continue;
+        }
+
+        // Strict Enforcement if multiple items selected simultaneously
+        if (isVideo) {
+          if (currentVideoCount >= 1) {
+            if (!limitErrorMessages.includes("You can only attach 1 video per post.")) {
+              limitErrorMessages.push("You can only attach 1 video per post.");
+            }
+            continue;
+          }
+          currentVideoCount++;
+        } else {
+          if (currentImageCount >= 5) {
+            if (!limitErrorMessages.includes("You can only attach up to 5 images per post.")) {
+              limitErrorMessages.push("You can only attach up to 5 images per post.");
+            }
+            continue;
+          }
+          currentImageCount++;
+        }
+
+        validNewUris.push(asset.uri);
+        validNewFiles.push({
           uri: asset.uri,
-          name: asset.fileName ?? `post-media-${index}-${Date.now()}.${asset.uri.split(".").pop() || "jpg"}`,
-          type: asset.mimeType ?? getMediaMimeType(asset.uri),
-        }));
-        setSelectedMediaFiles(formattedFiles);
+          name: asset.fileName ?? `post-media-${validNewUris.length}-${Date.now()}.${asset.uri.split(".").pop() || (isVideo ? "mp4" : "jpg")}`,
+          type: mimeType,
+        });
+      }
+
+      // Display validation errors if any files were blocked
+      if (sizeErrorMessages.length > 0 || limitErrorMessages.length > 0) {
+        const combinedErrors = [...sizeErrorMessages, ...limitErrorMessages].join("\n");
+        ThemedAlert.alert("Media Selection", combinedErrors, [{ text: "OK" }]);
+      }
+
+      if (validNewUris.length > 0) {
+        setSelectedMediaUris((prev) => [...prev, ...validNewUris]);
+        setSelectedMediaFiles((prev) => [...prev, ...validNewFiles]);
       }
     } catch (error) {
       console.error("Failed to pick media:", error);

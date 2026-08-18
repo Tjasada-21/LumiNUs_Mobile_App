@@ -147,6 +147,7 @@ const mergeFeedItems = (currentItems, nextItems) => {
   return merged;
 };
 
+// --- DYNAMIC VIDEO RENDERERS ---
 const ZoomableVideo = ({ uri, style }) => {
   const player = useVideoPlayer(uri, (player) => {
     player.loop = true;
@@ -155,27 +156,55 @@ const ZoomableVideo = ({ uri, style }) => {
   
   return (
     <VideoView
-      style={style}
+      style={[style, { backgroundColor: 'transparent' }]}
       player={player}
       allowsFullscreen
       allowsPictureInPicture
-      contentFit="contain"
+      contentFit="contain" // Always 'contain' so nothing gets cut off in fullscreen
     />
   );
 };
 
-const PostFeedVideo = ({ uri, style }) => {
+const PostFeedVideo = ({ uri, style, onLayoutRatio }) => {
+  const [videoFit, setVideoFit] = useState('cover');
+
   const player = useVideoPlayer(uri, (player) => {
     player.loop = true;
     player.muted = true;
     player.play();
   });
-  
+
+  useEffect(() => {
+    // Listen for the video metadata to load so we can check its natural dimensions
+    const subscription = player.addListener('statusChange', (status) => {
+      // If the player is ready, check the natural size of the source video
+      if (status.status === 'readyToPlay' || player.naturalSize) {
+        const { width, height } = player.naturalSize || { width: 0, height: 0 };
+        if (width > 0 && height > 0) {
+          
+          // Determine Orientation
+          const isLandscape = width > height;
+
+          // Pass ratio up to parent for grid formatting
+          if (onLayoutRatio) onLayoutRatio(width, height);
+
+          // If the video is landscape, use 'contain' so the sides aren't drastically chopped off.
+          // If it's portrait or square, use 'cover' to fill the grid tile nicely.
+          setVideoFit(isLandscape ? 'contain' : 'cover');
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [player, onLayoutRatio]);
+
   return (
     <VideoView
       style={style}
       player={player}
-      contentFit="cover"
+      contentFit={videoFit}
     />
   );
 };
@@ -1072,7 +1101,13 @@ const UserFeedScreen = ({ navigation }) => {
     const isVideo = isVideoUri(uri);
 
     if (isVideo) {
-      return <PostFeedVideo uri={uri} style={[styles.postMediaImage, imageStyle]} />;
+      return (
+        <PostFeedVideo 
+          uri={uri} 
+          style={[styles.postMediaImage, imageStyle]} 
+          onLayoutRatio={(w, h) => updatePostImageRatio(getPostImageKey(postId, image, imageIndex), w, h)}
+        />
+      );
     }
 
     return (
@@ -1564,7 +1599,7 @@ const UserFeedScreen = ({ navigation }) => {
                 <Text style={styles.postAuthorName} numberOfLines={1}>{postAuthorName}</Text>
               </Pressable>
               <Text style={styles.postMeta}>
-                Class of {gradYear} | {program} | {timeStr} • <Ionicons name="globe-outline" size={10} color="#6B7280" /> {visibility}
+                Class of {gradYear} | {program} | {timeStr} • <Ionicons name="globe-outline" size={10} color="#6B7280" /> Public
               </Text>
             </View>
             {!isNested && (

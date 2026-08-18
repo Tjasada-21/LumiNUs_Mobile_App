@@ -22,8 +22,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useVideoPlayer, VideoView } from 'expo-video'; // UPDATED TO EXPO-VIDEO
+import { useVideoPlayer, VideoView } from 'expo-video';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+
 import HomeHeader from '../components/HomeHeader';
+import AvatarInitials from '../components/AvatarInitials';
 import styles from '../styles/UserFeedScreen.styles';
 import { getCurrentUser } from '../services/supabaseAuth';
 import { getAlumniByEmail } from '../services/alumniQueries';
@@ -46,7 +50,6 @@ import supabase from '../services/supabase';
 import { sortFeedPosts } from '../utils/feedAlgorithm';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAX_ZOOM_SCALE = 2.5;
 const VIEWER_IMAGE_WIDTH = SCREEN_WIDTH * 0.92;
 const VIEWER_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.72;
 const MENTION_PATTERN = /(@[a-zA-Z0-9_.-]+)/g;
@@ -54,22 +57,25 @@ const SWIPE_DISMISS_THRESHOLD = 100;
 const FEED_PAGE_SIZE = 20;
 
 const REPORT_REASONS = [
-  "Spam or Fraud",
-  "Nudity or Sexual Content",
-  "Hate Speech or Symbols",
-  "Violence or Dangerous Organizations",
-  "Bullying or Harassment",
-  "Sale of Illegal or Regulated Goods",
-  "Intellectual Property Violation",
-  "False Information",
-  "Other"
+  'Spam or Fraud',
+  'Nudity or Sexual Content',
+  'Hate Speech or Symbols',
+  'Violence or Dangerous Organizations',
+  'Bullying or Harassment',
+  'Sale of Illegal or Regulated Goods',
+  'Intellectual Property Violation',
+  'False Information',
+  'Other',
 ];
 
-// Helper to detect if a file is a video
 const isVideoUri = (uri) => {
   if (!uri) return false;
   const lowerUri = String(uri).toLowerCase();
   return lowerUri.includes('.mp4') || lowerUri.includes('.mov') || lowerUri.includes('.webm') || lowerUri.includes('.mkv');
+};
+
+const hasValidProfilePhoto = (rawPhoto) => {
+  return rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('undefined') && !rawPhoto.includes('null');
 };
 
 const getRelativeTimeLabel = (dateValue) => {
@@ -77,6 +83,7 @@ const getRelativeTimeLabel = (dateValue) => {
   const normalizedValue = typeof dateValue === 'string' ? (dateValue.includes('T') ? dateValue : dateValue.replace(' ', 'T')) : dateValue;
   const date = new Date(normalizedValue);
   if (Number.isNaN(date.getTime())) return '';
+  
   const elapsedMs = Date.now() - date.getTime();
   const elapsedSeconds = Math.max(1, Math.floor(elapsedMs / 1000));
   const elapsedMinutes = Math.floor(elapsedSeconds / 60);
@@ -112,8 +119,6 @@ const toMentionHandle = (firstName, lastName) => {
   return normalizedHandle || 'alumni';
 };
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
 const resolveFeedInteractionTarget = (post) => {
   if (!post) return { feedType: 'post', postId: null, announcementId: null, originalPostId: null };
   if (post.feed_type === 'announcement')
@@ -142,7 +147,6 @@ const mergeFeedItems = (currentItems, nextItems) => {
   return merged;
 };
 
-// --- EXPO-VIDEO COMPONENTS ---
 const ZoomableVideo = ({ uri, style }) => {
   const player = useVideoPlayer(uri, (player) => {
     player.loop = true;
@@ -183,12 +187,14 @@ const ZoomableViewer = ({
   post = null,
   viewerAuthorName = '',
   postAvatarUri = '',
+  rawAuthorPhoto = null,
   timeLabel = '',
   postVisibilityLabel = 'Public',
   reactionCount = 0,
   commentCount = 0,
   repostCount = 0,
   isReacted = false,
+  isReposted = false,
   onRequestClose,
   onAuthorPress,
   onReactionPress,
@@ -226,24 +232,12 @@ const ZoomableViewer = ({
                       {isVideo ? (
                         <ZoomableVideo
                           uri={image.uri}
-                          style={[
-                            styles.viewerImage,
-                            {
-                              width: VIEWER_IMAGE_WIDTH,
-                              height: VIEWER_IMAGE_HEIGHT,
-                            },
-                          ]}
+                          style={[styles.viewerImage, { width: VIEWER_IMAGE_WIDTH, height: VIEWER_IMAGE_HEIGHT }]}
                         />
                       ) : (
                         <Image
                           source={{ uri: image.uri }}
-                          style={[
-                            styles.viewerImage,
-                            {
-                              width: VIEWER_IMAGE_WIDTH,
-                              height: VIEWER_IMAGE_HEIGHT,
-                            },
-                          ]}
+                          style={[styles.viewerImage, { width: VIEWER_IMAGE_WIDTH, height: VIEWER_IMAGE_HEIGHT }]}
                           resizeMode="contain"
                         />
                       )}
@@ -254,11 +248,15 @@ const ZoomableViewer = ({
             })}
           </ScrollView>
 
-          {post ? (
+          {post && (
             <View style={styles.viewerFooter} pointerEvents="box-none">
               <View style={styles.viewerAuthorCard}>
                 <Pressable onPress={onAuthorPress} style={styles.viewerAuthorPressable} hitSlop={8}>
-                  <Image source={{ uri: postAvatarUri }} style={styles.viewerAuthorAvatar} />
+                  {hasValidProfilePhoto(rawAuthorPhoto) && postAvatarUri ? (
+                    <Image source={{ uri: postAvatarUri }} style={styles.viewerAuthorAvatar} />
+                  ) : (
+                    <AvatarInitials name={viewerAuthorName} size={36} style={styles.viewerAuthorAvatar} backgroundColor="#31429B" />
+                  )}
                 </Pressable>
                 <View style={styles.viewerAuthorTextWrap}>
                   <Pressable onPress={onAuthorPress} hitSlop={8}>
@@ -272,15 +270,11 @@ const ZoomableViewer = ({
                   </View>
                 </View>
               </View>
-              {post.feed_type !== 'announcement' ? (
+              {post.feed_type !== 'announcement' && (
                 <>
                   <View style={styles.viewerActionsRow}>
                     <Pressable style={styles.viewerActionButton} onPress={onReactionPress}>
-                      <Ionicons
-                        name={isReacted ? 'heart' : 'heart-outline'}
-                        size={18}
-                        color={isReacted ? '#EF4444' : '#FFFFFF'}
-                      />
+                      <Ionicons name={isReacted ? 'heart' : 'heart-outline'} size={18} color={isReacted ? '#EF4444' : '#FFFFFF'} />
                       <Text style={styles.viewerActionLabel}>Like</Text>
                     </Pressable>
                     <Pressable style={styles.viewerActionButton} onPress={onCommentPress}>
@@ -288,19 +282,19 @@ const ZoomableViewer = ({
                       <Text style={styles.viewerActionLabel}>Comment</Text>
                     </Pressable>
                     <Pressable style={styles.viewerActionButton} onPress={onRepostPress}>
-                      <Ionicons name="share-social-outline" size={18} color="#FFFFFF" />
-                      <Text style={styles.viewerActionLabel}>Share</Text>
+                      <Ionicons name="repeat" size={18} color={isReposted ? '#15803D' : '#FFFFFF'} />
+                      <Text style={styles.viewerActionLabel}>Repost</Text>
                     </Pressable>
                   </View>
                   <View style={styles.viewerCountsRow}>
                     <Text style={styles.viewerCountText}>{reactionCount} reactions</Text>
                     <Text style={styles.viewerCountText}>{commentCount} comments</Text>
-                    <Text style={styles.viewerCountText}>{repostCount} shares</Text>
+                    <Text style={styles.viewerCountText}>{repostCount} reposts</Text>
                   </View>
                 </>
-              ) : null}
+              )}
             </View>
-          ) : null}
+          )}
 
           <View style={styles.viewerTopBar} pointerEvents="box-none">
             <Pressable style={styles.viewerTopButton} onPress={onRequestClose} hitSlop={10}>
@@ -319,19 +313,25 @@ const ZoomableViewer = ({
 const UserFeedScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { currentUserProfile } = useCurrentUserProfile();
+  
   const [userData, setUserData] = useState(null);
   const [posts, setPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [isRefreshingPosts, setIsRefreshingPosts] = useState(false);
   const [isFetchingMorePosts, setIsFetchingMorePosts] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [feedError, setFeedError] = useState('');
+  const [feedSortMode, setFeedSortMode] = useState('relevant');
+  const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
+  const [connections, setConnections] = useState([]);
   const [postImageRatios, setPostImageRatios] = useState({});
+  const [reactionPulsePostId, setReactionPulsePostId] = useState(null);
+
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerPost, setViewerPost] = useState(null);
-  const [feedError, setFeedError] = useState('');
-  const [reactionPulsePostId, setReactionPulsePostId] = useState(null);
+  
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [activeCommentPost, setActiveCommentPost] = useState(null);
   const [replyingToComment, setReplyingToComment] = useState(null);
@@ -348,36 +348,33 @@ const UserFeedScreen = ({ navigation }) => {
   const [expandedCommentParents, setExpandedCommentParents] = useState({});
   const [expandedCaptions, setExpandedCaptions] = useState({});
   const [captionOverflowMap, setCaptionOverflowMap] = useState({});
+  
   const [repostComposerVisible, setRepostComposerVisible] = useState(false);
   const [activeRepostPost, setActiveRepostPost] = useState(null);
   const [repostCaptionDraft, setRepostCaptionDraft] = useState('');
+  
   const [postActionsVisible, setPostActionsVisible] = useState(false);
   const [activePostActionPost, setActivePostActionPost] = useState(null);
   const [isPostActionSaving, setIsPostActionSaving] = useState(false);
   const [isDeletingPost, setIsDeletingPost] = useState(false);
-  const [themedAlertState, setThemedAlertState] = useState({ visible: false, title: '', message: '', actions: [] });
-  const [connections, setConnections] = useState([]);
-  const [feedSortMode, setFeedSortMode] = useState('relevant');
-  const [feedRefreshNonce, setFeedRefreshNonce] = useState(0);
-
+  
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState({ id: null, type: null });
+  const [themedAlertState, setThemedAlertState] = useState({ visible: false, title: '', message: '', actions: [] });
 
   const reactionPulseScale = useRef(new RNAnimated.Value(1)).current;
-
   const postActionsTranslateY = useRef(new RNAnimated.Value(0)).current;
   const repostComposerTranslateY = useRef(new RNAnimated.Value(0)).current;
   const commentsTranslateY = useRef(new RNAnimated.Value(0)).current;
+  
   const postMediaTapTimeoutRef = useRef(null);
   const postMediaTapStateRef = useRef({ postKey: null, imageIndex: null });
-  const postActionsSwipeStartRef = useRef(0);
-  const postActionsInitialYRef = useRef(0);
-  const repostComposerSwipeStartRef = useRef(0);
-  const repostComposerInitialYRef = useRef(0);
-  const commentsSwipeStartRef = useRef(0);
-  const commentsInitialYRef = useRef(0);
-
   const commentsScrollViewRef = useRef(null);
+  
+  const postActionsSwipeStartRef = useRef(0);
+  const repostComposerSwipeStartRef = useRef(0);
+  const commentsSwipeStartRef = useRef(0);
+  
   const isClosingRef = useRef(false);
   const feedPageRef = useRef(0);
   const feedLoadInFlightRef = useRef(false);
@@ -393,7 +390,6 @@ const UserFeedScreen = ({ navigation }) => {
     const currentY = evt.nativeEvent.pageY;
     if (postActionsSwipeStartRef.current === 0) {
       postActionsSwipeStartRef.current = currentY;
-      postActionsInitialYRef.current = 0;
     }
     const distance = currentY - postActionsSwipeStartRef.current;
     postActionsTranslateY.setValue(applyRubberBandingOffset(distance));
@@ -407,7 +403,6 @@ const UserFeedScreen = ({ navigation }) => {
     const currentY = evt.nativeEvent.pageY;
     if (repostComposerSwipeStartRef.current === 0) {
       repostComposerSwipeStartRef.current = currentY;
-      repostComposerInitialYRef.current = 0;
     }
     const distance = currentY - repostComposerSwipeStartRef.current;
     repostComposerTranslateY.setValue(applyRubberBandingOffset(distance));
@@ -421,16 +416,9 @@ const UserFeedScreen = ({ navigation }) => {
     const currentY = evt.nativeEvent.pageY;
     if (commentsSwipeStartRef.current === 0) {
       commentsSwipeStartRef.current = currentY;
-      commentsInitialYRef.current = 0;
     }
     const distance = currentY - commentsSwipeStartRef.current;
-    
-    let newValue = distance;
-    if (distance > 0) {
-      newValue = distance * 0.6;
-    }
-    
-    commentsTranslateY.setValue(newValue);
+    commentsTranslateY.setValue(distance > 0 ? distance * 0.6 : distance);
   };
   
   const resetSwipeRefs = () => {
@@ -440,29 +428,23 @@ const UserFeedScreen = ({ navigation }) => {
     
     RNAnimated.spring(postActionsTranslateY, { toValue: 0, useNativeDriver: false }).start();
     RNAnimated.spring(repostComposerTranslateY, { toValue: 0, useNativeDriver: false }).start();
-    
-    RNAnimated.spring(commentsTranslateY, { 
-      toValue: 0, 
-      useNativeDriver: false,
-      tension: 40,
-      friction: 8,
-    }).start();
+    RNAnimated.spring(commentsTranslateY, { toValue: 0, useNativeDriver: false, tension: 40, friction: 8 }).start();
   };
 
   const repostMentionContext = useMemo(() => extractMentionQuery(repostCaptionDraft), [repostCaptionDraft]);
   const commentMentionContext = useMemo(() => extractMentionQuery(commentDraft), [commentDraft]);
 
   const mentionDirectory = useMemo(
-    () =>
-      connections.map((connection) => {
-        const name = `${connection?.first_name ?? ''} ${connection?.last_name ?? ''}`.trim() || 'Alumni';
-        return {
-          id: connection?.id,
-          name,
-          handle: toMentionHandle(connection?.first_name, connection?.last_name),
-          avatar: getAvatarUri(name, connection?.alumni_photo),
-        };
-      }),
+    () => connections.map((connection) => {
+      const name = `${connection?.first_name ?? ''} ${connection?.last_name ?? ''}`.trim() || 'Alumni';
+      return {
+        id: connection?.id,
+        name,
+        handle: toMentionHandle(connection?.first_name, connection?.last_name),
+        avatar: getAvatarUri(name, connection?.alumni_photo),
+        rawPhoto: connection?.alumni_photo,
+      };
+    }),
     [connections]
   );
 
@@ -470,9 +452,7 @@ const UserFeedScreen = ({ navigation }) => {
     if (!repostMentionContext) return [];
     const query = repostMentionContext.query.toLowerCase();
     return mentionDirectory
-      .filter((item) =>
-        !query ? true : item.name.toLowerCase().includes(query) || item.handle.includes(query)
-      )
+      .filter((item) => (!query ? true : item.name.toLowerCase().includes(query) || item.handle.includes(query)))
       .slice(0, 5);
   }, [mentionDirectory, repostMentionContext]);
 
@@ -480,13 +460,12 @@ const UserFeedScreen = ({ navigation }) => {
     if (!commentMentionContext) return [];
     const query = commentMentionContext.query.toLowerCase();
     return mentionDirectory
-      .filter((item) =>
-        !query ? true : item.name.toLowerCase().includes(query) || item.handle.includes(query)
-      )
+      .filter((item) => (!query ? true : item.name.toLowerCase().includes(query) || item.handle.includes(query)))
       .slice(0, 5);
   }, [commentMentionContext, mentionDirectory]);
 
   const closeThemedAlert = useCallback(() => setThemedAlertState((curr) => ({ ...curr, visible: false })), []);
+  
   const showThemedAlert = useCallback(({ title, message, actions }) => {
     setThemedAlertState({
       visible: true,
@@ -495,10 +474,12 @@ const UserFeedScreen = ({ navigation }) => {
       actions: Array.isArray(actions) && actions.length > 0 ? actions : [{ text: 'OK' }],
     });
   }, []);
+
   const handleThemedAlertAction = (action) => {
     closeThemedAlert();
     if (typeof action?.onPress === 'function') action.onPress();
   };
+
   const openGlobalSearch = useCallback(() => navigation.navigate('GlobalSearch'), [navigation]);
   const openCreatePost = useCallback(() => navigation.navigate('CreatePostScreen'), [navigation]);
 
@@ -548,8 +529,9 @@ const UserFeedScreen = ({ navigation }) => {
         try {
           const supaUser = await getCurrentUser();
           const cachedAlumniId = userData?.id ?? currentUserProfile?.id ?? null;
-          if (cachedAlumniId) currentUserId = cachedAlumniId;
-          else if (supaUser?.email) {
+          if (cachedAlumniId) {
+            currentUserId = cachedAlumniId;
+          } else if (supaUser?.email) {
             const profile = await getAlumniByEmail(supaUser.email).catch(() => null);
             currentUserId = profile?.id ?? null;
           }
@@ -559,20 +541,17 @@ const UserFeedScreen = ({ navigation }) => {
         }
 
         const mappedPosts = (rawPosts || []).map((post) => {
-          const images =
-            Array.isArray(post.images) && post.images.length > 0
-              ? post.images
-              : Array.isArray(post.images_posts)
-                ? post.images_posts.map((img) => ({
-                    ...img,
-                    image_url: img.image_path ?? img.image_url ?? img.uri ?? null,
-                  }))
-                : [];
+          const images = Array.isArray(post.images) && post.images.length > 0
+            ? post.images
+            : Array.isArray(post.images_posts)
+              ? post.images_posts.map((img) => ({
+                  ...img,
+                  image_url: img.image_path ?? img.image_url ?? img.uri ?? null,
+                }))
+              : [];
           const author = post.alumnis ?? post.alumni ?? post.author ?? {};
           const authorId = author?.id ?? null;
-          const isOwnedByCurrentUser = Boolean(
-            currentUserId && authorId && String(authorId) === String(currentUserId)
-          );
+          const isOwnedByCurrentUser = Boolean(currentUserId && authorId && String(authorId) === String(currentUserId));
           return {
             ...post,
             images,
@@ -616,9 +595,7 @@ const UserFeedScreen = ({ navigation }) => {
   }, [fetchPosts]);
 
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener("REFRESH_FEED", () => {
-      handleRefreshPosts();
-    });
+    const subscription = DeviceEventEmitter.addListener("REFRESH_FEED", handleRefreshPosts);
     return () => subscription.remove();
   }, [handleRefreshPosts]);
 
@@ -626,6 +603,35 @@ const UserFeedScreen = ({ navigation }) => {
     if (isLoadingPosts || isRefreshingPosts || isFetchingMorePosts || !hasMorePosts) return;
     fetchPosts({ reset: false });
   }, [fetchPosts, hasMorePosts, isFetchingMorePosts, isLoadingPosts, isRefreshingPosts]);
+
+  const handleDownloadImage = useCallback(async (uri) => {
+    if (!uri) return;
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        showThemedAlert({ title: 'Permission Denied', message: 'We need permission to save images to your device.' });
+        return;
+      }
+      
+      const filename = uri.split('/').pop().split('?')[0] || `luminus_image_${Date.now()}.jpg`;
+      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      
+      await FileSystem.downloadAsync(uri, fileUri);
+      await MediaLibrary.saveToLibraryAsync(fileUri);
+      
+      showThemedAlert({ title: 'Downloaded', message: 'Image successfully saved to your gallery.' });
+    } catch (error) {
+      console.error('Download error:', error);
+      showThemedAlert({ title: 'Error', message: 'Failed to download the image.' });
+    }
+  }, [showThemedAlert]);
+
+  const handleReportFromViewer = useCallback(() => {
+    if (!viewerPost?.id) return;
+    setReportTarget({ id: viewerPost.id, type: 'post' });
+    closeImageViewer();
+    setTimeout(() => setReportModalVisible(true), 350);
+  }, [viewerPost]);
 
   const renderPostAuthorName = (post) => {
     const source = post?.author ?? post?.alumni ?? {};
@@ -638,37 +644,21 @@ const UserFeedScreen = ({ navigation }) => {
   };
 
   const connectionIdSet = useMemo(() => {
-    return new Set(
-      connections
-        .map((connection) => String(connection?.id ?? connection?.alumni_id ?? connection?.connection_id ?? ''))
-        .filter(Boolean)
-    );
+    return new Set(connections.map((connection) => String(connection?.id ?? connection?.alumni_id ?? connection?.connection_id ?? '')).filter(Boolean));
   }, [connections]);
 
   const renderConnectionRepostSummary = useCallback((post) => {
     const reposters = Array.isArray(post?.reposters) ? post.reposters : [];
-    const connectionReposters = reposters.filter(
-      (reposter) => reposter?.id && connectionIdSet.has(String(reposter.id)),
-    );
+    const connectionReposters = reposters.filter((reposter) => reposter?.id && connectionIdSet.has(String(reposter.id)));
 
-    if (connectionReposters.length === 0) {
-      return null;
-    }
+    if (connectionReposters.length === 0) return null;
 
-    const names = connectionReposters
-      .map((reposter) => [reposter?.first_name, reposter?.middle_name, reposter?.last_name].filter(Boolean).join(' ').trim())
-      .filter(Boolean);
-
-    if (names.length === 0) {
-      return null;
-    }
+    const names = connectionReposters.map((reposter) => [reposter?.first_name, reposter?.middle_name, reposter?.last_name].filter(Boolean).join(' ').trim()).filter(Boolean);
+    if (names.length === 0) return null;
 
     const visibleNames = names.slice(0, 2);
     const remainingCount = names.length - visibleNames.length;
-    const label =
-      names.length >= 3
-        ? `${visibleNames.join(', ')} and ${remainingCount} others`
-        : visibleNames.join(', ');
+    const label = names.length >= 3 ? `${visibleNames.join(', ')} and ${remainingCount} others` : visibleNames.join(', ');
 
     return (
       <View style={styles.repostContextRow}>
@@ -696,46 +686,41 @@ const UserFeedScreen = ({ navigation }) => {
     return profile?.id ?? null;
   }, [userData?.id]);
 
-  const canManagePost = useCallback(
-    (post) =>
-      Boolean(
-        post?.feed_type === 'post' &&
-          (post?.is_owner === true ||
-            post?.can_manage === true ||
-            (() => {
-              const sourceAuthor = post?.alumni ?? post?.author ?? post?.alumnis ?? {};
-              return Boolean(userData?.id && sourceAuthor?.id && String(sourceAuthor.id) === String(userData.id));
-            })())
-      ),
-    [userData?.id]
-  );
+  const canManagePost = useCallback((post) => Boolean(
+    post?.feed_type === 'post' &&
+    (post?.is_owner === true ||
+      post?.can_manage === true ||
+      (() => {
+        const sourceAuthor = post?.alumni ?? post?.author ?? post?.alumnis ?? {};
+        return Boolean(userData?.id && sourceAuthor?.id && String(sourceAuthor.id) === String(userData.id));
+      })())
+  ), [userData?.id]);
 
-  const canManageComment = useCallback(
-    (comment) =>
-      Boolean(
-        userData?.id &&
-          (() => {
-            const sourceAuthor = comment?.alumni ?? comment?.author ?? comment?.alumnis ?? {};
-            return Boolean(sourceAuthor?.id && String(sourceAuthor.id) === String(userData.id));
-          })()
-      ),
-    [userData?.id]
-  );
+  const canManageComment = useCallback((comment) => Boolean(
+    userData?.id &&
+    (() => {
+      const sourceAuthor = comment?.alumni ?? comment?.author ?? comment?.alumnis ?? {};
+      return Boolean(sourceAuthor?.id && String(sourceAuthor.id) === String(userData.id));
+    })()
+  ), [userData?.id]);
 
   const openPostActions = useCallback((post) => {
     setActivePostActionPost(post);
     setPostActionsVisible(true);
   }, []);
+
   const openCommentActions = useCallback((comment) => {
     setActiveCommentActionComment(comment);
     setCommentActionsVisible(true);
   }, []);
+
   const closePostActions = useCallback(() => {
     if (!isPostActionSaving) {
       setPostActionsVisible(false);
       setActivePostActionPost(null);
     }
   }, [isPostActionSaving]);
+
   const closeCommentActions = useCallback(() => {
     if (!isCommentActionSaving) {
       setCommentActionsVisible(false);
@@ -747,18 +732,14 @@ const UserFeedScreen = ({ navigation }) => {
     if (!activePostActionPost?.id) return;
     setReportTarget({ id: activePostActionPost.id, type: 'post' });
     setPostActionsVisible(false);
-    setTimeout(() => {
-      setReportModalVisible(true);
-    }, 350); 
+    setTimeout(() => setReportModalVisible(true), 350); 
   }, [activePostActionPost]);
 
   const openCommentReportModal = useCallback(() => {
     if (!activeCommentActionComment?.id) return;
     setReportTarget({ id: activeCommentActionComment.id, type: 'comment' });
     setCommentActionsVisible(false);
-    setTimeout(() => {
-      setReportModalVisible(true);
-    }, 350);
+    setTimeout(() => setReportModalVisible(true), 350);
   }, [activeCommentActionComment]);
 
   const submitReport = useCallback(async (reason) => {
@@ -770,7 +751,6 @@ const UserFeedScreen = ({ navigation }) => {
     
     try {
       const currentUserId = userData?.id || await resolveActiveAlumniId();
-      
       if (!currentUserId) throw new Error("User not authenticated");
 
       if (targetType === 'post') {
@@ -779,17 +759,14 @@ const UserFeedScreen = ({ navigation }) => {
           reporter_id: currentUserId,
           reason: reason 
         }]);
-
         if (error) throw error;
         setPosts((curr) => curr.filter((p) => p.id !== targetId));
-
       } else if (targetType === 'comment') {
         const { error } = await supabase.from('comment_reports').insert([{ 
           comment_id: targetId, 
           reporter_id: currentUserId,
           reason: reason 
         }]);
-
         if (error) throw error;
 
         const { count, error: countError } = await supabase
@@ -800,33 +777,20 @@ const UserFeedScreen = ({ navigation }) => {
         if (!countError && count >= 10) {
           await supabase.from('comments').update({ moderation_status: 'under_review' }).eq('id', targetId);
           setComments((curr) => curr.filter((c) => c.id !== targetId));
-          setPosts((curr) =>
-            curr.map((p) =>
-              p.id === activeCommentPost?.id
-                ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) }
-                : p
-            )
-          );
+          setPosts((curr) => curr.map((p) => p.id === activeCommentPost?.id ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) } : p));
         }
       }
 
       showThemedAlert({ 
         title: 'Reported', 
-        message: targetType === 'post' 
-          ? 'Thanks — we received your report and removed this post from your feed.'
-          : 'Thanks — your report has been submitted for review.'
+        message: targetType === 'post' ? 'Thanks — we received your report and removed this post from your feed.' : 'Thanks — your report has been submitted for review.'
       });
-      
     } catch (e) {
       console.warn('Report failed:', e);
-      showThemedAlert({ 
-        title: 'Reported', 
-        message: 'You have already reported this item, or an error occurred.' 
-      });
+      showThemedAlert({ title: 'Reported', message: 'You have already reported this item, or an error occurred.' });
     }
   }, [reportTarget, userData?.id, resolveActiveAlumniId, showThemedAlert, activeCommentPost?.id]);
 
-  // --- LOCAL & DATABASE FILTERING FOR HIDE AND MUTE ---
   const handleMuteAuthor = useCallback(async () => {
     if (!activePostActionPost?.alumni?.id) return;
     const targetAuthorId = activePostActionPost.alumni.id;
@@ -834,15 +798,10 @@ const UserFeedScreen = ({ navigation }) => {
     
     try {
       const currentUserId = userData?.id || await resolveActiveAlumniId();
-      
       if (currentUserId) {
-        await supabase
-          .from('muted_users')
-          .insert([{ user_id: currentUserId, muted_user_id: targetAuthorId }]);
+        await supabase.from('muted_users').insert([{ user_id: currentUserId, muted_user_id: targetAuthorId }]);
       }
-      
       setPosts((curr) => curr.filter((p) => p.alumni?.id !== targetAuthorId));
-      
       showThemedAlert({ title: 'Muted', message: "You won't see posts from this user anymore." });
     } catch (e) {
       console.warn('Mute failed:', e);
@@ -857,18 +816,14 @@ const UserFeedScreen = ({ navigation }) => {
     
     try {
       const currentUserId = userData?.id || await resolveActiveAlumniId();
-      
       if (currentUserId) {
-        await supabase
-          .from('hidden_posts')
-          .insert([{ user_id: currentUserId, post_id: targetId }]);
+        await supabase.from('hidden_posts').insert([{ user_id: currentUserId, post_id: targetId }]);
       }
     } catch (e) {
       console.warn('Hide post failed:', e);
     }
 
     setPosts((curr) => curr.filter((p) => p.id !== targetId && p.original_post_id !== targetId));
-    
     showThemedAlert({ title: 'Hidden', message: 'This post has been hidden from your feed.' });
   }, [activePostActionPost, userData?.id, resolveActiveAlumniId, showThemedAlert]);
 
@@ -877,9 +832,7 @@ const UserFeedScreen = ({ navigation }) => {
     setCommentActionsVisible(false);
     setEditingComment(activeCommentActionComment);
     setReplyingToComment(null);
-    setCommentDraft(
-      activeCommentActionComment.comment ?? activeCommentActionComment.body ?? activeCommentActionComment.text ?? ''
-    );
+    setCommentDraft(activeCommentActionComment.comment ?? activeCommentActionComment.body ?? activeCommentActionComment.text ?? '');
     setCommentsVisible(true);
   }, [activeCommentActionComment]);
 
@@ -898,13 +851,7 @@ const UserFeedScreen = ({ navigation }) => {
               setIsCommentActionSaving(true);
               await deleteComment(activeCommentActionComment.id);
               setComments((curr) => curr.filter((c) => c.id !== activeCommentActionComment.id));
-              setPosts((curr) =>
-                curr.map((p) =>
-                  p.id === activeCommentPost?.id
-                    ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) }
-                    : p
-                )
-              );
+              setPosts((curr) => curr.map((p) => p.id === activeCommentPost?.id ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) } : p));
               closeCommentActions();
             } catch (error) {
               showThemedAlert({ title: 'Delete failed', message: 'Unable to delete the comment right now.' });
@@ -927,10 +874,7 @@ const UserFeedScreen = ({ navigation }) => {
               caption: updatedPost.caption ?? p.caption,
               visibility: updatedPost.visibility ?? p.visibility,
               is_draft: typeof updatedPost.is_draft === 'boolean' ? updatedPost.is_draft : p.is_draft,
-              images:
-                Array.isArray(updatedPost.images) && updatedPost.images.length > 0
-                  ? updatedPost.images
-                  : p.images,
+              images: Array.isArray(updatedPost.images) && updatedPost.images.length > 0 ? updatedPost.images : p.images,
             }
           : p
       )
@@ -942,48 +886,37 @@ const UserFeedScreen = ({ navigation }) => {
             caption: updatedPost.caption ?? curr.caption,
             visibility: updatedPost.visibility ?? curr.visibility,
             is_draft: typeof updatedPost.is_draft === 'boolean' ? updatedPost.is_draft : curr.is_draft,
-            images:
-              Array.isArray(updatedPost.images) && updatedPost.images.length > 0
-                ? updatedPost.images
-                : curr.images,
+            images: Array.isArray(updatedPost.images) && updatedPost.images.length > 0 ? updatedPost.images : curr.images,
           }
         : curr
     );
   }, []);
 
-  const removePostFromFeed = useCallback(
-    (postId) => {
-      setPosts((curr) => curr.filter((p) => !(p.feed_type === 'post' && p.id === postId)));
-      setViewerPost((curr) => (curr && curr.feed_type === 'post' && curr.id === postId ? null : curr));
-      if (viewerPost?.feed_type === 'post' && viewerPost?.id === postId) {
-        setViewerVisible(false);
-        setViewerImages([]);
-        setViewerIndex(0);
-      }
-    },
-    [viewerPost]
-  );
+  const removePostFromFeed = useCallback((postId) => {
+    setPosts((curr) => curr.filter((p) => !(p.feed_type === 'post' && p.id === postId)));
+    setViewerPost((curr) => (curr && curr.feed_type === 'post' && curr.id === postId ? null : curr));
+    if (viewerPost?.feed_type === 'post' && viewerPost?.id === postId) {
+      setViewerVisible(false);
+      setViewerImages([]);
+      setViewerIndex(0);
+    }
+  }, [viewerPost]);
 
-  const updateActivePost = useCallback(
-    async (payload, successTitle, successMessage) => {
-      if (!activePostActionPost?.id || isPostActionSaving) return;
-      try {
-        setIsPostActionSaving(true);
-        const updated = await updatePost(activePostActionPost.id, payload).catch((e) => {
-          throw e;
-        });
-        syncPostInFeed(updated ?? { ...activePostActionPost, ...payload });
-        setPostActionsVisible(false);
-        setActivePostActionPost(null);
-        showThemedAlert({ title: successTitle, message: successMessage });
-      } catch (error) {
-        showThemedAlert({ title: 'Update failed', message: 'Unable to update the post right now.' });
-      } finally {
-        setIsPostActionSaving(false);
-      }
-    },
-    [activePostActionPost, isPostActionSaving, syncPostInFeed, showThemedAlert]
-  );
+  const updateActivePost = useCallback(async (payload, successTitle, successMessage) => {
+    if (!activePostActionPost?.id || isPostActionSaving) return;
+    try {
+      setIsPostActionSaving(true);
+      const updated = await updatePost(activePostActionPost.id, payload).catch((e) => { throw e; });
+      syncPostInFeed(updated ?? { ...activePostActionPost, ...payload });
+      setPostActionsVisible(false);
+      setActivePostActionPost(null);
+      showThemedAlert({ title: successTitle, message: successMessage });
+    } catch (error) {
+      showThemedAlert({ title: 'Update failed', message: 'Unable to update the post right now.' });
+    } finally {
+      setIsPostActionSaving(false);
+    }
+  }, [activePostActionPost, isPostActionSaving, syncPostInFeed, showThemedAlert]);
 
   const handleEditActivePost = () => {
     if (activePostActionPost) {
@@ -992,30 +925,33 @@ const UserFeedScreen = ({ navigation }) => {
       navigation.navigate('CreatePostScreen', { post: activePostActionPost });
     }
   };
-  const handleEditPostFromFeed = useCallback(
-    (post) => {
-      if (!canManagePost(post)) {
-        showThemedAlert({ title: 'Edit unavailable', message: 'You can only edit your own posts.' });
-        return;
-      }
-      navigation.navigate('CreatePostScreen', { post });
-    },
-    [canManagePost, navigation, showThemedAlert]
-  );
+
+  const handleEditPostFromFeed = useCallback((post) => {
+    if (!canManagePost(post)) {
+      showThemedAlert({ title: 'Edit unavailable', message: 'You can only edit your own posts.' });
+      return;
+    }
+    navigation.navigate('CreatePostScreen', { post });
+  }, [canManagePost, navigation, showThemedAlert]);
+
   const handleToggleActivePostDraft = () => {
-    if (activePostActionPost)
+    if (activePostActionPost) {
       updateActivePost(
         { is_draft: !activePostActionPost.is_draft },
         activePostActionPost.is_draft ? 'Post published' : 'Draft saved',
         activePostActionPost.is_draft ? 'Your post is visible again.' : 'Your post was saved as a draft.'
       );
+    }
   };
-  const handleChangeActivePostVisibility = (visibility) =>
+
+  const handleChangeActivePostVisibility = (visibility) => {
     updateActivePost(
       { visibility },
       'Visibility updated',
       `This post is now visible to ${getPostVisibilityLabel({ visibility })}.`
     );
+  };
+
   const handleDeleteActivePost = () => {
     if (!activePostActionPost) return;
     showThemedAlert({
@@ -1048,10 +984,8 @@ const UserFeedScreen = ({ navigation }) => {
 
   const getFeedItemKey = (post) => getFeedItemKeyValue(post);
 
-  const isCaptionExpanded = useCallback(
-    (feedItemKey) => Boolean(expandedCaptions[feedItemKey]),
-    [expandedCaptions]
-  );
+  const isCaptionExpanded = useCallback((feedItemKey) => Boolean(expandedCaptions[feedItemKey]), [expandedCaptions]);
+  
   const markCaptionOverflow = useCallback((feedItemKey, lineCount) => {
     setCaptionOverflowMap((curr) => {
       if (curr[feedItemKey] === lineCount) return curr;
@@ -1064,20 +998,17 @@ const UserFeedScreen = ({ navigation }) => {
     });
   }, []);
 
-  const handleCaptionMentionPress = useCallback(
-    (mentionText) => {
-      const mentionHandle = String(mentionText ?? '').replace(/^@/, '').toLowerCase();
-      if (!mentionHandle) return;
-      const matchedConnection = mentionDirectory.find((item) => item.handle === mentionHandle);
-      if (!matchedConnection?.id) {
-        showThemedAlert({ title: 'Mention unavailable', message: `No profile found for @${mentionHandle}.` });
-        return;
-      }
-      if (matchedConnection.id === userData?.id) navigation.navigate('Profile');
-      else navigation.navigate('ProfileView', { userId: matchedConnection.id });
-    },
-    [mentionDirectory, userData?.id, navigation, showThemedAlert]
-  );
+  const handleCaptionMentionPress = useCallback((mentionText) => {
+    const mentionHandle = String(mentionText ?? '').replace(/^@/, '').toLowerCase();
+    if (!mentionHandle) return;
+    const matchedConnection = mentionDirectory.find((item) => item.handle === mentionHandle);
+    if (!matchedConnection?.id) {
+      showThemedAlert({ title: 'Mention unavailable', message: `No profile found for @${mentionHandle}.` });
+      return;
+    }
+    if (matchedConnection.id === userData?.id) navigation.navigate('Profile');
+    else navigation.navigate('ProfileView', { userId: matchedConnection.id });
+  }, [mentionDirectory, userData?.id, navigation, showThemedAlert]);
 
   const renderCaptionWithMentions = (caption, captionStyle) => {
     if (!caption) return null;
@@ -1088,11 +1019,7 @@ const UserFeedScreen = ({ navigation }) => {
       MENTION_PATTERN.lastIndex = 0;
       if (!isMention) return segment;
       return (
-        <Text
-          key={`mention-${index}-${segment}`}
-          style={[captionStyle, styles.captionMention]}
-          onPress={() => handleCaptionMentionPress(segment)}
-        >
+        <Text key={`mention-${index}-${segment}`} style={[captionStyle, styles.captionMention]} onPress={() => handleCaptionMentionPress(segment)}>
           {segment}
         </Text>
       );
@@ -1104,34 +1031,22 @@ const UserFeedScreen = ({ navigation }) => {
     const CAPTION_COLLAPSED_LINES = 3;
     const isExpanded = isCaptionExpanded(feedItemKey);
     const hasOverflow = (captionOverflowMap[feedItemKey] ?? 0) > CAPTION_COLLAPSED_LINES;
-    const shouldShowToggle = hasOverflow;
 
     return (
       <View style={styles.captionBlock}>
         <View style={styles.captionMeasureWrap} pointerEvents="none">
-          <Text
-            style={[captionStyle, styles.captionMeasureText]}
-            onTextLayout={(e) => markCaptionOverflow(feedItemKey, e.nativeEvent.lines?.length ?? 0)}
-          >
+          <Text style={[captionStyle, styles.captionMeasureText]} onTextLayout={(e) => markCaptionOverflow(feedItemKey, e.nativeEvent.lines?.length ?? 0)}>
             {caption}
           </Text>
         </View>
         <Text style={captionStyle} numberOfLines={isExpanded ? undefined : CAPTION_COLLAPSED_LINES}>
           {renderCaptionWithMentions(caption, captionStyle)}
         </Text>
-        {shouldShowToggle ? (
-          <Pressable
-            onPress={() =>
-              setExpandedCaptions((curr) => ({
-                ...curr,
-                [feedItemKey]: !isExpanded,
-              }))
-            }
-            style={styles.readMoreButton}
-          >
+        {hasOverflow && (
+          <Pressable onPress={() => setExpandedCaptions((curr) => ({ ...curr, [feedItemKey]: !isExpanded }))} style={styles.readMoreButton}>
             <Text style={styles.readMoreText}>{isExpanded ? 'Show less' : 'Read more'}</Text>
           </Pressable>
-        ) : null}
+        )}
       </View>
     );
   };
@@ -1157,12 +1072,7 @@ const UserFeedScreen = ({ navigation }) => {
     const isVideo = isVideoUri(uri);
 
     if (isVideo) {
-      return (
-        <PostFeedVideo
-          uri={uri}
-          style={[styles.postMediaImage, imageStyle]}
-        />
-      );
+      return <PostFeedVideo uri={uri} style={[styles.postMediaImage, imageStyle]} />;
     }
 
     return (
@@ -1178,12 +1088,11 @@ const UserFeedScreen = ({ navigation }) => {
     );
   };
 
-  const renderOverlayCount = (remainingCount, onPress) =>
-    remainingCount <= 0 ? null : (
-      <Pressable style={styles.postImageOverlay} onPress={onPress}>
-        <Text style={styles.postImageOverlayText}>+{remainingCount}</Text>
-      </Pressable>
-    );
+  const renderOverlayCount = (remainingCount, onPress) => remainingCount <= 0 ? null : (
+    <Pressable style={styles.postImageOverlay} onPress={onPress}>
+      <Text style={styles.postImageOverlayText}>+{remainingCount}</Text>
+    </Pressable>
+  );
 
   const openImageViewer = (post, postImages, imageIndex) => {
     setViewerPost(post);
@@ -1191,55 +1100,52 @@ const UserFeedScreen = ({ navigation }) => {
     setViewerIndex(imageIndex);
     setViewerVisible(true);
   };
+  
   const closeImageViewer = () => {
     setViewerVisible(false);
     setViewerPost(null);
   };
 
-const handlePostComment = useCallback((post) => {
-  isClosingRef.current = false;
-  setActiveCommentPost(post);
-  setReplyingToComment(null);
-  setCommentDraft('');
-  setComments([]);
-  setCommentsError('');
-  setExpandedCommentParents({});
-  commentsTranslateY.setValue(SCREEN_HEIGHT);
-  setCommentsVisible(true);
-}, []);
+  const handlePostComment = useCallback((post) => {
+    isClosingRef.current = false;
+    setActiveCommentPost(post);
+    setReplyingToComment(null);
+    setCommentDraft('');
+    setComments([]);
+    setCommentsError('');
+    setExpandedCommentParents({});
+    commentsTranslateY.setValue(SCREEN_HEIGHT);
+    setCommentsVisible(true);
+  }, [commentsTranslateY]);
 
   const handleReplyToComment = useCallback((comment) => {
     setReplyingToComment(comment);
     setEditingComment(null);
   }, []);
 
-const closeCommentsModal = () => {
-  if (isClosingRef.current) return;
-  isClosingRef.current = true;
+  const closeCommentsModal = () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
 
-  RNAnimated.timing(commentsTranslateY, {
-    toValue: SCREEN_HEIGHT,
-    duration: 200,
-    easing: Easing.out(Easing.quad),
-    useNativeDriver: false,
-  }).start(() => {
-    setCommentsVisible(false);
-    setActiveCommentPost(null);
-    setReplyingToComment(null);
-    setEditingComment(null);
-    setCommentDraft('');
-    setCommentInputHeight(48);
-    setExpandedCommentParents({});
-    commentsSwipeStartRef.current = 0;
-    commentsInitialYRef.current = 0;
-    setTimeout(() => {
-      isClosingRef.current = false;
-    }, 120);
-  });
-};
+    RNAnimated.timing(commentsTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start(() => {
+      setCommentsVisible(false);
+      setActiveCommentPost(null);
+      setReplyingToComment(null);
+      setEditingComment(null);
+      setCommentDraft('');
+      setCommentInputHeight(48);
+      setExpandedCommentParents({});
+      commentsSwipeStartRef.current = 0;
+      setTimeout(() => { isClosingRef.current = false; }, 120);
+    });
+  };
 
-  const handleCommentInputContentSizeChange = (e) =>
-    setCommentInputHeight(Math.max(48, Math.min(e?.nativeEvent?.contentSize?.height ?? 48, 100)));
+  const handleCommentInputContentSizeChange = (e) => setCommentInputHeight(Math.max(48, Math.min(e?.nativeEvent?.contentSize?.height ?? 48, 100)));
 
   const handleSubmitComment = () => {
     const trimmedComment = commentDraft.trim();
@@ -1251,9 +1157,7 @@ const closeCommentsModal = () => {
 
     if (editingComment?.id) {
       const prevText = editingComment.comment ?? editingComment.body ?? editingComment.text ?? '';
-      setComments((curr) =>
-        curr.map((c) => (c.id === editingComment.id ? { ...c, comment: trimmedComment } : c))
-      );
+      setComments((curr) => curr.map((c) => (c.id === editingComment.id ? { ...c, comment: trimmedComment } : c)));
       setEditingComment(null);
       setReplyingToComment(null);
       setCommentDraft('');
@@ -1264,9 +1168,7 @@ const closeCommentsModal = () => {
         })
         .catch((e) => {
           console.error('Update comment failed:', e);
-          setComments((curr) =>
-            curr.map((c) => (c.id === editingComment.id ? { ...c, comment: prevText } : c))
-          );
+          setComments((curr) => curr.map((c) => (c.id === editingComment.id ? { ...c, comment: prevText } : c)));
           showThemedAlert({ title: 'Comments', message: 'Unable to update your comment right now.' });
         });
       return;
@@ -1286,49 +1188,26 @@ const closeCommentsModal = () => {
         alumni_photo: userData?.alumni_photo,
       },
     };
-    setComments((curr) => [pendingComment, ...curr]);
     
-    setPosts((curr) =>
-      curr.map((p) =>
-        p.id === activeCommentPost.id ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p
-      )
-    );
-    setViewerPost((curr) =>
-      curr?.id === activeCommentPost.id
-        ? { ...curr, comment_count: (curr.comment_count ?? 0) + 1 }
-        : curr
-    );
+    setComments((curr) => [pendingComment, ...curr]);
+    setPosts((curr) => curr.map((p) => p.id === activeCommentPost.id ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p));
+    setViewerPost((curr) => curr?.id === activeCommentPost.id ? { ...curr, comment_count: (curr.comment_count ?? 0) + 1 } : curr);
     setReplyingToComment(null);
     setEditingComment(null);
     setCommentDraft('');
     setCommentInputHeight(48);
 
     resolveActiveAlumniId()
-      .then((alumniId) =>
-        addComment(targetPostId, alumniId, trimmedComment, pendingComment.parent_id, targetAnnouncementId)
-      )
+      .then((alumniId) => addComment(targetPostId, alumniId, trimmedComment, pendingComment.parent_id, targetAnnouncementId))
       .then((saved) => {
         if (!saved) return;
         setComments((curr) => curr.map((c) => (c.id === pendingId ? saved : c)));
-        
-        setPosts((curr) =>
-          curr.map((p) =>
-            p.id === activeCommentPost.id
-              ? { ...p, comment_count: saved.comment_count ?? p.comment_count ?? 0 }
-              : p
-          )
-        );
+        setPosts((curr) => curr.map((p) => p.id === activeCommentPost.id ? { ...p, comment_count: saved.comment_count ?? p.comment_count ?? 0 } : p));
       })
       .catch((e) => {
         console.error('Save comment failed:', e);
         setComments((curr) => curr.filter((c) => c.id !== pendingId));
-        setPosts((curr) =>
-          curr.map((p) =>
-            p.id === activeCommentPost.id
-              ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) }
-              : p
-          )
-        );
+        setPosts((curr) => curr.map((p) => p.id === activeCommentPost.id ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) } : p));
         showThemedAlert({ title: 'Comments', message: 'Unable to post your comment right now.' });
       });
   };
@@ -1356,13 +1235,10 @@ const closeCommentsModal = () => {
       }
     };
     fetchComments();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [activeCommentPost, commentsVisible]);
 
-  const toggleCommentReplies = (id) =>
-    setExpandedCommentParents((curr) => ({ ...curr, [id]: !curr[id] }));
+  const toggleCommentReplies = (id) => setExpandedCommentParents((curr) => ({ ...curr, [id]: !curr[id] }));
 
   const commentTree = useMemo(() => {
     const repliesByParentId = new Map();
@@ -1374,8 +1250,7 @@ const closeCommentsModal = () => {
         repliesByParentId.set(c.parent_id, reps);
       } else topLevelComments.push(c);
     });
-    const buildChildren = (p) =>
-      (repliesByParentId.get(p.id) ?? []).map((c) => ({ comment: c, replies: buildChildren(c) }));
+    const buildChildren = (p) => (repliesByParentId.get(p.id) ?? []).map((c) => ({ comment: c, replies: buildChildren(c) }));
     return topLevelComments.map((c) => ({ comment: c, replies: buildChildren(c) }));
   }, [comments]);
 
@@ -1389,27 +1264,30 @@ const closeCommentsModal = () => {
     const repliesListStyle = canToggleReplies ? styles.commentRepliesList : styles.commentNestedRepliesList;
     const canManageThisComment = canManageComment(comment);
 
+    const rawPhoto = comment?.alumni?.alumni_photo;
+    const authorName = isReply ? comment?.alumni?.first_name ?? 'Alumni' : renderCommentAuthorName(comment);
+    const avatarUri = renderCommentAvatarUri(comment);
+
     return (
-      <View
-        key={`comment-${String(comment?.id ?? `${depth}-${parentComment?.id ?? 'root'}`)}`}
-        style={styles.commentThread}
-      >
+      <View key={`comment-${String(comment?.id ?? `${depth}-${parentComment?.id ?? 'root'}`)}`} style={styles.commentThread}>
         <View style={[styles.commentItem, isReply ? styles.commentItemReply : null]}>
-          <Image source={{ uri: renderCommentAvatarUri(comment) }} style={styles.commentAvatar} />
+          {hasValidProfilePhoto(rawPhoto) && avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.commentAvatar} />
+          ) : (
+            <AvatarInitials name={authorName} size={32} style={styles.commentAvatar} backgroundColor="#31429B" />
+          )}
           <View style={styles.commentContentColumn}>
             <View style={styles.commentReplyHeaderRow}>
               <Text style={styles.commentAuthorName}>
                 {isReply ? comment?.alumni?.first_name ?? 'Alumni' : renderCommentAuthorName(comment)}
               </Text>
-              {isReply && parentComment ? (
+              {isReply && parentComment && (
                 <Text style={styles.commentReplyingToHandle} numberOfLines={1}>
                   ▸ {parentComment?.alumni?.first_name ?? 'Alumni'}
                 </Text>
-              ) : null}
+              )}
             </View>
-            <Text style={styles.commentText}>
-              {comment.comment ?? comment.body ?? comment.text ?? ''}
-            </Text>
+            <Text style={styles.commentText}>{comment.comment ?? comment.body ?? comment.text ?? ''}</Text>
             <View style={styles.commentMetaRow}>
               <Text style={styles.commentTimestamp}>{getRelativeTimeLabel(comment.created_at)}</Text>
               <Pressable style={styles.commentReplyButton} onPress={() => handleReplyToComment(comment)}>
@@ -1418,53 +1296,43 @@ const closeCommentsModal = () => {
             </View>
           </View>
           <View style={styles.commentActionColumn}>
-            <Pressable
-              style={styles.commentActionButton}
-              onPress={() => openCommentActions(comment)}
-              hitSlop={8}
-            >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={14}
-                color={canManageThisComment ? '#31429B' : '#94A3B8'}
-              />
+            <Pressable style={styles.commentActionButton} onPress={() => openCommentActions(comment)} hitSlop={8}>
+              <Ionicons name="ellipsis-vertical" size={14} color={canManageThisComment ? '#31429B' : '#94A3B8'} />
             </Pressable>
-            {likeCount !== null ? (
+            {likeCount !== null && (
               <>
                 <Ionicons name="heart-outline" size={14} color="#94A3B8" />
                 <Text style={styles.commentLikeCount}>{likeCount}</Text>
               </>
-            ) : null}
+            )}
           </View>
         </View>
-        {canToggleReplies && hasReplies && !isExpanded ? (
+        
+        {canToggleReplies && hasReplies && !isExpanded && (
           <Pressable style={styles.viewRepliesRow} onPress={() => toggleCommentReplies(comment.id)}>
             <View style={styles.viewRepliesLine} />
             <Text style={styles.viewRepliesText}>View {replies.length} replies</Text>
             <Ionicons name="chevron-down" size={13} color="#94A3B8" />
           </Pressable>
-        ) : null}
-        {hasReplies && (canToggleReplies ? isExpanded : true) ? (
+        )}
+        
+        {hasReplies && (canToggleReplies ? isExpanded : true) && (
           <View style={repliesListStyle}>
             {replies.map((reply) => renderCommentNode(reply, depth + 1, comment))}
-            {canToggleReplies ? (
-              <Pressable
-                style={styles.hideRepliesRow}
-                onPress={() => toggleCommentReplies(comment.id)}
-              >
+            {canToggleReplies && (
+              <Pressable style={styles.hideRepliesRow} onPress={() => toggleCommentReplies(comment.id)}>
                 <View style={styles.viewRepliesLine} />
                 <Text style={styles.hideRepliesText}>Hide replies</Text>
                 <Ionicons name="chevron-up" size={13} color="#31429B" />
               </Pressable>
-            ) : null}
+            )}
           </View>
-        ) : null}
+        )}
       </View>
     );
   };
 
-  const renderCommentAuthorName = (c) =>
-    [c?.alumni?.first_name ?? '', c?.alumni?.last_name ?? ''].filter(Boolean).join(' ').trim() || 'Alumni';
+  const renderCommentAuthorName = (c) => [c?.alumni?.first_name ?? '', c?.alumni?.last_name ?? ''].filter(Boolean).join(' ').trim() || 'Alumni';
   const renderCommentAvatarUri = (c) => getAvatarUri(renderCommentAuthorName(c), c?.alumni?.alumni_photo);
 
   const playReactionPulse = (postId) => {
@@ -1472,18 +1340,8 @@ const closeCommentsModal = () => {
     reactionPulseScale.stopAnimation();
     reactionPulseScale.setValue(0.94);
     RNAnimated.sequence([
-      RNAnimated.timing(reactionPulseScale, {
-        toValue: 1.08,
-        duration: 120,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      RNAnimated.spring(reactionPulseScale, {
-        toValue: 1,
-        tension: 140,
-        friction: 14,
-        useNativeDriver: true,
-      }),
+      RNAnimated.timing(reactionPulseScale, { toValue: 1.08, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      RNAnimated.spring(reactionPulseScale, { toValue: 1, tension: 140, friction: 14, useNativeDriver: true }),
     ]).start(() => setReactionPulsePostId((curr) => (curr === postId ? null : curr)));
   };
 
@@ -1491,26 +1349,9 @@ const closeCommentsModal = () => {
     playReactionPulse(post.id);
     const target = resolveFeedInteractionTarget(post);
     const nextReaction = post.my_reaction ? null : 'like';
-    setPosts((curr) =>
-      curr.map((p) =>
-        String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-          ? {
-              ...p,
-              my_reaction: nextReaction,
-              reaction_count: Math.max(0, (p.reaction_count ?? 0) + (nextReaction ? 1 : -1)),
-            }
-          : p
-      )
-    );
-    setViewerPost((curr) =>
-      curr && String(resolveFeedInteractionTarget(curr).postId) === String(target.postId)
-        ? {
-            ...curr,
-            my_reaction: nextReaction,
-            reaction_count: Math.max(0, (curr.reaction_count ?? 0) + (nextReaction ? 1 : -1)),
-          }
-        : curr
-    );
+    
+    setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, my_reaction: nextReaction, reaction_count: Math.max(0, (p.reaction_count ?? 0) + (nextReaction ? 1 : -1)) } : p));
+    setViewerPost((curr) => curr && String(resolveFeedInteractionTarget(curr).postId) === String(target.postId) ? { ...curr, my_reaction: nextReaction, reaction_count: Math.max(0, (curr.reaction_count ?? 0) + (nextReaction ? 1 : -1)) } : curr);
 
     try {
       const alumniId = await resolveActiveAlumniId();
@@ -1519,41 +1360,20 @@ const closeCommentsModal = () => {
       else await removeReaction(target.postId, alumniId, 'like', target.announcementId);
       if (target.postId) {
         const refreshed = await getPostById(target.postId, alumniId).catch(() => null);
-        if (refreshed)
-          setPosts((curr) =>
-            curr.map((p) =>
-              String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-                ? { ...p, reaction_count: refreshed.reactions_count ?? p.reaction_count, my_reaction: nextReaction }
-                : p
-            )
-          );
+        if (refreshed) {
+          setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, reaction_count: refreshed.reactions_count ?? p.reaction_count, my_reaction: nextReaction } : p));
+        }
       }
     } catch (e) {
       console.error('Reaction failed:', e);
-      setPosts((curr) =>
-        curr.map((p) =>
-          String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-            ? { ...p, my_reaction: post.my_reaction ?? null, reaction_count: post.reaction_count ?? 0 }
-            : p
-        )
-      );
+      setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, my_reaction: post.my_reaction ?? null, reaction_count: post.reaction_count ?? 0 } : p));
     }
   };
 
   const handlePostRepost = async (post, caption = '') => {
     const target = resolveFeedInteractionTarget(post);
     const nextRepostState = !post.my_repost;
-    setPosts((curr) =>
-      curr.map((p) =>
-        String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-          ? {
-              ...p,
-              my_repost: nextRepostState,
-              repost_count: Math.max(0, (p.repost_count ?? 0) + (nextRepostState ? 1 : -1)),
-            }
-          : p
-      )
-    );
+    setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, my_repost: nextRepostState, repost_count: Math.max(0, (p.repost_count ?? 0) + (nextRepostState ? 1 : -1)) } : p));
 
     try {
       const alumniId = await resolveActiveAlumniId();
@@ -1561,53 +1381,40 @@ const closeCommentsModal = () => {
       if (nextRepostState) await createRepost(target.postId, alumniId, caption);
       else await supabase.from('reposts').delete().eq('post_id', target.postId).eq('alumni_id', alumniId);
       const refreshed = await getPostById(target.postId, alumniId).catch(() => null);
-      if (refreshed)
-        setPosts((curr) =>
-          curr.map((p) =>
-            String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-              ? { ...p, repost_count: refreshed.reposts_count ?? p.repost_count, my_repost: nextRepostState }
-              : p
-          )
-        );
+      if (refreshed) {
+        setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, repost_count: refreshed.reposts_count ?? p.repost_count, my_repost: nextRepostState } : p));
+      }
       return true;
     } catch (e) {
       console.error('Repost failed:', e);
-      setPosts((curr) =>
-        curr.map((p) =>
-          String(resolveFeedInteractionTarget(p).postId) === String(target.postId)
-            ? { ...p, my_repost: post.my_repost ?? false, repost_count: post.repost_count ?? 0 }
-            : p
-        )
-      );
+      setPosts((curr) => curr.map((p) => String(resolveFeedInteractionTarget(p).postId) === String(target.postId) ? { ...p, my_repost: post.my_repost ?? false, repost_count: post.repost_count ?? 0 } : p));
       showThemedAlert({ title: 'Repost', message: 'Unable to repost right now. Please try again.' });
       return false;
     }
   };
 
-  const handlePostMediaTap = useCallback(
-    (post, postImages, imageIndex) => {
-      const postKey = getFeedItemKey(post);
-      const sameTapTarget =
-        postMediaTapStateRef.current.postKey === postKey &&
-        postMediaTapStateRef.current.imageIndex === imageIndex;
-      if (postMediaTapTimeoutRef.current) {
-        clearTimeout(postMediaTapTimeoutRef.current);
-        postMediaTapTimeoutRef.current = null;
-      }
-      if (sameTapTarget) {
-        postMediaTapStateRef.current = { postKey: null, imageIndex: null };
-        handlePostReaction(post);
-        return;
-      }
-      postMediaTapStateRef.current = { postKey, imageIndex };
-      postMediaTapTimeoutRef.current = setTimeout(() => {
-        postMediaTapTimeoutRef.current = null;
-        postMediaTapStateRef.current = { postKey: null, imageIndex: null };
-        openImageViewer(post, postImages, imageIndex);
-      }, 220);
-    },
-    [handlePostReaction]
-  );
+  const handlePostMediaTap = useCallback((post, postImages, imageIndex) => {
+    const postKey = getFeedItemKey(post);
+    const sameTapTarget = postMediaTapStateRef.current.postKey === postKey && postMediaTapStateRef.current.imageIndex === imageIndex;
+    
+    if (postMediaTapTimeoutRef.current) {
+      clearTimeout(postMediaTapTimeoutRef.current);
+      postMediaTapTimeoutRef.current = null;
+    }
+    
+    if (sameTapTarget) {
+      postMediaTapStateRef.current = { postKey: null, imageIndex: null };
+      handlePostReaction(post);
+      return;
+    }
+    
+    postMediaTapStateRef.current = { postKey, imageIndex };
+    postMediaTapTimeoutRef.current = setTimeout(() => {
+      postMediaTapTimeoutRef.current = null;
+      postMediaTapStateRef.current = { postKey: null, imageIndex: null };
+      openImageViewer(post, postImages, imageIndex);
+    }, 220);
+  }, [handlePostReaction]);
 
   useEffect(() => () => {
     if (postMediaTapTimeoutRef.current) {
@@ -1615,21 +1422,6 @@ const closeCommentsModal = () => {
       postMediaTapTimeoutRef.current = null;
     }
   }, []);
-
-  useEffect(() => {
-    if (!commentsVisible) {
-      return;
-    }
-    isClosingRef.current = false;
-    commentsTranslateY.setValue(SCREEN_HEIGHT);
-    RNAnimated.spring(commentsTranslateY, {
-      toValue: 0,
-      useNativeDriver: false,
-      tension: 65,
-      friction: 12,
-      velocity: 0.5,
-    }).start();
-  }, [commentsVisible]);
 
   const openRepostComposer = (post) => {
     if (post?.my_repost) {
@@ -1647,91 +1439,72 @@ const closeCommentsModal = () => {
     setRepostCaptionDraft('');
     setRepostComposerVisible(true);
   };
+  
   const closeRepostComposer = () => {
     setRepostComposerVisible(false);
     setActiveRepostPost(null);
     setRepostCaptionDraft('');
   };
+  
   const submitRepostWithCaption = () => {
     if (activeRepostPost) {
       closeRepostComposer();
       handlePostRepost(activeRepostPost, repostCaptionDraft.trim());
     }
   };
+  
   const handleRepostMentionPick = (handle) => {
-    if (repostMentionContext)
-      setRepostCaptionDraft(
-        (curr) =>
-          `${String(curr ?? '').slice(0, repostMentionContext.mentionStart)}@${handle} ${String(curr ?? '').slice(repostMentionContext.mentionEnd)}`
-      );
+    if (repostMentionContext) {
+      setRepostCaptionDraft((curr) => `${String(curr ?? '').slice(0, repostMentionContext.mentionStart)}@${handle} ${String(curr ?? '').slice(repostMentionContext.mentionEnd)}`);
+    }
   };
+  
   const handleCommentMentionPick = (handle) => {
-    if (commentMentionContext)
-      setCommentDraft(
-        (curr) =>
-          `${String(curr ?? '').slice(0, commentMentionContext.mentionStart)}@${handle} ${String(curr ?? '').slice(commentMentionContext.mentionEnd)}`
-      );
+    if (commentMentionContext) {
+      setCommentDraft((curr) => `${String(curr ?? '').slice(0, commentMentionContext.mentionStart)}@${handle} ${String(curr ?? '').slice(commentMentionContext.mentionEnd)}`);
+    }
   };
 
   const renderPressableImage = (post, postImages, image, imageIndex, imageStyle) => (
-    <Pressable
-      style={styles.postImagePressable}
-      onPress={() => handlePostMediaTap(post, postImages, imageIndex)}
-    >
+    <Pressable style={styles.postImagePressable} onPress={() => handlePostMediaTap(post, postImages, imageIndex)}>
       {renderPostImage(post?.id ?? imageIndex, image, imageIndex, imageStyle)}
     </Pressable>
   );
 
   const renderPostImageLayout = (post, postId, postImages) => {
-    if (postImages.length === 1)
+    if (postImages.length === 1) {
       return (
-        <View
-          style={[
-            styles.postSingleImageWrap,
-            { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[0], 0)] ?? 1.2 },
-          ]}
-        >
+        <View style={[styles.postSingleImageWrap, { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[0], 0)] ?? 1.2 }]}>
           {renderPressableImage(post, postImages, postImages[0], 0, styles.postSingleImage)}
         </View>
       );
-    if (postImages.length === 2)
+    }
+    if (postImages.length === 2) {
       return (
         <View style={styles.postTwoGrid}>
-          <View
-            style={[
-              styles.postTwoPrimaryTile,
-              { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[0], 0)] ?? 1.05 },
-            ]}
-          >
+          <View style={[styles.postTwoPrimaryTile, { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[0], 0)] ?? 1.05 }]}>
             {renderPressableImage(post, postImages, postImages[0], 0, styles.postCollageImage)}
           </View>
-          <View
-            style={[
-              styles.postTwoSecondaryTile,
-              { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[1], 1)] ?? 0.95 },
-            ]}
-          >
+          <View style={[styles.postTwoSecondaryTile, { aspectRatio: postImageRatios[getPostImageKey(postId, postImages[1], 1)] ?? 0.95 }]}>
             {renderPressableImage(post, postImages, postImages[1], 1, styles.postCollageImage)}
           </View>
         </View>
       );
-    if (postImages.length === 3)
+    }
+    if (postImages.length === 3) {
       return (
         <View style={styles.postThreeCollage}>
           <View style={styles.postThreeLeftTile}>
             {renderPressableImage(post, postImages, postImages[0], 0, styles.postCollageImage)}
           </View>
           <View style={styles.postThreeRightColumn}>
-            <View style={styles.postThreeRightTile}>
-              {renderPressableImage(post, postImages, postImages[1], 1, styles.postCollageImage)}
-            </View>
-            <View style={styles.postThreeRightTile}>
-              {renderPressableImage(post, postImages, postImages[2], 2, styles.postCollageImage)}
-            </View>
+            <View style={styles.postThreeRightTile}>{renderPressableImage(post, postImages, postImages[1], 1, styles.postCollageImage)}</View>
+            <View style={styles.postThreeRightTile}>{renderPressableImage(post, postImages, postImages[2], 2, styles.postCollageImage)}</View>
           </View>
         </View>
       );
-    if (postImages.length === 4)
+    }
+    if (postImages.length === 4) {
       return (
         <View style={styles.postFourGrid}>
           {postImages.slice(0, 4).map((image, idx) => (
@@ -1741,43 +1514,37 @@ const closeCommentsModal = () => {
           ))}
         </View>
       );
+    }
+    
     const remainingCount = Math.max(postImages.length - 4, 0);
     return (
       <View style={styles.postFivePlusGrid}>
         {postImages.slice(0, 4).map((image, idx) => (
           <View key={getPostImageKey(postId, image, idx)} style={styles.postFivePlusTile}>
             {renderPressableImage(post, postImages, image, idx, styles.postCollageImage)}
-            {idx === 3
-              ? renderOverlayCount(remainingCount, () => openImageViewer(post, postImages, idx))
-              : null}
+            {idx === 3 && renderOverlayCount(remainingCount, () => openImageViewer(post, postImages, idx))}
           </View>
         ))}
       </View>
     );
   };
 
-  const activePostActionVisibilityLabel = getPostVisibilityLabel(activePostActionPost);
-
   const renderSinglePostContent = (postObj, isNested = false) => {
     const postAuthorName = renderPostAuthorName(postObj);
     const avatarUri = renderPostAvatarUri(postObj);
     const postImages = postObj.images ?? [];
     const isAnnouncement = postObj.feed_type === 'announcement';
-
     const gradYear = postObj.alumni?.batch || postObj.alumni?.grad_year || '2023';
     const program = postObj.alumni?.program || postObj.alumni?.course || 'BSIT';
     const timeStr = getRelativeTimeLabel(getFeedItemDateValue(postObj));
     const visibility = getPostVisibilityLabel(postObj);
+    const rawPhoto = postObj.alumni?.alumni_photo;
 
     return (
       <>
         {isAnnouncement ? (
           <View style={styles.postHeader}>
-            <Image
-              source={require('../../assets/images/nu-lipa-logo-portrait-white-version-21.png')}
-              style={styles.announcementAvatar}
-              resizeMode="contain"
-            />
+            <Image source={require('../../assets/images/nu-lipa-logo-portrait-white-version-21.png')} style={styles.announcementAvatar} resizeMode="contain" />
             <View style={styles.postHeaderTextWrap}>
               <Text style={styles.postAuthorName}>NU LIPA ALUMNI AFFAIRS</Text>
               <Text style={styles.postMeta}>{timeStr} • Admin</Text>
@@ -1785,36 +1552,23 @@ const closeCommentsModal = () => {
           </View>
         ) : (
           <View style={styles.postHeader}>
-            <Pressable
-              onPress={() => {
-                if (postObj.alumni?.id === userData?.id) navigation.navigate('Profile');
-                else navigation.navigate('ProfileView', { userId: postObj.alumni?.id });
-              }}
-            >
-              <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
+            <Pressable onPress={() => navigation.navigate(postObj.alumni?.id === userData?.id ? 'Profile' : 'ProfileView', { userId: postObj.alumni?.id })}>
+              {hasValidProfilePhoto(rawPhoto) && avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
+              ) : (
+                <AvatarInitials name={postAuthorName} size={40} style={styles.postAvatar} backgroundColor="#31429B" />
+              )}
             </Pressable>
             <View style={styles.postHeaderTextWrap}>
-              <Pressable
-                onPress={() => {
-                  if (postObj.alumni?.id === userData?.id) navigation.navigate('Profile');
-                  else navigation.navigate('ProfileView', { userId: postObj.alumni?.id });
-                }}
-              >
-                <Text style={styles.postAuthorName} numberOfLines={1}>
-                  {postAuthorName}
-                </Text>
+              <Pressable onPress={() => navigation.navigate(postObj.alumni?.id === userData?.id ? 'Profile' : 'ProfileView', { userId: postObj.alumni?.id })}>
+                <Text style={styles.postAuthorName} numberOfLines={1}>{postAuthorName}</Text>
               </Pressable>
               <Text style={styles.postMeta}>
-                Class of {gradYear} | {program} | {timeStr} •{' '}
-                <Ionicons name="globe-outline" size={10} color="#6B7280" /> {visibility}
+                Class of {gradYear} | {program} | {timeStr} • <Ionicons name="globe-outline" size={10} color="#6B7280" /> {visibility}
               </Text>
             </View>
             {!isNested && (
-              <Pressable
-                style={styles.postMenuButton}
-                onPress={() => openPostActions(postObj)}
-                hitSlop={8}
-              >
+              <Pressable style={styles.postMenuButton} onPress={() => openPostActions(postObj)} hitSlop={8}>
                 <Ionicons name="ellipsis-horizontal" size={20} color="#1F2937" />
               </Pressable>
             )}
@@ -1823,32 +1577,22 @@ const closeCommentsModal = () => {
 
         {isAnnouncement ? (
           <>
-            {postObj.announcement_title ? (
-              <Text style={styles.announcementTitle}>{postObj.announcement_title}</Text>
-            ) : null}
-            {renderExpandableCaption(
-              getFeedItemKey(postObj),
-              postObj.announcement_description,
-              styles.postCaption
-            )}
+            {postObj.announcement_title && <Text style={styles.announcementTitle}>{postObj.announcement_title}</Text>}
+            {renderExpandableCaption(getFeedItemKey(postObj), postObj.announcement_description, styles.postCaption)}
           </>
         ) : (
           <>
             {renderExpandableCaption(getFeedItemKey(postObj), postObj.caption, styles.postCaption)}
-            {!isNested ? renderConnectionRepostSummary(postObj) : null}
+            {!isNested && renderConnectionRepostSummary(postObj)}
           </>
         )}
 
-        {postImages.length > 0 ? renderPostImageLayout(postObj, postObj.id, postImages) : null}
+        {postImages.length > 0 && renderPostImageLayout(postObj, postObj.id, postImages)}
 
         {!isNested && (
           <View style={styles.postReactionRow}>
             <Pressable style={styles.postActionButton} onPress={() => handlePostReaction(postObj)}>
-              <Ionicons
-                name={postObj.my_reaction ? 'heart' : 'heart-outline'}
-                size={22}
-                color={postObj.my_reaction ? '#EF4444' : '#31429B'}
-              />
+              <Ionicons name={postObj.my_reaction ? 'heart' : 'heart-outline'} size={22} color={postObj.my_reaction ? '#EF4444' : '#31429B'} />
               <Text style={styles.postActionCount}>{postObj.reaction_count ?? 0}</Text>
             </Pressable>
             <Pressable style={styles.postActionButton} onPress={() => handlePostComment(postObj)}>
@@ -1857,11 +1601,7 @@ const closeCommentsModal = () => {
             </Pressable>
             {!isAnnouncement && (
               <Pressable style={styles.postActionButton} onPress={() => openRepostComposer(postObj)}>
-                <Ionicons
-                  name="repeat"
-                  size={22}
-                  color={postObj.my_repost ? '#15803D' : '#31429B'}
-                />
+                <Ionicons name="repeat" size={22} color={postObj.my_repost ? '#15803D' : '#31429B'} />
                 <Text style={styles.postActionCount}>{postObj.repost_count ?? 0}</Text>
               </Pressable>
             )}
@@ -1882,7 +1622,6 @@ const closeCommentsModal = () => {
           <Ionicons name="search-outline" size={20} color="#888888" style={styles.searchIcon} />
           <Text style={styles.searchPlaceholderText}>Search</Text>
         </Pressable>
-
         <Pressable style={styles.createPostButton} onPress={openCreatePost}>
           <Ionicons name="create" size={22} color="#333333" style={styles.createPostIcon} />
           <Text style={styles.createPostText}>Create New Post</Text>
@@ -1895,14 +1634,7 @@ const closeCommentsModal = () => {
         renderItem={renderPostItem}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshingPosts}
-            onRefresh={handleRefreshPosts}
-            tintColor="#31429B"
-            colors={['#31429B']}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={isRefreshingPosts} onRefresh={handleRefreshPosts} tintColor="#31429B" colors={['#31429B']} />}
         onEndReached={handleLoadMorePosts}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
@@ -1948,17 +1680,18 @@ const closeCommentsModal = () => {
           post={viewerPost}
           viewerAuthorName={viewerPost ? renderPostAuthorName(viewerPost) : ''}
           postAvatarUri={viewerPost ? renderPostAvatarUri(viewerPost) : ''}
+          rawAuthorPhoto={viewerPost?.alumni?.alumni_photo ?? viewerPost?.author?.alumni_photo}
           timeLabel={viewerPost ? getRelativeTimeLabel(getFeedItemDateValue(viewerPost)) : ''}
           postVisibilityLabel={viewerPost ? getPostVisibilityLabel(viewerPost) : 'Public'}
           reactionCount={viewerPost?.reaction_count ?? 0}
           commentCount={viewerPost?.comment_count ?? 0}
           repostCount={viewerPost?.repost_count ?? 0}
           isReacted={Boolean(viewerPost?.my_reaction)}
+          isReposted={Boolean(viewerPost?.my_repost)}
           onRequestClose={closeImageViewer}
           onAuthorPress={() => {
             if (!viewerPost?.alumni?.id) return;
-            if (viewerPost.alumni.id === userData?.id) navigation.navigate('Profile');
-            else navigation.navigate('ProfileView', { userId: viewerPost.alumni.id });
+            navigation.navigate(viewerPost.alumni.id === userData?.id ? 'Profile' : 'ProfileView', { userId: viewerPost.alumni.id });
           }}
           onReactionPress={() => (viewerPost ? handlePostReaction(viewerPost) : null)}
           onCommentPress={() => (viewerPost ? handlePostComment(viewerPost) : null)}
@@ -1970,85 +1703,39 @@ const closeCommentsModal = () => {
             }
             showThemedAlert({
               title: 'Image options',
-              message: 'More image actions are not available yet.',
-              actions: [{ text: 'OK' }],
+              message: 'What would you like to do?',
+              actions: [
+                { text: 'Download Image', onPress: () => handleDownloadImage(viewerImages[viewerIndex]?.uri) },
+                { text: 'Report Post', style: 'destructive', onPress: handleReportFromViewer }
+              ],
             });
           }}
         />
       )}
 
       {postActionsVisible && (
-        <Modal
-          transparent
-          visible={postActionsVisible}
-          animationType="slide"
-          statusBarTranslucent={true}
-          onRequestClose={closePostActions}
-        >
+        <Modal transparent visible={postActionsVisible} animationType="slide" statusBarTranslucent={true} onRequestClose={closePostActions}>
           <View style={styles.postActionsBackdrop}>
             <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
-              <RNAnimated.View
-                style={[
-                  styles.postActionsCard,
-                  { transform: [{ translateY: postActionsTranslateY }] },
-                ]}
-                onTouchMove={handlePostActionsSwipe}
-                onTouchEnd={() => {
-                  resetSwipeRefs();
-                }}
-              >
-                <View
-                  style={{
-                    height: 4,
-                    width: 40,
-                    backgroundColor: '#D1D5DB',
-                    borderRadius: 2,
-                    alignSelf: 'center',
-                    marginTop: 8,
-                    marginBottom: 4,
-                  }}
-                />
+              <RNAnimated.View style={[styles.postActionsCard, { transform: [{ translateY: postActionsTranslateY }] }]} onTouchMove={handlePostActionsSwipe} onTouchEnd={resetSwipeRefs}>
+                <View style={{ height: 4, width: 40, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 4 }} />
                 <View style={styles.postActionsHeader}>
-                  <Text style={styles.postActionsTitle}>
-                    {canManagePost(activePostActionPost) ? 'Manage Your Post' : 'Post Options'}
-                  </Text>
-                  <Pressable
-                    style={styles.postActionsCloseButton}
-                    onPress={closePostActions}
-                    hitSlop={8}
-                    disabled={isPostActionSaving}
-                  >
+                  <Text style={styles.postActionsTitle}>{canManagePost(activePostActionPost) ? 'Manage Your Post' : 'Post Options'}</Text>
+                  <Pressable style={styles.postActionsCloseButton} onPress={closePostActions} hitSlop={8} disabled={isPostActionSaving}>
                     <Ionicons name="close" size={20} color="#31429B" />
                   </Pressable>
                 </View>
                 {canManagePost(activePostActionPost) ? (
                   <>
-                    <Text style={styles.postActionsSubtitle}>
-                      {activePostActionVisibilityLabel}. Edit the post, save it as a draft, change who
-                      can view it, or delete it.
-                    </Text>
+                    <Text style={styles.postActionsSubtitle}>{getPostVisibilityLabel(activePostActionPost)}. Edit the post, save it as a draft, change who can view it, or delete it.</Text>
                     <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleEditActivePost}
-                        disabled={isPostActionSaving}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleEditActivePost} disabled={isPostActionSaving}>
                         <Ionicons name="create-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Edit</Text>
                       </Pressable>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleToggleActivePostDraft}
-                        disabled={isPostActionSaving}
-                      >
-                        <Ionicons
-                          name={activePostActionPost?.is_draft ? 'cloud-upload-outline' : 'bookmark-outline'}
-                          size={16}
-                          color="#31429B"
-                        />
-                        <Text style={styles.postActionChoiceText}>
-                          {activePostActionPost?.is_draft ? 'Publish' : 'Draft'}
-                        </Text>
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleToggleActivePostDraft} disabled={isPostActionSaving}>
+                        <Ionicons name={activePostActionPost?.is_draft ? 'cloud-upload-outline' : 'bookmark-outline'} size={16} color="#31429B" />
+                        <Text style={styles.postActionChoiceText}>{activePostActionPost?.is_draft ? 'Publish' : 'Draft'}</Text>
                       </Pressable>
                     </View>
                     <Text style={styles.postActionsLabel}>Who can view this post?</Text>
@@ -2056,27 +1743,13 @@ const closeCommentsModal = () => {
                       {['public', 'friends', 'private'].map((vis) => {
                         const isSelected = (activePostActionPost?.visibility ?? 'public') === vis;
                         return (
-                          <Pressable
-                            key={vis}
-                            style={[
-                              styles.postVisibilityChoice,
-                              isSelected && styles.postVisibilityChoiceSelected,
-                            ]}
-                            onPress={() => handleChangeActivePostVisibility(vis)}
-                            disabled={isPostActionSaving}
-                          >
-                            <Text style={styles.postVisibilityChoiceText}>
-                              {getPostVisibilityLabel({ visibility: vis })}
-                            </Text>
+                          <Pressable key={vis} style={[styles.postVisibilityChoice, isSelected && styles.postVisibilityChoiceSelected]} onPress={() => handleChangeActivePostVisibility(vis)} disabled={isPostActionSaving}>
+                            <Text style={styles.postVisibilityChoiceText}>{getPostVisibilityLabel({ visibility: vis })}</Text>
                           </Pressable>
                         );
                       })}
                     </View>
-                    <Pressable
-                      style={styles.postDeleteButton}
-                      onPress={handleDeleteActivePost}
-                      disabled={isPostActionSaving}
-                    >
+                    <Pressable style={styles.postDeleteButton} onPress={handleDeleteActivePost} disabled={isPostActionSaving}>
                       <Ionicons name="trash-outline" size={16} color="#B42318" />
                       <Text style={styles.postDeleteButtonText}>Delete Post</Text>
                     </Pressable>
@@ -2085,26 +1758,17 @@ const closeCommentsModal = () => {
                   <>
                     <Text style={styles.postActionsSubtitle}>Actions for this post</Text>
                     <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={openPostReportModal}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={openPostReportModal}>
                         <Ionicons name="flag-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Report</Text>
                       </Pressable>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleHidePost}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleHidePost}>
                         <Ionicons name="eye-off-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Hide post</Text>
                       </Pressable>
                     </View>
                     <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleMuteAuthor}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleMuteAuthor}>
                         <Ionicons name="volume-mute-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Mute user</Text>
                       </Pressable>
@@ -2118,37 +1782,14 @@ const closeCommentsModal = () => {
       )}
 
       {commentActionsVisible && (
-        <Modal
-          transparent
-          visible={commentActionsVisible}
-          animationType="slide"
-          statusBarTranslucent={true}
-          onRequestClose={closeCommentActions}
-        >
+        <Modal transparent visible={commentActionsVisible} animationType="slide" statusBarTranslucent={true} onRequestClose={closeCommentActions}>
           <View style={styles.postActionsBackdrop}>
             <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
               <View style={styles.postActionsCard}>
-                <View
-                  style={{
-                    height: 4,
-                    width: 40,
-                    backgroundColor: '#D1D5DB',
-                    borderRadius: 2,
-                    alignSelf: 'center',
-                    marginTop: 8,
-                    marginBottom: 4,
-                  }}
-                />
+                <View style={{ height: 4, width: 40, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 4 }} />
                 <View style={styles.postActionsHeader}>
-                  <Text style={styles.postActionsTitle}>
-                    {canManageComment(activeCommentActionComment) ? 'Manage Comment' : 'Comment Options'}
-                  </Text>
-                  <Pressable
-                    style={styles.postActionsCloseButton}
-                    onPress={closeCommentActions}
-                    hitSlop={8}
-                    disabled={isCommentActionSaving}
-                  >
+                  <Text style={styles.postActionsTitle}>{canManageComment(activeCommentActionComment) ? 'Manage Comment' : 'Comment Options'}</Text>
+                  <Pressable style={styles.postActionsCloseButton} onPress={closeCommentActions} hitSlop={8} disabled={isCommentActionSaving}>
                     <Ionicons name="close" size={20} color="#31429B" />
                   </Pressable>
                 </View>
@@ -2156,19 +1797,11 @@ const closeCommentsModal = () => {
                   <>
                     <Text style={styles.postActionsSubtitle}>Edit or delete your comment.</Text>
                     <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleEditComment}
-                        disabled={isCommentActionSaving}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleEditComment} disabled={isCommentActionSaving}>
                         <Ionicons name="create-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Edit</Text>
                       </Pressable>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={handleDeleteCommentAction}
-                        disabled={isCommentActionSaving}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={handleDeleteCommentAction} disabled={isCommentActionSaving}>
                         <Ionicons name="trash-outline" size={16} color="#B42318" />
                         <Text style={styles.postActionChoiceText}>Delete</Text>
                       </Pressable>
@@ -2178,10 +1811,7 @@ const closeCommentsModal = () => {
                   <>
                     <Text style={styles.postActionsSubtitle}>Actions for this comment</Text>
                     <View style={styles.postActionsRow}>
-                      <Pressable
-                        style={styles.postActionChoiceButton}
-                        onPress={openCommentReportModal}
-                      >
+                      <Pressable style={styles.postActionChoiceButton} onPress={openCommentReportModal}>
                         <Ionicons name="flag-outline" size={16} color="#31429B" />
                         <Text style={styles.postActionChoiceText}>Report</Text>
                       </Pressable>
@@ -2200,55 +1830,23 @@ const closeCommentsModal = () => {
             <View style={styles.deleteLoadingCard}>
               <ActivityIndicator size="large" color="#31429B" />
               <Text style={styles.deleteLoadingTitle}>Deleting post</Text>
-              <Text style={styles.deleteLoadingText}>
-                Please wait while the post is removed.
-              </Text>
+              <Text style={styles.deleteLoadingText}>Please wait while the post is removed.</Text>
             </View>
           </View>
         </Modal>
       )}
 
       {repostComposerVisible && (
-        <Modal
-          transparent
-          visible={repostComposerVisible}
-          animationType="slide"
-          onRequestClose={closeRepostComposer}
-        >
-          <KeyboardAvoidingView 
-            style={{ flex: 1 }} 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
+        <Modal transparent visible={repostComposerVisible} animationType="slide" onRequestClose={closeRepostComposer}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={styles.repostModalBackdrop}>
               <Pressable style={StyleSheet.absoluteFillObject} onPress={closeRepostComposer} />
               <SafeAreaView style={styles.repostModalSafeArea} edges={['bottom']}>
-                <RNAnimated.View
-                  style={[
-                    styles.repostModalCard,
-                    { transform: [{ translateY: repostComposerTranslateY }] },
-                  ]}
-                  onTouchMove={handleRepostComposerSwipe}
-                  onTouchEnd={() => {
-                    resetSwipeRefs();
-                  }}
-                >
-                  <View
-                    style={{
-                      height: 4,
-                      width: 40,
-                      backgroundColor: '#D1D5DB',
-                      borderRadius: 2,
-                      alignSelf: 'center',
-                      marginTop: 8,
-                      marginBottom: 8,
-                    }}
-                  />
+                <RNAnimated.View style={[styles.repostModalCard, { transform: [{ translateY: repostComposerTranslateY }] }]} onTouchMove={handleRepostComposerSwipe} onTouchEnd={resetSwipeRefs}>
+                  <View style={{ height: 4, width: 40, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 8 }} />
                   <Text style={styles.repostModalTitle}>Repost with your caption</Text>
-                  <Text style={styles.repostModalSubtitle} numberOfLines={1}>
-                    {activeRepostPost
-                      ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post`
-                      : 'Add context to your repost'}
-                  </Text>
+                  <Text style={styles.repostModalSubtitle} numberOfLines={1}>{activeRepostPost ? `Reposting ${renderPostAuthorName(activeRepostPost)}'s post` : 'Add context to your repost'}</Text>
+                  
                   <TextInput
                     value={repostCaptionDraft}
                     onChangeText={setRepostCaptionDraft}
@@ -2258,22 +1856,22 @@ const closeCommentsModal = () => {
                     multiline
                     textAlignVertical="top"
                   />
-                  {repostMentionContext && repostMentionSuggestions.length > 0 ? (
+                  
+                  {repostMentionContext && repostMentionSuggestions.length > 0 && (
                     <View style={styles.mentionPanel}>
                       {repostMentionSuggestions.map((item) => (
-                        <Pressable
-                          key={`repost-mention-${String(item.id ?? item.name)}`}
-                          style={styles.mentionItem}
-                          onPress={() => handleRepostMentionPick(item.handle)}
-                        >
-                          <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                          <Text style={styles.mentionName} numberOfLines={1}>
-                            @{item.handle}
-                          </Text>
+                        <Pressable key={`repost-mention-${String(item.id ?? item.name)}`} style={styles.mentionItem} onPress={() => handleRepostMentionPick(item.handle)}>
+                          {hasValidProfilePhoto(item.rawPhoto) && item.avatar ? (
+                            <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                          ) : (
+                            <AvatarInitials name={item.name} size={24} style={styles.mentionAvatar} backgroundColor="#31429B" />
+                          )}
+                          <Text style={styles.mentionName} numberOfLines={1}>@{item.handle}</Text>
                         </Pressable>
                       ))}
                     </View>
-                  ) : null}
+                  )}
+                  
                   <View style={styles.repostModalActionsRow}>
                     <Pressable style={styles.repostCancelButton} onPress={closeRepostComposer}>
                       <Text style={styles.repostCancelButtonText}>Cancel</Text>
@@ -2290,15 +1888,13 @@ const closeCommentsModal = () => {
       )}
 
       {themedAlertState.visible && (
-        <Modal
-          transparent
-          visible={themedAlertState.visible}
-          animationType="fade"
-          onRequestClose={closeThemedAlert}
-        >
+        <Modal transparent visible={themedAlertState.visible} animationType="fade" onRequestClose={closeThemedAlert}>
           <View style={styles.themedAlertBackdrop}>
             <Pressable style={StyleSheet.absoluteFillObject} onPress={closeThemedAlert} />
             <View style={styles.themedAlertCard}>
+              <Pressable style={styles.themedAlertCloseButton} onPress={closeThemedAlert}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </Pressable>
               <Text style={styles.themedAlertTitle}>{themedAlertState.title}</Text>
               <Text style={styles.themedAlertMessage}>{themedAlertState.message}</Text>
               <View style={styles.themedAlertActionsRow}>
@@ -2306,24 +1902,8 @@ const closeCommentsModal = () => {
                   const isDestructive = action?.style === 'destructive';
                   const isCancel = action?.style === 'cancel';
                   return (
-                    <Pressable
-                      key={`${action.text}-${actionIndex}`}
-                      style={[
-                        styles.themedAlertButton,
-                        isDestructive ? styles.themedAlertButtonDestructive : null,
-                        isCancel ? styles.themedAlertButtonNeutral : null,
-                      ]}
-                      onPress={() => handleThemedAlertAction(action)}
-                    >
-                      <Text
-                        style={[
-                          styles.themedAlertButtonText,
-                          isDestructive ? styles.themedAlertButtonTextDestructive : null,
-                          isCancel ? styles.themedAlertButtonTextNeutral : null,
-                        ]}
-                      >
-                        {action.text}
-                      </Text>
+                    <Pressable key={`${action.text}-${actionIndex}`} style={[styles.themedAlertButton, isDestructive ? styles.themedAlertButtonDestructive : null, isCancel ? styles.themedAlertButtonNeutral : null]} onPress={() => handleThemedAlertAction(action)}>
+                      <Text style={[styles.themedAlertButtonText, isDestructive ? styles.themedAlertButtonTextDestructive : null, isCancel ? styles.themedAlertButtonTextNeutral : null]}>{action.text}</Text>
                     </Pressable>
                   );
                 })}
@@ -2335,250 +1915,140 @@ const closeCommentsModal = () => {
 
       {/* --- COMMENTS MODAL --- */}
       {commentsVisible && (
-        <Modal
-          transparent
-          visible={commentsVisible}
-          animationType="none"
-          onRequestClose={closeCommentsModal}
-        >
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-          <View style={styles.commentsModalBackdrop}>
-            <RNAnimated.View
-              style={[
-                StyleSheet.absoluteFillObject,
-                {
-                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                  opacity: commentsTranslateY.interpolate({
-                    inputRange: [0, 300],
-                    outputRange: [1, 0],
-                    extrapolate: 'clamp',
-                  }),
-                }
-              ]}
-            >
-              <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
-            </RNAnimated.View>
-            
-            <RNAnimated.View
-              style={[
-                styles.commentsSheet,
-                {
-                  transform: [{
-                    translateY: commentsTranslateY
-                  }],
-                }
-              ]}
-              onTouchMove={handleCommentsSwipe}
-              onTouchEnd={() => {
-                if (isClosingRef.current) return;
-                
-                commentsTranslateY.stopAnimation((value) => {
-                  if (value > 150) {
-                    closeCommentsModal();
-                  } else {
-                    RNAnimated.spring(commentsTranslateY, {
-                      toValue: 0,
-                      useNativeDriver: false,
-                      tension: 65,
-                      friction: 12,
-                    }).start();
-                  }
-                });
-                commentsSwipeStartRef.current = 0;
-              }}
-            >
-              <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-                <View
-                  style={{
-                    height: 5,
-                    width: 40,
-                    backgroundColor: '#D1D5DB',
-                    borderRadius: 3,
-                    alignSelf: 'center',
-                    marginTop: 8,
-                    marginBottom: 12,
-                  }}
-                />
+        <Modal transparent visible={commentsVisible} animationType="none" onRequestClose={closeCommentsModal}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={styles.commentsModalBackdrop}>
+              <RNAnimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0, 0, 0, 0.4)', opacity: commentsTranslateY.interpolate({ inputRange: [0, 300], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
+                <Pressable style={StyleSheet.absoluteFillObject} onPress={closeCommentsModal} />
+              </RNAnimated.View>
+              
+              <RNAnimated.View
+                style={[styles.commentsSheet, { transform: [{ translateY: commentsTranslateY }] }]}
+                onTouchMove={handleCommentsSwipe}
+                onTouchEnd={() => {
+                  if (isClosingRef.current) return;
+                  commentsTranslateY.stopAnimation((value) => {
+                    if (value > 150) closeCommentsModal();
+                    else RNAnimated.spring(commentsTranslateY, { toValue: 0, useNativeDriver: false, tension: 65, friction: 12 }).start();
+                  });
+                  commentsSwipeStartRef.current = 0;
+                }}
+              >
+                <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+                  <View style={{ height: 5, width: 40, backgroundColor: '#D1D5DB', borderRadius: 3, alignSelf: 'center', marginTop: 8, marginBottom: 12 }} />
+                  <View style={styles.commentsHeaderRow}>
+                    <Text style={styles.commentsTitle}>{activeCommentPost?.comment_count ?? comments.length} comments</Text>
+                    <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
+                      <Ionicons name="close" size={24} color="#1C1C1E" />
+                    </Pressable>
+                  </View>
 
-                <View style={styles.commentsHeaderRow}>
-                  <Text style={styles.commentsTitle}>
-                    {activeCommentPost?.comment_count ?? comments.length} comments
-                  </Text>
-                  <Pressable style={styles.commentsCloseButton} onPress={closeCommentsModal}>
-                    <Ionicons name="close" size={24} color="#1C1C1E" />
-                  </Pressable>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <ScrollView
-                    ref={commentsScrollViewRef}
-                    style={[styles.commentsList, styles.commentsBody]}
-                    contentContainerStyle={[styles.commentsListContent, { flexGrow: 1, paddingBottom: 20 }]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="interactive"
-                    nestedScrollEnabled
-                    scrollEnabled={true}
-                    bounces={true}
-                    overScrollMode="always"
-                    onContentSizeChange={() => {
-                      commentsScrollViewRef.current?.scrollToEnd({ animated: true });
-                    }}
-                  >
-                    {commentsLoading ? (
-                      <View style={styles.commentsEmptyState}>
-                        <ActivityIndicator size="small" color="#31429B" />
-                        <Text style={styles.commentsEmptyText}>Loading comments...</Text>
-                      </View>
-                    ) : commentsError ? (
-                      <View style={styles.commentsEmptyState}>
-                        <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
-                        <Text style={styles.commentsEmptyText}>{commentsError}</Text>
-                      </View>
-                    ) : comments.length === 0 ? (
-                      <View style={styles.commentsEmptyState}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={26} color="#94A3B8" />
-                        <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
-                      </View>
-                    ) : (
-                      commentTree.map((thread) => renderCommentNode(thread))
-                    )}
-                  </ScrollView>
-
-                  <View style={[
-                    styles.commentComposerSafeArea,
-                  ]}>
-                    <View style={styles.commentComposer}>
-                      <View style={styles.commentComposerContent}>
-                        {editingComment ? (
-                          <View style={styles.commentReplyContext}>
-                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                              Editing comment
-                            </Text>
-                            <Pressable
-                              style={styles.commentReplyContextCancel}
-                              onPress={() => {
-                                setEditingComment(null);
-                                setCommentDraft('');
-                              }}
-                            >
-                              <Ionicons name="close" size={14} color="#31429B" />
-                            </Pressable>
-                          </View>
-                        ) : null}
-                        {replyingToComment ? (
-                          <View style={styles.commentReplyContext}>
-                            <Text style={styles.commentReplyContextText} numberOfLines={1}>
-                              Replying to {renderCommentAuthorName(replyingToComment)}
-                            </Text>
-                            <Pressable
-                              style={styles.commentReplyContextCancel}
-                              onPress={() => setReplyingToComment(null)}
-                            >
-                              <Ionicons name="close" size={14} color="#31429B" />
-                            </Pressable>
-                          </View>
-                        ) : null}
-
-                        <View style={styles.commentInputWrap}>
-                          <TextInput
-                            value={commentDraft}
-                            onChangeText={setCommentDraft}
-                            onContentSizeChange={handleCommentInputContentSizeChange}
-                            placeholder={
-                              editingComment
-                                ? 'Edit your comment...'
-                                : replyingToComment
-                                  ? 'Write a reply...'
-                                  : 'Write a comment...'
-                            }
-                            placeholderTextColor="#94A3B8"
-                            style={[styles.commentInput, { height: commentInputHeight }]}
-                            multiline
-                            scrollEnabled={false}
-                            textAlignVertical="center"
-                          />
-                          <Pressable
-                            style={[
-                              styles.commentSendButtonInside,
-                              !commentDraft.trim() ? styles.commentSendButtonDisabled : null,
-                            ]}
-                            onPress={handleSubmitComment}
-                            disabled={!commentDraft.trim()}
-                          >
-                            <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
-                          </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <ScrollView
+                      ref={commentsScrollViewRef}
+                      style={[styles.commentsList, styles.commentsBody]}
+                      contentContainerStyle={[styles.commentsListContent, { flexGrow: 1, paddingBottom: 20 }]}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      keyboardDismissMode="interactive"
+                      onContentSizeChange={() => commentsScrollViewRef.current?.scrollToEnd({ animated: true })}
+                    >
+                      {commentsLoading ? (
+                        <View style={styles.commentsEmptyState}>
+                          <ActivityIndicator size="small" color="#31429B" />
+                          <Text style={styles.commentsEmptyText}>Loading comments...</Text>
                         </View>
+                      ) : commentsError ? (
+                        <View style={styles.commentsEmptyState}>
+                          <Ionicons name="alert-circle-outline" size={26} color="#B42318" />
+                          <Text style={styles.commentsEmptyText}>{commentsError}</Text>
+                        </View>
+                      ) : comments.length === 0 ? (
+                        <View style={styles.commentsEmptyState}>
+                          <Ionicons name="chatbubble-ellipses-outline" size={26} color="#94A3B8" />
+                          <Text style={styles.commentsEmptyText}>No comments loaded yet.</Text>
+                        </View>
+                      ) : (
+                        commentTree.map((thread) => renderCommentNode(thread))
+                      )}
+                    </ScrollView>
 
-                        {commentMentionContext && commentMentionSuggestions.length > 0 ? (
-                          <View style={styles.commentMentionPanel}>
-                            {commentMentionSuggestions.map((item) => (
-                              <Pressable
-                                key={`comment-mention-${String(item.id ?? item.name)}`}
-                                style={styles.mentionItem}
-                                onPress={() => handleCommentMentionPick(item.handle)}
-                              >
-                                <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
-                                <Text style={styles.mentionName} numberOfLines={1}>
-                                  @{item.handle}
-                                </Text>
+                    <View style={[styles.commentComposerSafeArea]}>
+                      <View style={styles.commentComposer}>
+                        <View style={styles.commentComposerContent}>
+                          {editingComment && (
+                            <View style={styles.commentReplyContext}>
+                              <Text style={styles.commentReplyContextText} numberOfLines={1}>Editing comment</Text>
+                              <Pressable style={styles.commentReplyContextCancel} onPress={() => { setEditingComment(null); setCommentDraft(''); }}>
+                                <Ionicons name="close" size={14} color="#31429B" />
                               </Pressable>
-                            ))}
+                            </View>
+                          )}
+                          {replyingToComment && (
+                            <View style={styles.commentReplyContext}>
+                              <Text style={styles.commentReplyContextText} numberOfLines={1}>Replying to {renderCommentAuthorName(replyingToComment)}</Text>
+                              <Pressable style={styles.commentReplyContextCancel} onPress={() => setReplyingToComment(null)}>
+                                <Ionicons name="close" size={14} color="#31429B" />
+                              </Pressable>
+                            </View>
+                          )}
+
+                          <View style={styles.commentInputWrap}>
+                            <TextInput
+                              value={commentDraft}
+                              onChangeText={setCommentDraft}
+                              onContentSizeChange={handleCommentInputContentSizeChange}
+                              placeholder={editingComment ? 'Edit your comment...' : replyingToComment ? 'Write a reply...' : 'Write a comment...'}
+                              placeholderTextColor="#94A3B8"
+                              style={[styles.commentInput, { height: commentInputHeight }]}
+                              multiline
+                              scrollEnabled={false}
+                              textAlignVertical="center"
+                            />
+                            <Pressable style={[styles.commentSendButtonInside, !commentDraft.trim() ? styles.commentSendButtonDisabled : null]} onPress={handleSubmitComment} disabled={!commentDraft.trim()}>
+                              <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                            </Pressable>
                           </View>
-                        ) : null}
+
+                          {commentMentionContext && commentMentionSuggestions.length > 0 && (
+                            <View style={styles.commentMentionPanel}>
+                              {commentMentionSuggestions.map((item) => (
+                                <Pressable key={`comment-mention-${String(item.id ?? item.name)}`} style={styles.mentionItem} onPress={() => handleCommentMentionPick(item.handle)}>
+                                  {hasValidProfilePhoto(item.rawPhoto) && item.avatar ? (
+                                    <Image source={{ uri: item.avatar }} style={styles.mentionAvatar} />
+                                  ) : (
+                                    <AvatarInitials name={item.name} size={24} style={styles.mentionAvatar} backgroundColor="#31429B" />
+                                  )}
+                                  <Text style={styles.mentionName} numberOfLines={1}>@{item.handle}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              </SafeAreaView>
-            </RNAnimated.View>
-          </View>
+                </SafeAreaView>
+              </RNAnimated.View>
+            </View>
           </KeyboardAvoidingView>
         </Modal>
       )}
 
       {/* --- REPORT REASON MODAL --- */}
       {reportModalVisible && (
-        <Modal
-          transparent
-          visible={reportModalVisible}
-          animationType="slide"
-          statusBarTranslucent={true}
-          onRequestClose={() => setReportModalVisible(false)}
-        >
+        <Modal transparent visible={reportModalVisible} animationType="slide" statusBarTranslucent={true} onRequestClose={() => setReportModalVisible(false)}>
           <View style={styles.postActionsBackdrop}>
             <SafeAreaView style={styles.postActionsSafeArea} edges={['bottom']}>
               <View style={styles.postActionsCard}>
-                <View
-                  style={{
-                    height: 4,
-                    width: 40,
-                    backgroundColor: '#D1D5DB',
-                    borderRadius: 2,
-                    alignSelf: 'center',
-                    marginTop: 8,
-                    marginBottom: 4,
-                  }}
-                />
+                <View style={{ height: 4, width: 40, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 8, marginBottom: 4 }} />
                 <View style={styles.postActionsHeader}>
                   <Text style={styles.postActionsTitle}>Report Content</Text>
-                  <Pressable
-                    style={styles.postActionsCloseButton}
-                    onPress={() => setReportModalVisible(false)}
-                    hitSlop={8}
-                  >
+                  <Pressable style={styles.postActionsCloseButton} onPress={() => setReportModalVisible(false)} hitSlop={8}>
                     <Ionicons name="close" size={20} color="#31429B" />
                   </Pressable>
                 </View>
-                <Text style={{
-                  color: '#64748B',
-                  fontSize: 14,
-                  paddingHorizontal: 24,
-                  marginBottom: 8,
-                }}>
+                <Text style={{ color: '#64748B', fontSize: 14, paddingHorizontal: 24, marginBottom: 8 }}>
                   Why are you reporting this? Your report is anonymous.
                 </Text>
 
@@ -2586,18 +2056,7 @@ const closeCommentsModal = () => {
                   {REPORT_REASONS.map((reason, index) => (
                     <Pressable
                       key={index}
-                      style={({ pressed }) => [
-                        {
-                          paddingVertical: 14,
-                          paddingHorizontal: 24,
-                          borderBottomWidth: 1,
-                          borderBottomColor: '#F3F4F6',
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        },
-                        pressed && { backgroundColor: '#F9FAFB' }
-                      ]}
+                      style={({ pressed }) => [{ paddingVertical: 14, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, pressed && { backgroundColor: '#F9FAFB' }]}
                       onPress={() => submitReport(reason)}
                     >
                       <Text style={{ fontSize: 15, color: '#1F2937', fontWeight: '500' }}>{reason}</Text>

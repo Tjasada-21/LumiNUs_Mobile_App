@@ -39,6 +39,95 @@ const resolvePublicAvatarUrl = (path) => {
   }
 };
 
+// --- DYNAMIC MUTUAL CONNECTIONS COMPONENT ---
+const MutualConnections = ({ targetUserId, myConnectedIds, allAlumni }) => {
+  const [mutualsCount, setMutualsCount] = useState(0);
+  const [firstMutualProfile, setFirstMutualProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMutuals = async () => {
+      try {
+        const { data } = await supabase
+          .from('connections')
+          .select('follower_id, followed_id')
+          .eq('status', 'accepted')
+          .or(`follower_id.eq.${targetUserId},followed_id.eq.${targetUserId}`);
+
+        if (data && isMounted) {
+          // Extract the IDs connected to the target user
+          const theirIds = data.map(row => 
+            row.follower_id === targetUserId ? row.followed_id : row.follower_id
+          );
+          
+          // Intersect with current user's connections
+          const mutualIds = theirIds.filter(id => myConnectedIds.has(id));
+          
+          if (mutualIds.length > 0) {
+            setMutualsCount(mutualIds.length);
+            // Find the first mutual profile from the already loaded alumni list
+            const profile = mutualIds.map(id => allAlumni.find(a => a.id === id)).find(Boolean);
+            setFirstMutualProfile(profile || null);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch mutuals", e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    
+    // Only run if we actually have connections to compare against
+    if (targetUserId && myConnectedIds.size > 0) {
+      fetchMutuals();
+    } else {
+      setLoading(false);
+    }
+    
+    return () => { isMounted = false; };
+  }, [targetUserId, myConnectedIds, allAlumni]);
+
+  if (loading || mutualsCount === 0) return null;
+
+  // Fallback if the mutual isn't in the top 500 cached alumni
+  if (!firstMutualProfile) {
+    return (
+      <View style={styles.mutualRow}>
+        <AvatarInitials name="..." size={20} style={styles.mutualAvatar} backgroundColor="#9CA3AF" />
+        <Text style={styles.mutualText}>{mutualsCount} mutual connection{mutualsCount > 1 ? 's' : ''}</Text>
+      </View>
+    );
+  }
+
+  const firstName = firstMutualProfile.first_name || "Alumni";
+  const remainingCount = mutualsCount - 1;
+
+  const fullName = `${firstMutualProfile.first_name ?? ""} ${firstMutualProfile.last_name ?? ""}`.trim();
+  const rawPhoto = firstMutualProfile.alumni_photo;
+  const hasValidPhoto = rawPhoto && typeof rawPhoto === "string" && rawPhoto.trim() !== "" && !rawPhoto.includes("undefined") && !rawPhoto.includes("null");
+  const resolvedAvatar = resolvePublicAvatarUrl(rawPhoto);
+  const avatarUri = hasValidPhoto ? getAvatarUri(fullName, resolvedAvatar) : null;
+
+  // Format the text perfectly
+  let mutualText = `${firstName} is a\nmutual connection`;
+  if (remainingCount > 0) {
+    mutualText = `${firstName} and ${remainingCount} other\nmutual connection${remainingCount > 1 ? 's' : ''}`;
+  }
+
+  return (
+    <View style={styles.mutualRow}>
+      {hasValidPhoto && avatarUri ? (
+        <Image source={{ uri: avatarUri }} style={styles.mutualAvatar} />
+      ) : (
+        <AvatarInitials name={fullName} size={20} style={styles.mutualAvatar} backgroundColor="#31429B" />
+      )}
+      <Text style={styles.mutualText}>{mutualText}</Text>
+    </View>
+  );
+};
+
+
 const GlobalSearchScreen = ({ navigation, route }) => {
   const initialQuery = route?.params?.query ?? "";
   const [query, setQuery] = useState(initialQuery);
@@ -241,15 +330,13 @@ const GlobalSearchScreen = ({ navigation, route }) => {
               <Text style={styles.tagText}>Class of {year} | {program}</Text>
             </View>
 
-            {/* Simulated Mutual Connections row for Mockup matching */}
-            <View style={styles.mutualRow}>
-              {hasValidPhoto && avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.mutualAvatar} />
-              ) : (
-                <AvatarInitials name={fullName} size={20} style={styles.mutualAvatar} backgroundColor="#31429B" />
-              )}
-              <Text style={styles.mutualText}>David and 19 other{"\n"}mutual connections</Text>
-            </View>
+            {/* Dynamic Mutual Connections Row */}
+            <MutualConnections 
+              targetUserId={item.id} 
+              myConnectedIds={connectedIds} 
+              allAlumni={allAlumni} 
+            />
+
           </TouchableOpacity>
 
           <TouchableOpacity

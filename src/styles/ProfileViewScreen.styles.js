@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#31429B",
     marginRight: 20,
     borderWidth: 2,
     borderColor: "#F1F5F9",
@@ -135,32 +135,7 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
 
-  // --- ABOUT ME ---
-  aboutSection: {
-    marginTop: 20,
-  },
-  sectionHeadingBlack: {
-    fontSize: 20,
-    color: "#1C1C1E",
-    fontFamily: "Poppins_700Bold",
-    marginBottom: 12,
-  },
-  aboutItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  aboutIcon: {
-    width: 24,
-    textAlign: "center",
-  },
-  aboutText: {
-    fontSize: 15,
-    color: "#333333",
-    fontFamily: "Poppins_500Medium",
-    marginLeft: 8,
-    flex: 1,
-  },
+ 
 
   // --- DARK SECTION ---
   darkSection: {
@@ -323,7 +298,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#31429B",
     marginRight: 12,
   },
   postHeaderTextWrap: {

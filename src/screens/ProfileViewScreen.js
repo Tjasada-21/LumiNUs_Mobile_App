@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import HomeHeader from "../components/HomeHeader";
+import AvatarInitials from "../components/AvatarInitials";
 import styles from "../styles/ProfileViewScreen.styles";
 import { getAlumniProfile } from "../services/alumniQueries";
 import { getUserPosts } from "../services/postQueries";
@@ -27,6 +28,11 @@ import {
 import { getCurrentUser } from "../services/supabaseAuth";
 import { ThemedAlert } from "../components/ThemedAlert";
 import { getAvatarUri } from "../utils/imageUtils";
+
+// Helper to strictly check if an uploaded photo exists
+const hasValidProfilePhoto = (rawPhoto) => {
+  return rawPhoto && typeof rawPhoto === 'string' && rawPhoto.trim() !== '' && !rawPhoto.includes('undefined') && !rawPhoto.includes('null');
+};
 
 const getRelativeTimeLabel = (dateValue) => {
   if (!dateValue) return '';
@@ -67,11 +73,18 @@ const ProfileViewScreen = ({ navigation, route }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [activeWorkExperienceIndex, setActiveWorkExperienceIndex] = useState(0);
   const [resolvedConnectionsCount, setResolvedConnectionsCount] = useState(0);
-  const workPagerRef = useRef(null);
 
-  const skills = ["Programming", "Graphic Design", "Java", "MySQL", "Mobile Programming", "React"];
+  // Parse skills from database dynamically
+  const userSkills = useMemo(() => {
+    if (Array.isArray(userData?.skills) && userData.skills.length > 0) {
+      return userData.skills.map((s) => {
+        if (typeof s === 'string') return s;
+        return s?.skill_name || s?.name || s?.skill || "";
+      }).filter(Boolean);
+    }
+    return [];
+  }, [userData]);
 
   const profileName = useMemo(() => {
     if (!userData) return "Alumni";
@@ -82,24 +95,27 @@ const ProfileViewScreen = ({ navigation, route }) => {
     return getAvatarUri(profileName, userData?.alumni_photo);
   }, [profileName, userData]);
 
+  const hasValidMainAvatar = hasValidProfilePhoto(userData?.alumni_photo);
+
   const postsCount = useMemo(() => profilePosts.filter((post) => (post?.feed_type ?? "post") !== "repost").length, [profilePosts]);
   const repostsCount = useMemo(() => profilePosts.filter((post) => post?.feed_type === "repost").length, [profilePosts]);
 
   const profileSummary = useMemo(() => ({
-    headlineText: userData?.headline || "Software Engineer at Microsoft",
-    locationText: userData?.location || "Lipa City, Batangas",
-    classTag: userData?.year_graduated ? `Class of ${String(userData.year_graduated).match(/\d{4}/)?.[0] ?? String(userData.year_graduated).slice(0, 4)}` : "Class of 2023",
-    sectionTag: userData?.program || "BSIT",
+    headlineText: userData?.headline || "",
+    locationText: userData?.location || "",
+    classTag: userData?.year_graduated ? `Class of ${String(userData.year_graduated).match(/\d{4}/)?.[0] ?? String(userData.year_graduated).slice(0, 4)}` : "Alumni",
+    sectionTag: userData?.program || "No Program Specified",
     connectionsCount: Number.isFinite(Number(userData?.connections_count)) ? Number(userData.connections_count) : resolvedConnectionsCount,
     connectionStatus: userData?.connection_status || "none",
     postsCount,
-    biographyText: userData?.alumni_bio || "I am currently a Software Engineer at Microsoft specializing in mobile development. During my stay at NU Lipa, I served as an active student leader and truly fell in love with building intuitive tech that solves complex real-world problems. I am deeply passionate about Human-Computer Interaction, accessible mobile-first design, and writing incredibly clean, scalable code. I constantly thrive on bringing innovative digital ideas to life. Always down for a coffee chat or a collab on a side project! ☕✨",
+    biographyText: userData?.alumni_bio || "",
   }), [postsCount, resolvedConnectionsCount, userData]);
 
   const isConnected = profileSummary.connectionStatus === "connected";
   const isPendingConnection = profileSummary.connectionStatus === "pending";
   const isConnectionActionDisabled = followLoading;
 
+  // Parse work experience dynamically from database
   const workExperiences = useMemo(() => {
     if (Array.isArray(userData?.work_experiences) && userData.work_experiences.length > 0) {
       return [...userData.work_experiences].sort((a, b) => {
@@ -107,10 +123,7 @@ const ProfileViewScreen = ({ navigation, route }) => {
           return getStartYear(a) - getStartYear(b);
         });
     }
-    return [
-      { id: '1', title: 'Graphic Designer', subtitle: 'At National University Philippines', period: 'March 2025 - Present', location: 'Philippines', description: 'A brief description about the job' },
-      { id: '2', title: 'Graphic Designer', subtitle: 'At National University Philippines', period: 'March 2025 - Present', location: 'Philippines', description: 'A brief description about the job' }
-    ];
+    return [];
   }, [userData]);
 
   const openConversation = () => {
@@ -257,17 +270,23 @@ const ProfileViewScreen = ({ navigation, route }) => {
   const renderSinglePostContent = (postObj, isNested = false) => {
 		const postAuthorName = getPostAuthorName(postObj);
 		const avatarUri = getAvatarUri(postAuthorName, postObj.alumni?.alumni_photo);
+    const hasValidPostAvatar = hasValidProfilePhoto(postObj.alumni?.alumni_photo);
 		const postImages = postObj.images ?? [];
 		const timeStr = getRelativeTimeLabel(getFeedItemDateValue(postObj));
 
 		return (
 			<>
         <View style={styles.postHeader}>
-          <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
+          {hasValidPostAvatar && avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
+          ) : (
+            <AvatarInitials name={postAuthorName} size={44} style={styles.postAvatar} backgroundColor="#31429B" />
+          )}
+          
           <View style={styles.postHeaderTextWrap}>
             <Text style={styles.postAuthorName} numberOfLines={1}>{postAuthorName}</Text>
             <Text style={styles.postMeta}>
-              Class of 2023 | BSIT | {timeStr} • <Ionicons name="globe-outline" size={10} color="#6B7280" /> Public
+              {postObj.alumni?.year_graduated ? `Class of ${String(postObj.alumni.year_graduated).substring(0,4)}` : "Alumni"} | {postObj.alumni?.program || "Program not specified"} | {timeStr} • <Ionicons name="globe-outline" size={10} color="#6B7280" /> Public
             </Text>
           </View>
         </View>
@@ -328,7 +347,12 @@ const ProfileViewScreen = ({ navigation, route }) => {
                 </View>
 
                 <View style={styles.heroRow}>
-                  <Image source={{ uri: profileImageUri }} style={[styles.avatar, { width: layout.avatarSize, height: layout.avatarSize, borderRadius: layout.avatarSize / 2 }]} />
+                  {hasValidMainAvatar && profileImageUri ? (
+                    <Image source={{ uri: profileImageUri }} style={[styles.avatar, { width: layout.avatarSize, height: layout.avatarSize, borderRadius: layout.avatarSize / 2 }]} />
+                  ) : (
+                    <AvatarInitials name={profileName} size={layout.avatarSize} style={styles.avatar} backgroundColor="#31429B" />
+                  )}
+                  
                   <View style={styles.heroCopy}>
                     <Text style={styles.name}>{profileName}</Text>
                     <View style={styles.tagPill}>
@@ -369,18 +393,6 @@ const ProfileViewScreen = ({ navigation, route }) => {
                   </View>
                 </View>
 
-                {/* ABOUT */}
-                <View style={styles.aboutSection}>
-                  <Text style={styles.sectionHeadingBlack}>About</Text>
-                  <View style={styles.aboutItem}>
-                    <Ionicons name="briefcase" size={18} color="#31429B" style={styles.aboutIcon} />
-                    <Text style={styles.aboutText}>{profileSummary.headlineText}</Text>
-                  </View>
-                  <View style={styles.aboutItem}>
-                    <Ionicons name="location-sharp" size={18} color="#31429B" style={styles.aboutIcon} />
-                    <Text style={styles.aboutText}>{profileSummary.locationText}</Text>
-                  </View>
-                </View>
               </View>
 
               {/* DARK BLUE SECTION WITH SPACE BACKGROUND */}
@@ -388,34 +400,56 @@ const ProfileViewScreen = ({ navigation, route }) => {
                 
                 {/* Biography */}
                 <Text style={styles.sectionHeadingYellow}>Biography</Text>
-                <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
+                {profileSummary.biographyText ? (
+                  <Text style={styles.biographyText}>{profileSummary.biographyText}</Text>
+                ) : (
+                  <Text style={[styles.biographyText, { fontStyle: 'italic', color: '#94A3B8' }]}>
+                    This user hasn't added a biography yet.
+                  </Text>
+                )}
 
                 {/* Work Experience */}
                 <Text style={styles.sectionHeadingYellow}>Work Experience</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
-                  {workExperiences.map((emp, index) => (
-                    <View key={emp.id ?? index} style={styles.workCard}>
-                      <Ionicons name="briefcase" size={28} color="#31429B" style={styles.workBriefcase} />
-                      <Text style={styles.workTitle}>{emp.title}</Text>
-                      <Text style={styles.workSubtitle}>{emp.subtitle}</Text>
-                      <Text style={styles.workPeriod}>{emp.period}</Text>
-                      <Text style={styles.workDescription}>{emp.description}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
+                {workExperiences.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workScrollContent}>
+                    {workExperiences.map((emp, index) => {
+                      const jobTitle = emp.title || emp.job_title || "Position not specified";
+                      const company = emp.subtitle || emp.company_name || emp.company || "";
+                      const period = emp.period || (emp.start_date ? `${emp.start_date} - ${emp.end_date || 'Present'}` : "");
+                      const description = emp.description || "";
+
+                      return (
+                        <View key={emp.id ?? index} style={styles.workCard}>
+                          <Ionicons name="briefcase" size={28} color="#31429B" style={styles.workBriefcase} />
+                          <Text style={styles.workTitle}>{jobTitle}</Text>
+                          {company ? <Text style={styles.workSubtitle}>{company}</Text> : null}
+                          {period ? <Text style={styles.workPeriod}>{period}</Text> : null}
+                          {description ? <Text style={styles.workDescription}>{description}</Text> : null}
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                ) : (
+                  <Text style={[styles.biographyText, { fontStyle: 'italic', color: '#94A3B8', marginBottom: 20 }]}>
+                    No work experience added yet.
+                  </Text>
+                )}
 
                 {/* Skills */}
                 <Text style={styles.sectionHeadingYellow}>Skills</Text>
-                <View style={styles.skillsGrid}>
-                  {skills.map((skill, i) => (
-                    <View key={i} style={styles.skillPill}>
-                      <Text style={styles.skillText}>{skill}</Text>
-                    </View>
-                  ))}
-                </View>
-                <TouchableOpacity style={styles.viewAllButton}>
-                  <Text style={styles.viewAllText}>View All <Ionicons name="arrow-forward" size={12} /></Text>
-                </TouchableOpacity>
+                {userSkills.length > 0 ? (
+                  <View style={styles.skillsGrid}>
+                    {userSkills.map((skill, i) => (
+                      <View key={i} style={styles.skillPill}>
+                        <Text style={styles.skillText}>{skill}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.biographyText, { fontStyle: 'italic', color: '#94A3B8', marginBottom: 20 }]}>
+                    No skills added yet.
+                  </Text>
+                )}
 
               </ImageBackground>
 
@@ -435,10 +469,16 @@ const ProfileViewScreen = ({ navigation, route }) => {
                     if (isRepostFeedItem && originalPost) {
                       const reposterName = getPostAuthorName(post);
                       const reposterAvatar = getAvatarUri(reposterName, post.alumni?.alumni_photo);
+                      const hasValidRepostAvatar = hasValidProfilePhoto(post.alumni?.alumni_photo);
+                      
                       return (
                         <View key={post.id} style={styles.repostWrapper}>
                           <View style={styles.repostBanner}>
-                            <Image source={{ uri: reposterAvatar }} style={styles.repostBannerAvatar} />
+                            {hasValidRepostAvatar && reposterAvatar ? (
+                              <Image source={{ uri: reposterAvatar }} style={styles.repostBannerAvatar} />
+                            ) : (
+                              <AvatarInitials name={reposterName} size={24} style={styles.repostBannerAvatar} backgroundColor="#31429B" />
+                            )}
                             <Text style={styles.repostBannerText} numberOfLines={1}>
                               <Text style={styles.repostBannerName}>{reposterName}</Text> reposted this.
                             </Text>

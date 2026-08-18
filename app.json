@@ -7,6 +7,10 @@
     "icon": "./assets/images/LUMINUS_ICON.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#31429B",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "splash": {
       "image": "./assets/images/LumiNUs_Load.png",
       "resizeMode": "contain",
@@ -30,9 +34,6 @@
       },
       "package": "com.timothyjohn.luminus",
       "googleServicesFile": "./google-services.json"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",

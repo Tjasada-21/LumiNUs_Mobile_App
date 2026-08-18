@@ -11,7 +11,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   
-  // --- SEARCH BAR (from mockup) ---
+  // --- SEARCH BAR ---
   searchContainer: {
     paddingHorizontal: 16,
     // Provide clearance for the absolutely positioned HomeHeader
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#31429B",
     marginRight: 12,
   },
   announcementAvatar: {
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
 
-  // --- MODALS / VIEWER / ETC (UNCHANGED FUNCTIONAL STYLES) ---
+  // --- MODALS / VIEWER / ETC ---
   viewerBackdrop: { flex: 1, backgroundColor: "#1F2937", alignItems: "stretch", justifyContent: "flex-start" },
   viewerContent: { flex: 1, backgroundColor: "#1F2937", position: "relative" },
   viewerPager: { flex: 1 },
@@ -314,22 +314,26 @@ const styles = StyleSheet.create({
   viewerActionLabel: { fontSize: 13, fontWeight: "600", color: "#F9FAFB" },
   viewerCountsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 2 },
   viewerCountText: { fontSize: 11, fontWeight: "700", color: "rgba(255, 255, 255, 0.70)" },
+  
   repostModalBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.58)", justifyContent: "flex-end" },
   repostModalSafeArea: { flex: 1, justifyContent: "flex-end" },
   repostModalCard: { width: "100%", height: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: "#F9FAFB", paddingHorizontal: 18, paddingTop: 16, paddingBottom: 24 },
   repostModalTitle: { fontSize: 18, fontWeight: "900", color: "#24346F" },
   repostModalSubtitle: { marginTop: 4, fontSize: 12, fontWeight: "700", color: "#64748B", marginBottom: 12 },
   repostCaptionInput: { minHeight: 118, maxHeight: 220, borderRadius: 14, borderWidth: 1, borderColor: "#D9DDE8", backgroundColor: "#F8FAFC", paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#24346F" },
+  
   mentionPanel: { marginHorizontal: 12, marginTop: 4, borderRadius: 14, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D9E2FF", paddingVertical: 6, overflow: "hidden" },
   commentMentionPanel: { marginHorizontal: 12, marginTop: 4, borderRadius: 14, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D9E2FF", paddingVertical: 6, overflow: "hidden" },
   mentionItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8 },
   mentionAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, backgroundColor: "#E5E7EB" },
   mentionName: { flex: 1, color: "#24346F", fontSize: 13, fontWeight: "700" },
+  
   repostModalActionsRow: { marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 },
   repostCancelButton: { minWidth: 88, height: 40, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#E2E8F0" },
   repostCancelButtonText: { fontSize: 13, fontWeight: "800", color: "#334155" },
   repostSubmitButton: { minWidth: 98, height: 40, borderRadius: 999, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#31429B" },
   repostSubmitButtonText: { fontSize: 13, fontWeight: "900", color: "#F9FAFB" },
+  
   themedAlertBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.58)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
   themedAlertCard: { width: "100%", maxWidth: 390, borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#DCE3F5" },
   themedAlertTitle: { fontSize: 18, fontWeight: "900", color: "#24346F" },
@@ -341,12 +345,16 @@ const styles = StyleSheet.create({
   themedAlertButtonText: { fontSize: 13, fontWeight: "900", color: "#F9FAFB" },
   themedAlertButtonTextNeutral: { color: "#334155" },
   themedAlertButtonTextDestructive: { color: "#B42318" },
+  themedAlertCloseButton: { position: 'absolute', top: 12, right: 12, zIndex: 10, padding: 4 },
+
   postActionsBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.58)", alignItems: "stretch", justifyContent: "flex-end", paddingHorizontal: 0 },
   postActionsSafeArea: { flex: 1, justifyContent: "flex-end", alignItems: "stretch" },
+  
   deleteLoadingBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.58)", alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
   deleteLoadingCard: { width: "100%", maxWidth: 320, backgroundColor: "#F9FAFB", borderRadius: 22, paddingVertical: 24, paddingHorizontal: 20, alignItems: "center", borderWidth: 1, borderColor: "#DCE3F5" },
   deleteLoadingTitle: { fontSize: 18, fontWeight: "900", color: "#24346F", marginTop: 14 },
   deleteLoadingText: { fontSize: 13, fontWeight: "600", color: "#475569", textAlign: "center", marginTop: 6 },
+  
   postActionsCard: { width: "100%", backgroundColor: "#F9FAFB", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 12, paddingBottom: 18, paddingHorizontal: 12, borderWidth: 0 },
   postActionsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   postActionsTitle: { fontSize: 18, fontWeight: "900", color: "#24346F" },
@@ -356,10 +364,12 @@ const styles = StyleSheet.create({
   postActionChoiceButton: { flex: 1, minHeight: 44, borderRadius: 999, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#EEF2FF" },
   postActionChoiceText: { fontSize: 13, fontWeight: "800", color: "#31429B" },
   postActionsLabel: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8 },
+  
   postVisibilityChoicesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   postVisibilityChoice: { borderWidth: 1, borderColor: "#D9E2FF", backgroundColor: "#F8FAFF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   postVisibilityChoiceSelected: { borderColor: "#AFC0F7", backgroundColor: "#EAF0FF" },
   postVisibilityChoiceText: { color: "#31429B", fontSize: 12, fontWeight: "800" },
+  
   postDeleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 999, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", paddingVertical: 10 },
   postDeleteButtonText: { color: "#B42318", fontSize: 13, fontWeight: "800" },
 
@@ -373,7 +383,6 @@ const styles = StyleSheet.create({
     paddingTop: 4, 
     paddingBottom: 24, 
     height: "94%",
-    // Remove any fixed positioning
     position: 'relative',
   },
   commentsHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", minHeight: 40, marginBottom: 16, position: "relative" },
@@ -431,47 +440,43 @@ const styles = StyleSheet.create({
   commentReplyContextText: { flex: 1, fontSize: 12, fontFamily: "Poppins_600SemiBold", color: "#31429B" },
   commentReplyContextCancel: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
   
-  // Pill-shaped input to match ConvoScreen
-  // Pill-shaped input to match ConvoScreen
-commentInputWrap: { 
-  flexDirection: 'row', 
-  alignItems: 'center', // 1. Changed from 'flex-end' to 'center' to vertically align the button
-  backgroundColor: '#F1F5F9', 
-  borderRadius: 24, 
-  minHeight: 48, 
-  paddingLeft: 16, 
-  paddingRight: 6, 
-  paddingVertical: 6,
-  marginBottom: 20
-},
+  commentInputWrap: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#F1F5F9', 
+    borderRadius: 24, 
+    minHeight: 48, 
+    paddingLeft: 16, 
+    paddingRight: 6, 
+    paddingVertical: 6,
+    marginBottom: 20
+  },
 
-commentInput: { 
-  flex: 1, 
-  minHeight: 36, 
-  maxHeight: 100, 
-  fontSize: 15, 
-  color: '#1C1C1E', 
-  fontFamily: 'Poppins_400Regular', 
-  marginRight: 8,
-  // 2. Kept the padding clean so the cursor/text aligns nicely with the centered button
-  paddingTop: Platform.OS === 'ios' ? 8 : 4, 
-  paddingBottom: Platform.OS === 'ios' ? 8 : 4, 
-},
+  commentInput: { 
+    flex: 1, 
+    minHeight: 36, 
+    maxHeight: 100, 
+    fontSize: 15, 
+    color: '#1C1C1E', 
+    fontFamily: 'Poppins_400Regular', 
+    marginRight: 8,
+    paddingTop: Platform.OS === 'ios' ? 8 : 4, 
+    paddingBottom: Platform.OS === 'ios' ? 8 : 4, 
+  },
 
-commentSendButtonInside: { 
-  width: 36, 
-  height: 36, 
-  borderRadius: 18, 
-  backgroundColor: '#31429B', 
-  alignItems: 'center', 
-  justifyContent: "center", 
-  marginRight: 4 // 3. Added a small right margin to separate the button from the edge of the input
-},
+  commentSendButtonInside: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 18, 
+    backgroundColor: '#31429B', 
+    alignItems: 'center', 
+    justifyContent: "center", 
+    marginRight: 4 
+  },
 
-commentSendButtonDisabled: { 
-  opacity: 0.4 
-},
-
+  commentSendButtonDisabled: { 
+    opacity: 0.4 
+  },
 });
 
 export default styles;

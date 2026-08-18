@@ -59,9 +59,6 @@ const ViewEventsScreen = () => {
   const [galleryScale, setGalleryScale] = React.useState(1);
   const [galleryTranslate, setGalleryTranslate] = React.useState({ x: 0, y: 0 });
 
-  // Map & Geocoding States
-  const [resolvedVenueCoordinates, setResolvedVenueCoordinates] = React.useState(null);
-  const [resolvingVenueCoordinates, setResolvingVenueCoordinates] = React.useState(false);
   const [mapLoadFailed, setMapLoadFailed] = React.useState(false);
   
   const pinchStartDistanceRef = React.useRef(0);
@@ -90,6 +87,7 @@ const ViewEventsScreen = () => {
   
   const venueName = String(event?.venue?.name ?? "Venue not set");
   const venueAddress = event?.venue?.address ?? null;
+  
   const payloadVenueLatitude = Number.parseFloat(
     event?.venue?.latitude ?? event?.venue?.lat ?? event?.venue_latitude ?? event?.latitude ?? event?.lat,
   );
@@ -102,12 +100,13 @@ const ViewEventsScreen = () => {
     .filter((value) => value && !String(value).toLowerCase().includes("not available") && !String(value).toLowerCase().includes("not set"))
     .join(" ").trim();
     
-  const venueLatitude = hasPayloadVenueCoordinates ? payloadVenueLatitude : Number.parseFloat(resolvedVenueCoordinates?.latitude);
-  const venueLongitude = hasPayloadVenueCoordinates ? payloadVenueLongitude : Number.parseFloat(resolvedVenueCoordinates?.longitude);
-  const hasVenueCoordinates = Number.isFinite(venueLatitude) && Number.isFinite(venueLongitude);
+  // If we have exact coordinates, use them. Otherwise, pass the text location query to Google Maps.
+  const mapQuery = hasPayloadVenueCoordinates 
+    ? `${payloadVenueLatitude},${payloadVenueLongitude}` 
+    : venueSearchQuery;
   
   const hasVirtualElement = Boolean(platformUrl) || platform !== "Not set";
-  const hasPhysicalElement = hasVenueCoordinates || Boolean(venueSearchQuery);
+  const hasPhysicalElement = Boolean(mapQuery);
 
   const inferredEventType = rawEventType 
     ? rawEventType 
@@ -117,7 +116,6 @@ const ViewEventsScreen = () => {
 
   const normalizedEventType = String(inferredEventType).toLowerCase().replace(/[_-]/g, " ").trim();
   
-  // Smart detection for Hybrid, Online, and In-Person elements
   const isHybridEvent = normalizedEventType === "hybrid" || (hasVirtualElement && hasPhysicalElement);
   const isOnlineEvent = ["online", "virtual"].includes(normalizedEventType) || isHybridEvent || hasVirtualElement;
   const isInPersonEvent = ["in person", "inperson", "physical", "onsite", "on site"].includes(normalizedEventType) || isHybridEvent || hasPhysicalElement;
@@ -129,26 +127,40 @@ const ViewEventsScreen = () => {
   const galleryImageUris = eventImageUris.slice(1, 5);
   const galleryViewportWidth = Dimensions.get("window").width;
   
-  const venueMapEmbedUri = hasVenueCoordinates
-    ? `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%;overflow:hidden}</style></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false,attributionControl:false}).setView([${venueLatitude},${venueLongitude}],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);L.marker([${venueLatitude},${venueLongitude}]).addTo(map);<\/script></body></html>`
+  // Use standard Google Maps iframe embed — automatically resolves locations from strings.
+  const venueMapEmbedUri = mapQuery
+    ? `<!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+              html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f1f5f9; }
+              iframe { width: 100%; height: 100%; border: none; }
+            </style>
+          </head>
+          <body>
+            <iframe 
+              src="https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+              allowfullscreen>
+            </iframe>
+          </body>
+        </html>`
     : null;
-  const venueExternalMapUri = hasVenueCoordinates
-    ? `https://www.openstreetmap.org/?mlat=${venueLatitude}&mlon=${venueLongitude}&zoom=16`
-    : venueSearchQuery ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(venueSearchQuery)}` : null;
+
+  const venueExternalMapUri = mapQuery
+    ? `https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`
+    : null;
 
   const isAlreadyRegistered = Boolean(event?.id && registeredEventIds.includes(Number(event.id)));
   
-  // Calculate if the event has passed[cite: 13]
   const isEventOver = useMemo(() => {
     if (!event?.start_date) return false;
     const now = new Date();
     const compareDate = new Date(event.end_date || event.start_date);
-    // Set to end of day
     compareDate.setHours(23, 59, 59, 999);
     return compareDate < now;
   }, [event?.start_date, event?.end_date]);
 
-  // Adjust button logic
   const canRegister = !registrationsLoading && !isAlreadyRegistered && !isEventOver;
   const canRemoveRegistration = !registrationsLoading && isAlreadyRegistered && !isEventOver;
 
@@ -158,43 +170,7 @@ const ViewEventsScreen = () => {
 
   React.useEffect(() => {
     setMapLoadFailed(false);
-  }, [venueLatitude, venueLongitude]);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const resolveVenueCoordinates = async () => {
-      if (hasPayloadVenueCoordinates || !venueSearchQuery) {
-        if (isMounted) {
-          setResolvedVenueCoordinates(null);
-          setResolvingVenueCoordinates(false);
-        }
-        return;
-      }
-      try {
-        setResolvingVenueCoordinates(true);
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(venueSearchQuery)}`, {
-          headers: { Accept: "application/json", "User-Agent": "LumiNUsMobile/1.0" },
-        });
-        const responseText = await response.text();
-        if (!response.ok) return;
-        let results = [];
-        try { results = JSON.parse(responseText); } catch (e) { return; }
-        const firstMatch = Array.isArray(results) ? results[0] : null;
-        if (!firstMatch || !isMounted) return;
-        const latitude = Number.parseFloat(firstMatch?.lat);
-        const longitude = Number.parseFloat(firstMatch?.lon);
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          setResolvedVenueCoordinates({ latitude, longitude });
-        }
-      } catch (error) {
-        console.error("Failed to resolve venue coordinates:", error);
-      } finally {
-        if (isMounted) setResolvingVenueCoordinates(false);
-      }
-    };
-    resolveVenueCoordinates();
-    return () => { isMounted = false; };
-  }, [hasPayloadVenueCoordinates, venueSearchQuery]);
+  }, [mapQuery]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -418,7 +394,6 @@ const ViewEventsScreen = () => {
             
             <View style={styles.dateLocationCard}>
               
-              {/* Event Badge (Hybrid vs In-Person) */}
               {isHybridEvent ? (
                 <View style={[styles.inPersonBadge, { backgroundColor: '#3B82F6' }]}>
                   <Text style={styles.inPersonBadgeText}>HYBRID</Text>
@@ -436,7 +411,6 @@ const ViewEventsScreen = () => {
                 <Text style={styles.infoTextCol}>{dateRange}</Text>
               </View>
               
-              {/* Virtual Details */}
               {isOnlineEvent && platform !== "Not set" && (
                  <View style={styles.infoRowTop}>
                     <Ionicons name="globe-outline" size={16} color="#FFD404" style={styles.iconTop} />
@@ -451,7 +425,6 @@ const ViewEventsScreen = () => {
                  </View>
               )}
 
-              {/* Physical Venue Details */}
               {isInPersonEvent && venueName !== "Venue not set" && (
                  <View style={styles.infoRowTop}>
                     <Ionicons name="location-outline" size={16} color="#FFD404" style={styles.iconTop} />
@@ -463,18 +436,17 @@ const ViewEventsScreen = () => {
               )}
             </View>
 
-            {/* Map renders if there is a physical location */}
             {isInPersonEvent && (
               <View style={styles.mapSection}>
                 <Text style={styles.mapTitle}>Map</Text>
                 {venueMapEmbedUri && !mapLoadFailed ? (
                   <Pressable style={styles.mapContainer} onPress={handleVenueMapPress}>
                     <WebView
-                      source={{ html: venueMapEmbedUri }}
+                      source={{ html: venueMapEmbedUri, baseUrl: "https://localhost" }}
                       style={styles.mapWebView}
                       scrollEnabled={false}
-                      javaScriptEnabled
-                      domStorageEnabled
+                      javaScriptEnabled={true}
+                      domStorageEnabled={true}
                       originWhitelist={["*"]}
                       mixedContentMode="always"
                       onError={() => setMapLoadFailed(true)}
@@ -484,9 +456,7 @@ const ViewEventsScreen = () => {
                   <View style={styles.mapFallback}>
                     <Ionicons name="map-outline" size={24} color="#64748B" />
                     <Text style={styles.mapFallbackText}>
-                      {resolvingVenueCoordinates
-                        ? "Finding venue on map..."
-                        : "Map coordinates are not available for this venue."}
+                      Map information is not available for this venue.
                     </Text>
                     {venueExternalMapUri ? (
                       <Pressable onPress={handleVenueMapPress}>
@@ -500,7 +470,6 @@ const ViewEventsScreen = () => {
 
           </View>
 
-          {/* Conditional Button Render */}
           {isEventOver ? (
             <Pressable 
               style={[styles.registerButtonOutline, { borderColor: "#9CA3AF" }]} 

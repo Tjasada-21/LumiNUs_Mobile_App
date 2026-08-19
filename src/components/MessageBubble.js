@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Animated,
   PanResponder,
-  Linking,
+  Modal,
+  SafeAreaView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AvatarInitials from "./AvatarInitials";
 import supabase from "../services/supabase"; 
 
@@ -140,8 +142,9 @@ const MessageBubble = ({
   const entranceProgress = useRef(new Animated.Value(0)).current;
   const swipeDirection = isOutgoing ? -1 : 1;
 
-  // State to hold authorized URLs
+  // State to hold authorized URLs and Image Viewer
   const [signedAttachments, setSignedAttachments] = useState([]);
+  const [viewerImage, setViewerImage] = useState(null);
 
   // Generate signed URLs when attachments change
   useEffect(() => {
@@ -281,11 +284,7 @@ const MessageBubble = ({
               {signedAttachments.map((uri, idx) => (
                 <TouchableOpacity
                   key={`att-${String(message.id ?? "")}-${idx}`}
-                  onPress={() => {
-                    try {
-                      if (uri) Linking.openURL(uri);
-                    } catch (e) {}
-                  }}
+                  onPress={() => setViewerImage(uri)}
                   activeOpacity={0.8}
                   style={styles.attachmentWrap}
                 >
@@ -346,6 +345,33 @@ const MessageBubble = ({
           </View>
         )}
       </Animated.View>
+
+      {/* FULL SCREEN IMAGE VIEWER MODAL */}
+      <Modal
+        visible={!!viewerImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setViewerImage(null)}
+      >
+        <View style={styles.viewerBackdrop}>
+          <SafeAreaView style={styles.viewerSafeArea}>
+            <View style={styles.viewerHeader}>
+              <TouchableOpacity onPress={() => setViewerImage(null)} style={styles.viewerCloseBtn}>
+                <Ionicons name="close" size={32} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.viewerContent}>
+              {viewerImage && (
+                <Image 
+                  source={{ uri: viewerImage }} 
+                  style={styles.viewerImageFull} 
+                  resizeMode="contain" 
+                />
+              )}
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -396,14 +422,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginLeft: 8,
     marginRight: 8,
-    marginBottom: 20, // Push avatar up slightly so it aligns with the bubble, not the meta text
+    marginBottom: 20, 
   },
   avatarSpacer: {
-    width: 48, // 32 avatar + 16 margins
+    width: 48, 
   },
   bubbleWrapper: {
     position: "relative",
-    maxWidth: "75%", // Slimmer max-width per modern design
+    maxWidth: "75%", 
     flexShrink: 1,
   },
   bubbleWrapperOutgoing: {
@@ -418,7 +444,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     maxWidth: "100%",
   },
-  // Teardrop shape for Outgoing
   bubbleOutgoing: {
     backgroundColor: "#31429B",
     alignSelf: "flex-end",
@@ -427,9 +452,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 4, 
   },
-  // Teardrop shape for Incoming
   bubbleIncoming: {
-    backgroundColor: "#E2E8F0", // Soft gray
+    backgroundColor: "#E2E8F0", 
     alignSelf: "flex-start",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -477,7 +501,7 @@ const styles = StyleSheet.create({
   },
   reactionBadge: {
     position: "absolute",
-    bottom: 12, // adjusted due to meta text below
+    bottom: 12, 
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
@@ -503,7 +527,7 @@ const styles = StyleSheet.create({
   },
   messageMetaRowOutgoing: {
     justifyContent: "flex-end",
-    marginRight: 2, // Slight indent from the flat edge
+    marginRight: 2, 
   },
   messageMetaRowIncoming: {
     justifyContent: "flex-start",
@@ -519,6 +543,33 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#DC2626",
     fontFamily: "Poppins_600SemiBold",
+  },
+  // VIEWER STYLES
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  viewerSafeArea: {
+    flex: 1,
+  },
+  viewerHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'flex-end',
+    zIndex: 10,
+  },
+  viewerCloseBtn: {
+    padding: 8,
+  },
+  viewerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 40,
+  },
+  viewerImageFull: {
+    width: '100%',
+    height: '100%',
   },
 });
 

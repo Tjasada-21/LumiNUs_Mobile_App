@@ -2,7 +2,6 @@
 
 /**
  * Mapping helper to group related degree programs under broader academic disciplines.
- * Allows alumni in sister programs (e.g. BSIT & BSCS) to discover each other's content.
  */
 const PROGRAM_DISCIPLINES = {
   computing: ['bsit', 'bscs', 'bscpe', 'bsis', 'act', 'computer', 'information technology', 'software'],
@@ -12,12 +11,9 @@ const PROGRAM_DISCIPLINES = {
   arts_sciences: ['bacomm', 'bspsych', 'psychology', 'communication', 'arts', 'multimedia', 'criminology']
 };
 
-/**
- * Helper function to detect the discipline category for a given program string.
- */
 const getDisciplineCategory = (programStr) => {
   if (!programStr) return null;
-  const clean = String(programStr).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clean = String(programStr).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   
   for (const [category, keywords] of Object.entries(PROGRAM_DISCIPLINES)) {
     if (keywords.some((kw) => clean.includes(kw))) {
@@ -27,9 +23,6 @@ const getDisciplineCategory = (programStr) => {
   return null;
 };
 
-/**
- * Extracts a safe timestamp from a feed item.
- */
 export const getFeedItemTimestamp = (item) => {
   const rawValue = item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
   if (!rawValue) return 0;
@@ -37,168 +30,165 @@ export const getFeedItemTimestamp = (item) => {
   return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
+const getDeterministicHash = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0; 
+  }
+  return Math.abs(hash % 10);
+};
+
+const isVideo = (uri) => {
+  if (!uri) return false;
+  const lowerUri = String(uri).toLowerCase();
+  return lowerUri.includes('.mp4') || lowerUri.includes('.mov') || lowerUri.includes('.webm') || lowerUri.includes('.mkv');
+};
+
 /**
- * The FB/IG/LinkedIn Hybrid Feed Algorithm 
- * Integrates Logarithmic Engagement, Storyteller Bumps, Active Conversation, Media Diversity, and Career Milestones.
+ * The FB/IG/LinkedIn Hybrid Feed Algorithm
+ * Incorporates Gravity Math, Trending Velocity, Cold Starts, Media Weighting, and Social Proof.
  */
 export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections, userData) => {
   const sourcePosts = Array.isArray(posts) ? [...posts] : [];
   
-  // If user explicitly selects chronological, bypass the algorithm entirely
   if (feedSortMode === 'newest') {
     return sourcePosts.sort((a, b) => getFeedItemTimestamp(b) - getFeedItemTimestamp(a));
   }
 
-  // 1. Map current user's connections for fast lookup
   const connectionIds = new Set(
-    (connections || []).map((c) => String(c?.id ?? c?.alumni_id ?? ''))
+    (connections || [])
+      .map((c) => String(c?.id ?? c?.alumni_id ?? ''))
+      .filter(Boolean)
   );
 
-  // 2. Extract current user's profile metadata for affinity matching
   const myRawProgram = String(userData?.program || userData?.course || '').toLowerCase().trim();
   const myProgramClean = myRawProgram.replace(/[^a-z0-9]/g, '');
   const myDiscipline = getDisciplineCategory(myRawProgram);
   const myBatch = String(userData?.batch || userData?.grad_year || userData?.year_graduated || '').trim();
 
-  // Generate a distinct random shuffle map for micro-jittering ties
-  const shuffleMap = new Map();
-  sourcePosts.forEach((item) => {
-    const itemKey = item?.id ?? item?.feed_id ?? Math.random();
-    shuffleMap.set(String(itemKey), Math.random());
-  });
-
-  // 3. First Pass: Calculate Base Scores for all posts
-  const scoredPosts = sourcePosts.map((item) => {
-    let score = 0;
+  let scoredPosts = sourcePosts.map((item) => {
+    let baseScore = 10; // Baseline
     
     const isAnnouncement = item?.feed_type === 'announcement';
     const authorId = String(item?.alumni?.id ?? '');
     
-    const authorRawProgram = String(
-      item?.alumni?.program || item?.alumni?.course || ''
-    ).toLowerCase().trim();
+    const authorRawProgram = String(item?.alumni?.program || item?.alumni?.course || '').toLowerCase().trim();
     const authorProgramClean = authorRawProgram.replace(/[^a-z0-9]/g, '');
     const authorDiscipline = getDisciplineCategory(authorRawProgram);
-
-    const authorBatch = String(
-      item?.alumni?.batch || item?.alumni?.grad_year || item?.alumni?.year_graduated || ''
-    ).trim();
+    const authorBatch = String(item?.alumni?.batch || item?.alumni?.grad_year || item?.alumni?.year_graduated || '').trim();
 
     const postTimestamp = getFeedItemTimestamp(item);
-    const ageInHours = (Date.now() - postTimestamp) / (1000 * 60 * 60);
+    const ageInHours = Math.max(0, (Date.now() - postTimestamp) / (1000 * 60 * 60));
 
-    // ---------------------------------------------------------
-    // THE INSTAGRAM DNA (Visuals & Recency)
-    // ---------------------------------------------------------
-    
-    if (ageInHours < 24) {
-      score += Math.max(0, 50 - (ageInHours * 2)); 
-    } else {
-      score -= (ageInHours * 0.5); 
+    // --- 1. GRANULAR MEDIA WEIGHTING ---
+    const mediaItems = Array.isArray(item?.images) ? item.images : [];
+    if (mediaItems.length > 0) {
+      const hasVideo = mediaItems.some(m => isVideo(m?.image_url || m?.image_path || m?.uri));
+      if (hasVideo) {
+        baseScore += 25; // Video requires highest dwell time
+      } else if (mediaItems.length > 1) {
+        baseScore += 15; // Carousel requires swiping
+      } else {
+        baseScore += 10; // Single image
+      }
     }
 
-    const hasImages = Array.isArray(item?.images) && item.images.length > 0;
-    if (hasImages) score += 15;
+    if (ageInHours < 4) baseScore += 15; 
 
-    // FEATURE 2: Interaction Recency Decay (The "Active Conversation" Bump)
-    if (ageInHours < 4) {
-      score += 15; // Massive surge for currently trending/hyper-fresh posts
+    // --- 2. THE SOCIAL GRAPH ---
+    const isDirectConnection = authorId && connectionIds.has(authorId);
+    if (isDirectConnection) baseScore += 40;
+
+    // --- 3. SECOND-DEGREE SOCIAL PROOF ---
+    // Safely check if mutuals are interacting with a stranger's post
+    const interactorIds = Array.isArray(item?.interactor_ids) ? item.interactor_ids : [];
+    const hasNetworkInteraction = interactorIds.some(id => connectionIds.has(String(id)));
+    if (hasNetworkInteraction && !isDirectConnection) {
+      baseScore += 20; 
     }
 
-    // ---------------------------------------------------------
-    // THE FACEBOOK DNA (Social Graph & Deep Engagement)
-    // ---------------------------------------------------------
-    
-    if (connectionIds.has(authorId)) score += 40;
-
+    // --- 4. ENGAGEMENT & VELOCITY ---
     const weightedEngagement = (item?.reaction_count ?? 0) * 1 
                              + (item?.comment_count ?? 0) * 3 
                              + (item?.repost_count ?? 0) * 4;
                              
     if (weightedEngagement > 0) {
-      score += Math.log10(weightedEngagement + 1) * 25;
-    }
-
-    // ---------------------------------------------------------
-    // THE LINKEDIN DNA (Affinity, Content Depth & Milestones)
-    // ---------------------------------------------------------
-    
-    if (myProgramClean && authorProgramClean) {
-      if (myProgramClean === authorProgramClean) {
-        score += 25; 
-      } else if (myDiscipline && authorDiscipline && myDiscipline === authorDiscipline) {
-        score += 10; 
+      baseScore += Math.log10(weightedEngagement + 1) * 35; 
+      
+      // Trending Detection: Boost if gaining high engagement rapidly
+      const velocity = weightedEngagement / Math.max(1, ageInHours);
+      if (velocity > 2) { 
+        baseScore *= 1.3; // 30% multiplier for trending velocity
       }
     }
 
+    // --- 5. THE COLD START BOOST ---
+    if (item?.alumni?.is_new_alumni || item?.is_first_post) {
+      baseScore += 50; 
+    }
+
+    // --- 6. AFFINITY & MILESTONES ---
+    if (myProgramClean && authorProgramClean && myProgramClean === authorProgramClean) {
+      baseScore += 25; 
+    } else if (myDiscipline && authorDiscipline && myDiscipline === authorDiscipline) {
+      baseScore += 10; 
+    }
+
     if (myBatch && authorBatch && myBatch === authorBatch) {
-      score += 20; 
+      baseScore += 20; 
     }
 
     const captionText = String(item?.caption || item?.announcement_description || '').toLowerCase();
     const captionLength = captionText.length;
-    
-    if (captionLength > 300) {
-      score += 15; 
-    } else if (captionLength > 150) {
-      score += 10; 
-    }
+    if (captionLength > 300) baseScore += 15; 
+    else if (captionLength > 150) baseScore += 10; 
 
-    // FEATURE 4: Alumni Status & Career Milestone Boost
     const professionalKeywords = [
       'hiring', 'promotion', 'opening', 'business', 'opportunity', 
       'referral', 'graduated', 'upwork', 'freelance', 'figma', 
       'firebase', 'github', 'transcribe'
     ];
-    
     if (professionalKeywords.some(keyword => captionText.includes(keyword))) {
-      score += 20; 
+      baseScore += 20; 
     }
 
-    // ---------------------------------------------------------
-    // PLATFORM RULES & TIE-BREAKERS
-    // ---------------------------------------------------------
-    
-    if (isAnnouncement) score += 60; 
+    if (isAnnouncement) baseScore += 70; 
 
-    const itemKey = String(item?.id ?? item?.feed_id ?? '');
-    score += (shuffleMap.get(itemKey) ?? 0) * 10;
+    const itemKey = String(item?.id ?? item?.feed_id ?? Math.random());
+    const jitter = getDeterministicHash(itemKey + feedRefreshNonce);
+    baseScore += jitter;
+
+    // --- GRAVITY DECAY ---
+    const gravity = 1.2;
+    const finalScore = baseScore / Math.pow(ageInHours + 2, gravity);
 
     return { 
       item, 
-      score, 
+      finalScore, 
       authorId, 
       isAnnouncement,
       timestamp: postTimestamp 
     };
   });
 
-  // 4. Initial Sort based on calculated scores
-  scoredPosts.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.timestamp - a.timestamp;
-  });
+  scoredPosts.sort((a, b) => b.finalScore - a.finalScore || b.timestamp - a.timestamp);
 
-  // 5. FEATURE 3: Media Diversity Penalty (Preventing Feed Monopolization)
-  // Scans the sorted feed and penalizes consecutive posts by the same author
-  for (let i = 1; i < scoredPosts.length; i++) {
-    // Skip penalty for announcements so multiple official updates don't bury each other
-    if (scoredPosts[i].isAnnouncement) continue;
+  // --- MEDIA DIVERSITY BUILDER ---
+  const finalFeed = [];
+  const delayedBuffer = [];
+  let lastAuthorId = null;
 
-    const currentAuthor = scoredPosts[i].authorId;
-    const prevAuthor = scoredPosts[i - 1].authorId;
-
-    if (currentAuthor === prevAuthor && currentAuthor !== '') {
-      scoredPosts[i].score -= 15; // Apply the diversity penalty
+  for (const post of scoredPosts) {
+    if (!post.isAnnouncement && post.authorId === lastAuthorId && post.authorId !== '') {
+      delayedBuffer.push(post.item);
+    } else {
+      finalFeed.push(post.item);
+      if (!post.isAnnouncement) {
+        lastAuthorId = post.authorId;
+      }
     }
   }
 
-  // 6. Final Sort to lock in the Diversity Penalties
-  scoredPosts.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.timestamp - a.timestamp;
-  });
-
-  // 7. Strip out the scoring wrapper and return the clean array
-  return scoredPosts.map(obj => obj.item);
+  return [...finalFeed, ...delayedBuffer];
 };

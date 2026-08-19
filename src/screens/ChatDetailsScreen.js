@@ -26,13 +26,11 @@ import { getCurrentUser } from "../services/supabaseAuth";
 import { getFollowers, getFollowing } from "../services/connectionQueries";
 import { ThemedAlert } from "../components/ThemedAlert";
 import supabase from "../services/supabase";
-import * as FileSystem from 'expo-file-system';
 
 import styles from "../styles/ChatDetailsScreen.styles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Convert full URL back to relative storage path
 const getRelativePath = (raw) => {
   if (!raw) return null;
   const str = String(raw).trim();
@@ -61,7 +59,6 @@ const getRelativePath = (raw) => {
   return str;
 };
 
-// Helper to get signed avatar URL for better reliability
 const getSignedStorageUrl = async (path) => {
   if (!path) return null;
   try {
@@ -71,7 +68,7 @@ const getSignedStorageUrl = async (path) => {
     
     const { data, error } = await supabase.storage
       .from('luminus_messages_attachments')
-      .createSignedUrl(cleanPath, 60 * 60); // 1 hour expiry
+      .createSignedUrl(cleanPath, 60 * 60); 
     
     if (error) return null;
     return data?.signedUrl || null;
@@ -80,30 +77,15 @@ const getSignedStorageUrl = async (path) => {
   }
 };
 
-// Helper to resolve profile public avatars synchronously
-const resolvePublicAvatarUrl = (path) => {
-  if (!path || typeof path !== 'string' || path.trim() === '') return null;
-  if (/^https?:\/\//i.test(path)) return path;
-  try {
-    const cleanPath = path.replace(/^\/+/, "");
-    const { data } = supabase.storage.from('luminus_assets').getPublicUrl(cleanPath);
-    return data?.publicUrl || null;
-  } catch (err) {
-    return null;
-  }
-};
-
 const ChatDetailsScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   
-  // Extract route params
   const routeContact = route?.params?.contact;
   const routeGroup = route?.params?.group;
   const routeGroupId = routeGroup?.id ?? route?.params?.groupId ?? null;
   const dmProfileUserId = routeContact?.id ?? routeContact?.alumni_id ?? null;
   const isDM = Boolean(routeContact);
 
-  // --- STATE DECLARATIONS ---
   const [resolvedGroup, setResolvedGroup] = useState(routeGroup ?? null);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
@@ -121,24 +103,20 @@ const ChatDetailsScreen = ({ route, navigation }) => {
   const [chatMedia, setChatMedia] = useState([]);
   const [isLoadingMedia, setIsLoadingMedia] = useState(true);
   
-  // Avatar URL states
   const [dmAvatarUrl, setDmAvatarUrl] = useState(null);
   const [groupAvatarUrl, setGroupAvatarUrl] = useState(null);
   const [dmAvatarError, setDmAvatarError] = useState(false);
   const [groupAvatarError, setGroupAvatarError] = useState(false);
 
-  // --- DERIVED DATA ---
   const groupData = resolvedGroup || routeGroup || { name: "Group Chat", members: [], media: [] };
   const groupName = groupData?.name || "NU Lipa Alumni Community";
   
   const dmName = routeContact?.name ?? (`${routeContact?.first_name ?? ""} ${routeContact?.last_name ?? ""}`.trim() || "Alumni");
   const rawDmAvatar = routeContact?.avatar ?? routeContact?.alumni_photo;
 
-  // Avatar URIs for components
   const dmAvatarUri = (dmAvatarUrl && dmAvatarUrl.length > 0 && !dmAvatarError) ? dmAvatarUrl : null;
   const groupAvatarUri = (groupAvatarUrl && groupAvatarUrl.length > 0 && !groupAvatarError) ? groupAvatarUrl : null;
 
-  // --- UPLOAD HANDLERS ---
   const pickAndUploadGroupAvatar = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -164,12 +142,10 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         return null;
       }
 
-      // 1. Define file path and content type
       const fileName = `group_avatar/${routeGroupId}_avatar.${extension}`;
       const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
       const contentType = mimeMap[extension] || 'image/jpeg';
 
-      // 2. Delete the old avatar from storage if it exists to prevent clutter
       if (groupAvatarDraft) {
         const oldPath = String(groupAvatarDraft).replace(/^\/+/, "");
         await supabase.storage
@@ -178,7 +154,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           .catch(() => {}); 
       }
 
-      // 3. Bypass React Native's FileSystem bug using standard FormData
       const formData = new FormData();
       formData.append('file', {
         uri: asset.uri,
@@ -186,7 +161,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         type: contentType,
       });
 
-      // 4. Upload directly to Supabase
       const { error: uploadError } = await supabase.storage
         .from('luminus_messages_attachments')
         .upload(fileName, formData, { upsert: true });
@@ -207,9 +181,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // --- EFFECTS ---
-
-  // 1. Load DM avatar
   useEffect(() => {
     let active = true;
     
@@ -273,9 +244,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           }
           return;
         }
-      } catch (err) {
-        // Silently fail
-      }
+      } catch (err) {}
       
       if (active) {
         setDmAvatarUrl(null);
@@ -287,7 +256,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, [isDM, rawDmAvatar, routeContact?.avatar_url, routeContact?.avatar, routeContact?.alumni_photo, dmName]);
 
-  // 2. Load group avatar with multiple fallback methods
   useEffect(() => {
     let active = true;
     
@@ -302,7 +270,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         return;
       }
       
-      // If it's already a full URL, use it directly
       if (/^https?:\/\//i.test(avatarPath)) {
         if (active) {
           setGroupAvatarUrl(avatarPath);
@@ -311,7 +278,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         return;
       }
       
-      // Try signed URL from messages bucket
       const relativePath = getRelativePath(avatarPath);
       if (relativePath) {
         const signedUrl = await getSignedStorageUrl(relativePath);
@@ -322,7 +288,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         }
       }
       
-      // Try public URL from messages bucket
       try {
         const cleanPath = String(avatarPath).replace(/^\/+/, "");
         const { data } = supabase.storage
@@ -334,9 +299,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           setGroupAvatarError(false);
           return;
         }
-      } catch (err) {
-        // Silently fail
-      }
+      } catch (err) {}
       
       if (active) {
         setGroupAvatarUrl(null);
@@ -348,12 +311,10 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, [groupAvatarDraft, groupData?.avatar_url, groupData?.avatar]);
 
-  // 3. Update signedAvatarUrl for edit modal compatibility
   useEffect(() => {
     setSignedAvatarUrl(groupAvatarUrl || "");
   }, [groupAvatarUrl]);
 
-  // 4. Get current user ID
   useEffect(() => {
     let active = true;
     const loadCurrentUser = async () => {
@@ -364,7 +325,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, []);
 
-  // 5. Fetch media files and generate Signed URLs securely
   useEffect(() => {
     let active = true;
     const fetchChatMedia = async () => {
@@ -408,7 +368,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           }
         }
 
-        // Convert the raw private bucket paths into authorized signed URLs
         if (rawMediaPaths.length > 0) {
           const authorizedUris = await Promise.all(
             rawMediaPaths.map(async (path) => {
@@ -433,7 +392,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, [currentUserId, isDM, routeGroupId, dmProfileUserId]);
 
-  // 6. Load group details
   useEffect(() => {
     let active = true;
     const loadGroupDetails = async () => {
@@ -466,7 +424,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return () => { active = false; };
   }, [routeGroup, routeGroupId]);
 
-  // 7. Sync draft with loaded data
   useEffect(() => {
     setGroupNameDraft(groupData?.name ?? "");
     const rawAvatar = groupData?.avatar_url ?? groupData?.avatar ?? "";
@@ -474,7 +431,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     setGroupAvatarDraft(safeAvatar);
   }, [groupData?.avatar, groupData?.avatar_url, groupData?.name]);
 
-  // --- MEMOS ---
   const filteredCandidates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return candidateMembers.slice(0, 50);
@@ -491,7 +447,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
       const rawAvatar = profile?.alumni_photo ?? member?.avatar ?? null;
       let resolvedAvatar = rawAvatar;
       
-      // Resolve public URL synchronously if it's a relative path in the database
       if (rawAvatar && typeof rawAvatar === 'string' && !/^https?:\/\//i.test(rawAvatar)) {
         try {
            const cleanPath = rawAvatar.replace(/^\/+/, "");
@@ -504,7 +459,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         id: profile?.id ?? member?.alumni_id ?? index,
         alumniId: profile?.id ?? member?.alumni_id ?? index,
         name: fullName,
-        rawAvatar: rawAvatar, // Retain raw string to check if user uploaded a photo
+        rawAvatar: rawAvatar,
         avatar: getAvatarUri(fullName, resolvedAvatar),
         role: member?.role ?? profile?.role ?? "alumni",
       };
@@ -523,7 +478,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     return new Set(members.map((member) => String(member?.alumni?.id ?? member?.alumni_id ?? member?.id)).filter(Boolean));
   }, [groupData?.members]);
 
-  // --- HANDLERS ---
   const loadCandidateMembers = useCallback(async () => {
     if (!routeGroupId) return setCandidateMembers([]);
     try {
@@ -552,7 +506,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           const rawAvatar = alumni?.alumni_photo;
           let resolvedAvatar = rawAvatar;
           
-          // Resolve public URL synchronously if it's a relative path
           if (rawAvatar && typeof rawAvatar === 'string' && !/^https?:\/\//i.test(rawAvatar)) {
             try {
                const cleanPath = rawAvatar.replace(/^\/+/, "");
@@ -564,7 +517,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
           return { 
             id: alumni.id, 
             name: fullName, 
-            rawAvatar: rawAvatar, // Retain raw string to check if user uploaded a photo
+            rawAvatar: rawAvatar, 
             avatar: getAvatarUri(fullName, resolvedAvatar) 
           };
         });
@@ -613,7 +566,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
             try {
               await removeGroupMember(routeGroupId, member.alumniId);
               
-              // Refresh group details to remove them from the list visually
               const fetchedGroup = await getGroupChat(routeGroupId).catch(() => null);
               if (fetchedGroup) {
                 setResolvedGroup((previousGroup) => ({
@@ -622,10 +574,10 @@ const ChatDetailsScreen = ({ route, navigation }) => {
                   members: Array.isArray(fetchedGroup?.members) ? fetchedGroup.members : [],
                 }));
               }
-              
-              ThemedAlert.alert("Removed", `${member.name} has been removed from the group.`);
             } catch (error) {
-              ThemedAlert.alert("Error", "Could not remove member. Please try again.");
+              setTimeout(() => {
+                ThemedAlert.alert("Error", "Could not remove member. Please try again.");
+              }, 500);
             }
           },
         },
@@ -709,16 +661,12 @@ const ChatDetailsScreen = ({ route, navigation }) => {
               if (!currentUser?.id) return;
               const { error } = await supabase.from("group_chat_members").delete().eq("group_chat_id", routeGroupId).eq("alumni_id", currentUser.id);
               if (error) throw error;
-              ThemedAlert.alert("Left Group", "You have left the group chat.");
               
-              const parentNavigator = navigation.getParent?.();
-              if (parentNavigator?.navigate) {
-                parentNavigator.navigate("ChatScreen");
-              } else {
-                navigation.navigate("ChatScreen");
-              }
+              navigation.navigate("ChatScreen");
             } catch (e) {
-              ThemedAlert.alert("Error", "Could not leave the group at this time.");
+              setTimeout(() => {
+                ThemedAlert.alert("Error", "Could not leave the group at this time.");
+              }, 500);
             }
           },
         },
@@ -759,15 +707,12 @@ const ChatDetailsScreen = ({ route, navigation }) => {
                     .eq("alumni_id", currentUserId);
                 }
               }
-              ThemedAlert.alert("Deleted", "The chat has been removed from your inbox.");
-              const parentNavigator = navigation.getParent?.();
-              if (parentNavigator?.navigate) {
-                parentNavigator.navigate("ChatScreen");
-              } else {
-                navigation.navigate("ChatScreen");
-              }
+              
+              navigation.navigate("ChatScreen");
             } catch (e) {
-              ThemedAlert.alert("Error", "Could not delete the chat at this time.");
+              setTimeout(() => {
+                ThemedAlert.alert("Error", "Could not delete the chat at this time.");
+              }, 500);
             }
           },
         },
@@ -810,8 +755,7 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         style: "destructive",
         onPress: async () => {
           if (await updateDMSettings({ is_blocked: true })) {
-            ThemedAlert.alert("Blocked", "This user has been blocked.");
-            navigation.goBack();
+            navigation.navigate("ChatScreen");
           }
         },
       },
@@ -822,7 +766,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     ThemedAlert.alert("Coming Soon", "This feature will be available in a future update.");
   };
 
-  // --- RENDER HELPERS ---
   const renderQuickAction = (icon, label, color, onPress) => (
     <View style={styles.quickActionWrap}>
       <TouchableOpacity style={[styles.quickActionCircle, { backgroundColor: color }]} onPress={onPress} activeOpacity={0.8}>
@@ -841,7 +784,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
     </TouchableOpacity>
   );
 
-  // --- RENDER ---
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
@@ -928,13 +870,11 @@ const ChatDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {/* --- NEW: MEMBERS SECTION --- */}
           {!isDM && (
             <>
               <Text style={styles.sectionHeading}>Members ({normalizedMembers.length})</Text>
               <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
                 {normalizedMembers.map((member) => {
-                  // Explicitly check if the user actually uploaded a photo to bypass AvatarInitials
                   const hasValidPhoto = member.rawAvatar && typeof member.rawAvatar === "string" && member.rawAvatar.trim() !== "" && !member.rawAvatar.includes("undefined") && !member.rawAvatar.includes("null");
                   
                   return (
@@ -1010,7 +950,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* EDIT GROUP MODAL */}
       <Modal visible={isEditGroupModalVisible} transparent animationType="fade" onRequestClose={() => setIsEditGroupModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1059,7 +998,6 @@ const ChatDetailsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* ADD MEMBER MODAL */}
       <Modal visible={isAddMemberModalVisible} transparent animationType="fade" onRequestClose={() => setIsAddMemberModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>

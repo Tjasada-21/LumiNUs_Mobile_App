@@ -876,16 +876,6 @@ const ChatScreen = ({ navigation }) => {
     }
   };
 
-  const navigateToSettings = () => {
-    setIsAvatarModalVisible(false);
-    const parentNavigator = navigation.getParent?.();
-    if (parentNavigator?.navigate) {
-      parentNavigator.navigate("Settings");
-    } else {
-      navigation.navigate("Settings");
-    }
-  };
-
   const hideGroupActions = () => { setIsGroupActionModalVisible(false); setModalGroup(null); };
 
   const handleArchiveGroup = async () => { 
@@ -1071,17 +1061,6 @@ const ChatScreen = ({ navigation }) => {
                   <Ionicons name="trash-outline" size={20} color="#DC2626" />
                 </View>
                 <Text style={[styles.avatarModalItemText, { color: "#DC2626" }]}>Deleted Chats</Text>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.avatarModalItem} 
-                onPress={navigateToSettings}
-                activeOpacity={0.6}
-              >
-                <View style={[styles.avatarModalIconWrap, { backgroundColor: "#F1F5F9" }]}>
-                  <Ionicons name="settings-outline" size={20} color="#31429B" />
-                </View>
-                <Text style={styles.avatarModalItemText}>Settings</Text>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </TouchableOpacity>
             </View>

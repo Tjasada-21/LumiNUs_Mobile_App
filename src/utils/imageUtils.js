@@ -3,7 +3,15 @@
  * Handles conversion of relative Supabase paths to full public URLs
  */
 
-const SUPABASE_URL = "https://pmnirrvwibzqjlutbnwz.supabase.co";
+// 🚀 THE FIX: Use environment variables instead of hardcoded URLs
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
+if (!SUPABASE_URL) {
+  console.warn(
+    "WARNING: EXPO_PUBLIC_SUPABASE_URL is missing from your environment variables. Image utilities may not resolve URLs correctly."
+  );
+}
+
 const LUMINUS_ASSETS_BUCKET = "luminus_assets";
 const EVENT_IMAGES_FOLDER = "events_images";
 const PERK_IMAGES_FOLDER = "perks_images";
@@ -12,10 +20,11 @@ const ANNOUNCEMENT_IMAGE_FOLDERS = [
   "announcement_images",
 ];
 
-const DEFAULT_AVATAR_BACKGROUND = "#31429B";
-const DEFAULT_AVATAR_FOREGROUND = "#FFFFFF";
-
-const getAvatarInitials = (name) => {
+/**
+ * Extracts initials from a display name for fallback avatars.
+ * Use this directly with your <AvatarInitials /> component!
+ */
+export const getAvatarInitials = (name) => {
   const rawName = String(name || "User").trim();
   if (!rawName) {
     return "U";
@@ -27,36 +36,6 @@ const getAvatarInitials = (name) => {
     .join("")
     .toUpperCase();
   return initials || rawName.charAt(0).toUpperCase() || "U";
-};
-
-export { getAvatarInitials };
-
-const createLocalAvatarDataUri = (
-  name,
-  background = DEFAULT_AVATAR_BACKGROUND,
-  foreground = DEFAULT_AVATAR_FOREGROUND,
-) => {
-  const initials = getAvatarInitials(name);
-  const safeBackground = String(background || DEFAULT_AVATAR_BACKGROUND);
-  const safeForeground = String(foreground || DEFAULT_AVATAR_FOREGROUND);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="${initials}">
-      <rect width="256" height="256" rx="128" fill="${safeBackground}" />
-      <text
-        x="128"
-        y="145"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="92"
-        font-weight="700"
-        text-anchor="middle"
-        fill="${safeForeground}"
-      >${initials}</text>
-    </svg>
-  `
-    .trim()
-    .replace(/\s{2,}/g, " ");
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
 /**
@@ -83,17 +62,18 @@ export const normalizeLuminusImageUri = (uri) => {
 };
 
 /**
- * Get a normalized avatar URI, with fallback to generated avatar
- * @param {string} name - User's display name for avatar generation
+ * Get a normalized avatar URI.
+ * Returns an empty string if no valid photoUri is provided, gracefully 
+ * falling back to your native <AvatarInitials /> component in the UI.
+ * @param {string} _name - User's display name (kept for backwards compatibility)
  * @param {string} photoUri - The photo URI from alumni_photo field
- * @returns {string} Full URI for image source
+ * @returns {string} Full URI for image source or empty string
  */
-export const getAvatarUri = (name, photoUri) => {
-  if (photoUri) {
+export const getAvatarUri = (_name, photoUri) => {
+  if (photoUri && typeof photoUri === 'string' && photoUri.trim() !== '') {
     return normalizeLuminusImageUri(photoUri);
   }
-
-  return createLocalAvatarDataUri(name);
+  return ""; 
 };
 
 /**
@@ -133,9 +113,6 @@ export const normalizePerkImageUri = (uri) => {
   }
 
   // Support mixed formats from API responses:
-  // - perks_images/file.jpg
-  // - luminus_assets/perks_images/file.jpg
-  // - storage/v1/object/public/luminus_assets/perks_images/file.jpg
   const cleanPath = uriString.trim().replace(/\\/g, "/").replace(/^\/+/, "");
 
   const withoutStoragePrefix = cleanPath

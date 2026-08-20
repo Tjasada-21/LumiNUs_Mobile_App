@@ -5,8 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
 
-// Check if running in Expo Go
-const isExpoGo = Platform.OS === 'ios' && Constants.manifest?.extra?.expoGo !== undefined;
+// 🚀 THE FIX: Modern, crash-proof way to check if running in Expo Go
+const isExpoGo = Platform.OS === 'ios' && Constants.appOwnership === 'expo';
 
 /**
  * Pick a file - works on both Android and iOS (with fallback)

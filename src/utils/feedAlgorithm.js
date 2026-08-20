@@ -1,8 +1,34 @@
 // src/utils/feedAlgorithm.js
 
 /**
- * Mapping helper to group related degree programs under broader academic disciplines.
+ * Easily tunable weights for A/B testing feed engagement
  */
+const FEED_CONFIG = {
+  BASELINE: 10,
+  VIDEO_BOOST: 25,
+  CAROUSEL_BOOST: 15,
+  IMAGE_BOOST: 10,
+  FRESHNESS_BOOST: 15,
+  DIRECT_CONNECTION: 40,
+  MUTUAL_INTERACTION: 20,
+  COLD_START: 50,
+  PROGRAM_MATCH: 25,
+  DISCIPLINE_MATCH: 10,
+  BATCH_MATCH: 20,
+  LONG_CAPTION_BOOST: 15,
+  MED_CAPTION_BOOST: 10,
+  PROFESSIONAL_BOOST: 20,
+  ANNOUNCEMENT: 70,
+  VELOCITY_MULTIPLIER: 1.3,
+  GRAVITY_DECAY: 1.2,
+  AUTHOR_SPACING_STRIDE: 3 // Minimum posts between the same author
+};
+
+/**
+ * Compiled Regex for fast, strict word-boundary matching
+ */
+const PROFESSIONAL_KEYWORDS = /\b(hiring|promotion|opening|business|opportunity|referral|graduated|upwork|freelance|figma|firebase|github|transcribe)\b/i;
+
 const PROGRAM_DISCIPLINES = {
   computing: ['bsit', 'bscs', 'bscpe', 'bsis', 'act', 'computer', 'information technology', 'software'],
   business: ['bsba', 'bsa', 'bsais', 'bshm', 'bstm', 'accountancy', 'marketing', 'finance', 'hospitality', 'tourism'],
@@ -47,7 +73,6 @@ const isVideo = (uri) => {
 
 /**
  * The FB/IG/LinkedIn Hybrid Feed Algorithm
- * Incorporates Gravity Math, Trending Velocity, Cold Starts, Media Weighting, and Social Proof.
  */
 export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections, userData) => {
   const sourcePosts = Array.isArray(posts) ? [...posts] : [];
@@ -68,7 +93,7 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
   const myBatch = String(userData?.batch || userData?.grad_year || userData?.year_graduated || '').trim();
 
   let scoredPosts = sourcePosts.map((item) => {
-    let baseScore = 10; // Baseline
+    let baseScore = FEED_CONFIG.BASELINE; 
     
     const isAnnouncement = item?.feed_type === 'announcement';
     const authorId = String(item?.alumni?.id ?? '');
@@ -86,26 +111,25 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
     if (mediaItems.length > 0) {
       const hasVideo = mediaItems.some(m => isVideo(m?.image_url || m?.image_path || m?.uri));
       if (hasVideo) {
-        baseScore += 25; // Video requires highest dwell time
+        baseScore += FEED_CONFIG.VIDEO_BOOST;
       } else if (mediaItems.length > 1) {
-        baseScore += 15; // Carousel requires swiping
+        baseScore += FEED_CONFIG.CAROUSEL_BOOST;
       } else {
-        baseScore += 10; // Single image
+        baseScore += FEED_CONFIG.IMAGE_BOOST;
       }
     }
 
-    if (ageInHours < 4) baseScore += 15; 
+    if (ageInHours < 4) baseScore += FEED_CONFIG.FRESHNESS_BOOST; 
 
     // --- 2. THE SOCIAL GRAPH ---
     const isDirectConnection = authorId && connectionIds.has(authorId);
-    if (isDirectConnection) baseScore += 40;
+    if (isDirectConnection) baseScore += FEED_CONFIG.DIRECT_CONNECTION;
 
     // --- 3. SECOND-DEGREE SOCIAL PROOF ---
-    // Safely check if mutuals are interacting with a stranger's post
     const interactorIds = Array.isArray(item?.interactor_ids) ? item.interactor_ids : [];
     const hasNetworkInteraction = interactorIds.some(id => connectionIds.has(String(id)));
     if (hasNetworkInteraction && !isDirectConnection) {
-      baseScore += 20; 
+      baseScore += FEED_CONFIG.MUTUAL_INTERACTION; 
     }
 
     // --- 4. ENGAGEMENT & VELOCITY ---
@@ -116,52 +140,47 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
     if (weightedEngagement > 0) {
       baseScore += Math.log10(weightedEngagement + 1) * 35; 
       
-      // Trending Detection: Boost if gaining high engagement rapidly
-      const velocity = weightedEngagement / Math.max(1, ageInHours);
+      // Prevent massive multiplier spikes on 0-hour posts by forcing a 0.5 hour floor
+      const velocity = weightedEngagement / Math.max(0.5, ageInHours);
       if (velocity > 2) { 
-        baseScore *= 1.3; // 30% multiplier for trending velocity
+        baseScore *= FEED_CONFIG.VELOCITY_MULTIPLIER; 
       }
     }
 
     // --- 5. THE COLD START BOOST ---
     if (item?.alumni?.is_new_alumni || item?.is_first_post) {
-      baseScore += 50; 
+      baseScore += FEED_CONFIG.COLD_START; 
     }
 
     // --- 6. AFFINITY & MILESTONES ---
     if (myProgramClean && authorProgramClean && myProgramClean === authorProgramClean) {
-      baseScore += 25; 
+      baseScore += FEED_CONFIG.PROGRAM_MATCH; 
     } else if (myDiscipline && authorDiscipline && myDiscipline === authorDiscipline) {
-      baseScore += 10; 
+      baseScore += FEED_CONFIG.DISCIPLINE_MATCH; 
     }
 
     if (myBatch && authorBatch && myBatch === authorBatch) {
-      baseScore += 20; 
+      baseScore += FEED_CONFIG.BATCH_MATCH; 
     }
 
     const captionText = String(item?.caption || item?.announcement_description || '').toLowerCase();
     const captionLength = captionText.length;
-    if (captionLength > 300) baseScore += 15; 
-    else if (captionLength > 150) baseScore += 10; 
+    if (captionLength > 300) baseScore += FEED_CONFIG.LONG_CAPTION_BOOST; 
+    else if (captionLength > 150) baseScore += FEED_CONFIG.MED_CAPTION_BOOST; 
 
-    const professionalKeywords = [
-      'hiring', 'promotion', 'opening', 'business', 'opportunity', 
-      'referral', 'graduated', 'upwork', 'freelance', 'figma', 
-      'firebase', 'github', 'transcribe'
-    ];
-    if (professionalKeywords.some(keyword => captionText.includes(keyword))) {
-      baseScore += 20; 
+    // Replaced .some() with Regex test
+    if (PROFESSIONAL_KEYWORDS.test(captionText)) {
+      baseScore += FEED_CONFIG.PROFESSIONAL_BOOST; 
     }
 
-    if (isAnnouncement) baseScore += 70; 
+    if (isAnnouncement) baseScore += FEED_CONFIG.ANNOUNCEMENT; 
 
     const itemKey = String(item?.id ?? item?.feed_id ?? Math.random());
     const jitter = getDeterministicHash(itemKey + feedRefreshNonce);
     baseScore += jitter;
 
     // --- GRAVITY DECAY ---
-    const gravity = 1.2;
-    const finalScore = baseScore / Math.pow(ageInHours + 2, gravity);
+    const finalScore = baseScore / Math.pow(ageInHours + 2, FEED_CONFIG.GRAVITY_DECAY);
 
     return { 
       item, 
@@ -174,21 +193,42 @@ export const sortFeedPosts = (posts, feedSortMode, feedRefreshNonce, connections
 
   scoredPosts.sort((a, b) => b.finalScore - a.finalScore || b.timestamp - a.timestamp);
 
-  // --- MEDIA DIVERSITY BUILDER ---
+  // --- SMART MEDIA DIVERSITY BUILDER (STRIDE INJECTION) ---
   const finalFeed = [];
-  const delayedBuffer = [];
-  let lastAuthorId = null;
+  const recentAuthors = []; 
+  const delayedQueue = [];
 
   for (const post of scoredPosts) {
-    if (!post.isAnnouncement && post.authorId === lastAuthorId && post.authorId !== '') {
-      delayedBuffer.push(post.item);
+    if (post.isAnnouncement || !post.authorId) {
+      finalFeed.push(post.item);
+      continue;
+    }
+
+    // Check if author posted recently within the stride limit
+    if (recentAuthors.includes(post.authorId)) {
+      delayedQueue.push(post.item);
     } else {
       finalFeed.push(post.item);
-      if (!post.isAnnouncement) {
-        lastAuthorId = post.authorId;
+      recentAuthors.push(post.authorId);
+      
+      // Keep track of the last N authors to enforce the stride
+      if (recentAuthors.length > FEED_CONFIG.AUTHOR_SPACING_STRIDE) {
+        recentAuthors.shift(); 
       }
     }
   }
 
-  return [...finalFeed, ...delayedBuffer];
+  // Interleave delayed posts back into the feed using the Stride step
+  let insertionIndex = FEED_CONFIG.AUTHOR_SPACING_STRIDE;
+  while (delayedQueue.length > 0) {
+    if (insertionIndex >= finalFeed.length) {
+      // If we reach the end of the natural feed, just append the rest
+      finalFeed.push(...delayedQueue);
+      break;
+    }
+    finalFeed.splice(insertionIndex, 0, delayedQueue.shift());
+    insertionIndex += (FEED_CONFIG.AUTHOR_SPACING_STRIDE + 1);
+  }
+
+  return finalFeed;
 };

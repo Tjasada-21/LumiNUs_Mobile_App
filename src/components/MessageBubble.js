@@ -8,8 +8,8 @@ import {
   Animated,
   PanResponder,
   Modal,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AvatarInitials from "./AvatarInitials";
 import supabase from "../services/supabase"; 

@@ -509,7 +509,6 @@ const AccountSettingsScreen = ({ navigation }) => {
   // Handle pending address data when regions load
   useEffect(() => {
     if (regionOptions.length > 0 && pendingAddressData) {
-      console.log("Processing pending address data...");
       prePopulatePhilippineAddress(
         pendingAddressData.region,
         pendingAddressData.province,
@@ -549,7 +548,6 @@ const AccountSettingsScreen = ({ navigation }) => {
           .maybeSingle();
 
         if (!addrError && addr) {
-          console.log("Address found:", addr);
           setExistingAddressId(addr.id);
           setAddressType(addr.address_type || "residential");
           setStreet(addr.street || "");
@@ -596,8 +594,6 @@ const AccountSettingsScreen = ({ navigation }) => {
               });
             }
           }
-        } else {
-          console.log("No address found for alumni");
         }
       }
 
@@ -674,52 +670,33 @@ const AccountSettingsScreen = ({ navigation }) => {
   preloadedRegions = null
 ) => {
   try {
-    console.log("Pre-populating address:", { regionName, provinceName, municipalityName, barangayName });
-    
     const regions = preloadedRegions || regionOptions;
-    if (!regions.length) {
-      console.log("No regions available");
-      return;
-    }
+    if (!regions.length) return;
 
     let matchedRegion = findOptionByName(regions, regionName);
     
     // FALLBACK: If region is "Philippines" or not found, try to find it by province
     if (!matchedRegion && provinceName && provinceName !== "N/A") {
-      console.log("Region not found directly, trying to find by province:", provinceName);
       for (const region of regions) {
         try {
           const provinces = await getProvincesByRegion(region.code);
           const provinceMatch = findOptionByName(provinces, provinceName);
           if (provinceMatch) {
             matchedRegion = region;
-            console.log("Found region by province:", region.name);
             break;
           }
-        } catch (e) {
-          // Continue checking other regions
-        }
+        } catch (e) {}
       }
     }
 
-    if (!matchedRegion) {
-      console.log("Region not found:", regionName);
-      return;
-    }
-
-    console.log("Matched region:", matchedRegion.name);
+    if (!matchedRegion) return;
     setSelectedRegion(matchedRegion);
 
     const provinces = await getProvincesByRegion(matchedRegion.code);
     setProvinceOptions(provinces);
 
     const matchedProvince = findOptionByName(provinces, provinceName);
-    if (!matchedProvince) {
-      console.log("Province not found:", provinceName);
-      return;
-    }
-
-    console.log("Matched province:", matchedProvince.name);
+    if (!matchedProvince) return;
     setSelectedProvince(matchedProvince);
 
     const municipalities = await getCitiesMunicipalitiesByProvince(
@@ -731,12 +708,7 @@ const AccountSettingsScreen = ({ navigation }) => {
       municipalities,
       municipalityName
     );
-    if (!matchedMunicipality) {
-      console.log("Municipality not found:", municipalityName);
-      return;
-    }
-
-    console.log("Matched municipality:", matchedMunicipality.name);
+    if (!matchedMunicipality) return;
     setSelectedMunicipality(matchedMunicipality);
 
     const barangays = await getBarangaysByCityMunicipality(
@@ -745,12 +717,8 @@ const AccountSettingsScreen = ({ navigation }) => {
     setBarangayOptions(barangays);
 
     const matchedBarangay = findOptionByName(barangays, barangayName);
-    if (matchedBarangay) {
-      console.log("Matched barangay:", matchedBarangay.name);
-      setSelectedBarangay(matchedBarangay);
-    } else {
-      console.log("Barangay not found:", barangayName);
-    }
+    if (matchedBarangay) setSelectedBarangay(matchedBarangay);
+
   } catch (error) {
     console.error("Error pre-populating Philippine address:", error);
   }
@@ -1166,13 +1134,10 @@ const AccountSettingsScreen = ({ navigation }) => {
       setShowSearchResults(false);
       mapSlideAnim.setValue(0);
       
-      // CRITICAL FIX: Prevent infinite loading if no location is set
       if (!selectedLocation) {
         if (isInternational && selectedCountry) {
-          // Auto-search their selected international country
           searchLocation(selectedCountry);
         } else {
-          // Default to Manila if no country context exists
           setSelectedLocation({
             latitude: 14.5995,
             longitude: 120.9842,
@@ -1361,9 +1326,6 @@ const AccountSettingsScreen = ({ navigation }) => {
     const compareBase = originalUserData || userData;
 
     const fields = [
-      "first_name",
-      "middle_name",
-      "last_name",
       "phone_number",
       "email",
       "date_of_birth",
@@ -1391,7 +1353,6 @@ const AccountSettingsScreen = ({ navigation }) => {
         }
       });
 
-       // 🆕 ADD EDUCATION TYPE CHANGES:
       if (alumniType !== (compareBase?.alumni_type || "")) {
         changes.alumni_type = alumniType;
       }
@@ -1402,7 +1363,6 @@ const AccountSettingsScreen = ({ navigation }) => {
     const changes = getChangedPayload();
     const addressChanged = checkAddressChanged();
 
-    // With this (remove the strand validation)
     if (!alumniType) {
       ThemedAlert.alert("Missing Info", "Please select your education type (College or SHS Graduate).");
       return;
@@ -1462,12 +1422,11 @@ const AccountSettingsScreen = ({ navigation }) => {
             ? customCountry || "Other Country"
             : selectedCountry || "Philippines";
 
-            // In handleSave, modify the addressPayload:
             const addressPayload = {
               address_type: addressType || "residential",
               region: isInternational 
                 ? effectiveCountry 
-                : selectedRegion?.name || effectiveCountry, // Use selectedRegion.name for PH addresses
+                : selectedRegion?.name || effectiveCountry, 
               province: isInternational
                 ? "N/A"
                 : selectedProvince?.name || "N/A",
@@ -1806,17 +1765,12 @@ const AccountSettingsScreen = ({ navigation }) => {
                           <Text style={styles.fieldLabel}>Last Name</Text>
                           <SmartTextInput
                             value={formData.last_name}
-                            onChangeText={(val) =>
-                              updateField("last_name", val)
-                            }
                             style={[
                               styles.input,
-                              focusedInput === "last_name" &&
-                                styles.inputFocused,
+                              { backgroundColor: "#F3F4F6", color: "#6B7280" }
                             ]}
-                            editable={!formDisabled}
-                            onFocus={() => setFocusedInput("last_name")}
-                            onBlur={() => setFocusedInput(null)}
+                            editable={false}
+                            pointerEvents="none"
                           />
                         </View>
 
@@ -1824,17 +1778,12 @@ const AccountSettingsScreen = ({ navigation }) => {
                           <Text style={styles.fieldLabel}>First Name</Text>
                           <SmartTextInput
                             value={formData.first_name}
-                            onChangeText={(val) =>
-                              updateField("first_name", val)
-                            }
                             style={[
                               styles.input,
-                              focusedInput === "first_name" &&
-                                styles.inputFocused,
+                              { backgroundColor: "#F3F4F6", color: "#6B7280" }
                             ]}
-                            editable={!formDisabled}
-                            onFocus={() => setFocusedInput("first_name")}
-                            onBlur={() => setFocusedInput(null)}
+                            editable={false}
+                            pointerEvents="none"
                           />
                         </View>
 
@@ -1842,17 +1791,12 @@ const AccountSettingsScreen = ({ navigation }) => {
                           <Text style={styles.fieldLabel}>Middle Name</Text>
                           <SmartTextInput
                             value={formData.middle_name}
-                            onChangeText={(val) =>
-                              updateField("middle_name", val)
-                            }
                             style={[
                               styles.input,
-                              focusedInput === "middle_name" &&
-                                styles.inputFocused,
+                              { backgroundColor: "#F3F4F6", color: "#6B7280" }
                             ]}
-                            editable={!formDisabled}
-                            onFocus={() => setFocusedInput("middle_name")}
-                            onBlur={() => setFocusedInput(null)}
+                            editable={false}
+                            pointerEvents="none"
                           />
                         </View>
                       </View>
@@ -1963,7 +1907,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                       </View>
 
                         {/* ======================================== */}
-                        {/* 🆕 SECTION: Education Type */}
+                        {/* SECTION: Education Type */}
                         {/* ======================================== */}
                         <View style={styles.sectionContainer}>
                           <View style={styles.sectionHeader}>
@@ -2113,8 +2057,8 @@ const AccountSettingsScreen = ({ navigation }) => {
                             />
                             <Text style={styles.mapButtonText}>
                               {selectedLocation
-                                ? "📍 Change Location on Map"
-                                : "📍 Select Location on Map"}
+                                ? "桃 Change Location on Map"
+                                : "桃 Select Location on Map"}
                             </Text>
                           </TouchableOpacity>
 
@@ -2626,7 +2570,11 @@ const AccountSettingsScreen = ({ navigation }) => {
         <Pressable style={styles.modalBackdrop} onPress={closeDobPicker}>
           <SafeAreaView style={styles.modalSafeArea} edges={["top", "bottom"]}>
             <Pressable
-              style={[styles.modalCard, styles.dobModalCard]}
+              style={[
+                styles.modalCard,
+                styles.dobModalCard,
+                { maxHeight: '90%', paddingBottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+              ]}
               onPress={() => {}}
             >
               <View style={styles.modalHandle} />
@@ -2689,7 +2637,12 @@ const AccountSettingsScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              <View style={styles.datePickerWrap}>
+              <ScrollView 
+                style={{ flexShrink: 1, width: '100%' }} 
+                contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 10 }}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
                 <Calendar
                   key={formatDob(dobCalendarFocusDate).slice(0, 7)}
                   current={formatDob(dobCalendarFocusDate)}
@@ -2719,9 +2672,20 @@ const AccountSettingsScreen = ({ navigation }) => {
                     textDayHeaderFontWeight: "700",
                   }}
                 />
-              </View>
+              </ScrollView>
 
-              <View style={styles.datePickerActions}>
+              <View style={[
+                styles.datePickerActions, 
+                { 
+                  flexShrink: 0, 
+                  paddingHorizontal: 24, 
+                  paddingBottom: Platform.OS === 'ios' ? 24 : 16, 
+                  paddingTop: 12, 
+                  backgroundColor: '#fff', 
+                  borderTopWidth: 1, 
+                  borderTopColor: '#F3F4F6' 
+                }
+              ]}>
                 <TouchableOpacity
                   style={[styles.datePickerAction, styles.datePickerCancel]}
                   onPress={closeDobPicker}
@@ -3017,7 +2981,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                     </head>
                     <body>
                       <div id="map"></div>
-                      <div class="center-pin">📍</div>
+                      <div class="center-pin">桃</div>
                       <div class="coords-display" id="coords"></div>
                       <script>
                         var map=L.map('map',{zoomControl:true,attributionControl:false,dragging:true,tap:true,touchZoom:true,scrollWheelZoom:true,worldCopyJump:true,minZoom:2}).setView([${selectedLocation.latitude},${selectedLocation.longitude}],16);                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
@@ -3101,7 +3065,7 @@ const AccountSettingsScreen = ({ navigation }) => {
                 ]}
               >
                 {selectedLocation
-                  ? `📍 ${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`
+                  ? `桃 ${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`
                   : "Move the map to select your location"}
               </Text>
 

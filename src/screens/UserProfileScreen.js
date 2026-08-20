@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { Video, ResizeMode } from "expo-av"; 
+import { useVideoPlayer, VideoView } from "expo-video"; 
 import HomeHeader from "../components/HomeHeader"; 
 import styles from "../styles/UserProfileScreen.styles";
 import { getCurrentUser } from "../services/supabaseAuth";
@@ -66,6 +66,23 @@ const getRelativeTimeLabel = (dateValue) => {
 };
 
 const getFeedItemDateValue = (item) => item?.created_at ?? item?.date_posted ?? item?.posted_at ?? item?.published_at ?? null;
+
+/* ------------- Dynamic Video Player ------------- */
+const ProfileVideoPlayer = ({ uri, style }) => {
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      contentFit="cover"
+    />
+  );
+};
 
 const UserProfileScreen = ({ navigation }) => {
   const { currentUserProfile } = useCurrentUserProfile();
@@ -139,16 +156,7 @@ const UserProfileScreen = ({ navigation }) => {
     const isVideo = isVideoUri(uri);
 
     if (isVideo) {
-      return (
-        <Video
-          source={{ uri }}
-          style={style}
-          resizeMode={ResizeMode.COVER}
-          isMuted={true}
-          shouldPlay={true}
-          isLooping
-        />
-      );
+      return <ProfileVideoPlayer uri={uri} style={style} />;
     }
 
     return <Image source={{ uri }} style={style} resizeMode="cover" />;

@@ -1,8 +1,15 @@
 // 🚀 THE FIX: Use the React Native specific version!
 import CryptoJS from "react-native-crypto-js";
 
-const SECRET_KEY =
-  process.env.EXPO_PUBLIC_MESSAGE_SECRET || "fallback-secret-key";
+const SECRET_KEY = process.env.EXPO_PUBLIC_MESSAGE_SECRET;
+
+// Prevent the app from running if the encryption key is missing
+if (!SECRET_KEY) {
+  throw new Error(
+    "CRITICAL SECURITY ERROR: EXPO_PUBLIC_MESSAGE_SECRET is missing from your environment variables. Encryption cannot proceed safely."
+  );
+}
+
 const ENCRYPTED_PREFIX = "enc:";
 const LEGACY_OPENSSL_PREFIX = "U2FsdGVkX1";
 

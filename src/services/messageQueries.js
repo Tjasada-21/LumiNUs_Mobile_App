@@ -315,8 +315,12 @@ export const sendDirectMessage = async (senderId, receiverId, content, attachmen
           }
         });
 
+        // FIXED: Removed the .catch() to prevent the undefined PostgrestBuilder error
         if (mentionInserts.length > 0) {
-          await supabase.from('message_mentions').insert(mentionInserts).catch(() => null);
+          const { error: mentionInsertError } = await supabase.from('message_mentions').insert(mentionInserts);
+          if (mentionInsertError) {
+             console.warn('[messages] Failed to insert mentions:', mentionInsertError.message);
+          }
         }
 
         if (notifyIds.length > 0) {
@@ -901,8 +905,12 @@ export const sendGroupMessage = async (groupChatId, senderId, content, attachmen
           }
         });
 
+        // FIXED: Removed the .catch() to prevent the undefined PostgrestBuilder error
         if (mentionInserts.length > 0) {
-          await supabase.from('group_message_mentions').insert(mentionInserts).catch(() => null);
+          const { error: groupMentionInsertError } = await supabase.from('group_message_mentions').insert(mentionInserts);
+          if (groupMentionInsertError) {
+             console.warn('[group_messages] Failed to insert mentions:', groupMentionInsertError.message);
+          }
         }
 
         if (notifyIds.length > 0) {

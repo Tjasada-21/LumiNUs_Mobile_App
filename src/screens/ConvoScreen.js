@@ -987,6 +987,24 @@ export default function ConvoScreen() {
 
   const renderMessageItem = useCallback(
     ({ item, index }) => {
+
+      // --- NEW: SYSTEM MESSAGE RENDERER ---
+      const isSystemMessage = item?.is_system || item?.sender_id === null || item?.type === 'system' || item?.content?.startsWith('[SYSTEM]');
+      
+      if (isSystemMessage) {
+        const displayContent = item?.content?.replace('[SYSTEM]', '')?.trim();
+        return (
+          <View style={{ alignItems: "center", marginVertical: 16, width: "100%", paddingHorizontal: 16 }}>
+            <View style={{ backgroundColor: "#F1F5F9", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
+              <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Poppins_400Regular", textAlign: "center" }}>
+                {displayContent}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+      // --- END NEW ---
+
       const senderId = item?.sender_id ?? item?.user_id ?? item?.sender?.id ?? null;
       const isOutgoing =
         Boolean(item?.localStatus) ||

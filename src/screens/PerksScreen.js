@@ -157,8 +157,19 @@ const PerksScreen = ({ navigation }) => {
   const renderHeader = () => (
     <View style={styles.listHeaderContainer}>
       
-      {/* DEEP BLUE SECTION WITH LATEST FEATURED PERK */}
+      {/* DEEP BLUE SECTION */}
       <View style={styles.blueSection}>
+        
+        {/* INLINE BACK BUTTON */}
+        <Pressable
+          style={styles.backButtonInline}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={18} color="#FFD404" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </Pressable>
+
+        {/* LATEST FEATURED PERK */}
         {featuredPerk && !query.trim() && (
           <Pressable
             style={styles.featuredCard}

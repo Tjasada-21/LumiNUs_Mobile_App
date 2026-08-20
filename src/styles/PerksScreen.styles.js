@@ -10,6 +10,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFD404", // Vibrant NU Yellow background
   },
   
+  // --- INLINE BACK BUTTON ---
+  backButtonInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginBottom: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+  },
+  backButtonText: {
+    color: "#FFD404",
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "Poppins_600SemiBold",
+    marginLeft: 6,
+  },
+
   // --- LIST HEADER ---
   listHeaderContainer: {
     width: "100%",

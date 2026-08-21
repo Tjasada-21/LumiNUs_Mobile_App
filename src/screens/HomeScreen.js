@@ -341,7 +341,7 @@ const HomeScreen = ({ navigation }) => {
   const serviceItems = [
     { key: "events", label: "Events", icon: require("../../assets/images/view-events-icon.png"), onPress: openEventsScreen },
     { key: "perks", label: "Perks", icon: require("../../assets/images/view-perks-icon-in-blue-1.png"), onPress: openPerksScreen },
-    { key: "mentorship", label: "Mentorship", icon: require("../../assets/images/nulogo.png"), onPress: () => navigation.navigate("MentorshipScreen") },
+    { key: "mentorship", label: "Mentorship", icon: require("../../assets/images/Mentorship_Icon.png"), onPress: () => navigation.navigate("MentorshipScreen") },
     { key: "yearbook", label: "Yearbook", icon: require("../../assets/images/view-yearbook-icon.png"), onPress: openViewYearbook },
     { key: "website", label: "NU Website", icon: require("../../assets/images/nulogo.png"), onPress: openNUWebsite },
     { key: "nuquest", label: "NUQuest", icon: require("../../assets/images/NUQuest_Logo.png"), onPress: openNUQuestWebsite },
@@ -387,6 +387,10 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  // --- Fallback logic for Avatars and ID Photos ---
+  const headerAvatarUri = getAvatarUri(`${activeUserData?.first_name ?? ""} ${activeUserData?.last_name ?? ""}`.trim() || "Alumni", activeUserData?.alumni_photo);
+  const idPhotoUri = getAvatarUri(`${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || "Alumni", userData?.card_photo);
+
   return (
     <View style={styles.safeAreaTop}>
       <StatusBar barStyle="dark-content" backgroundColor="#F7F8FC" />
@@ -402,8 +406,9 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.greetingRow}>
               <View style={styles.profileInfo}>
                 <TouchableOpacity style={styles.avatarRingTouchable} activeOpacity={0.85} onPress={openMenu}>
+                  {/* Fixed Header Avatar */}
                   <Image
-                    source={{ uri: getAvatarUri(`${activeUserData?.first_name ?? ""} ${activeUserData?.last_name ?? ""}`.trim() || "Alumni", activeUserData?.alumni_photo) }}
+                    source={headerAvatarUri ? { uri: headerAvatarUri } : require("../../assets/icons/Group.png")}
                     style={styles.avatar}
                   />
                 </TouchableOpacity>
@@ -432,7 +437,14 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.idCardPerspective}>
                   <Animated.View style={[styles.idCardFace, styles.idCardFrontFace, { opacity: frontOpacity, transform: [{ perspective: 1000 }, { rotateY: frontRotateY }] }]}>
                     <ImageBackground source={require("../../assets/images/BlankID_Front 1.png")} style={styles.idBackground} imageStyle={styles.idBackgroundImage} resizeMode="contain">
-                      <Image source={{ uri: getAvatarUri(`${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || "Alumni", userData?.card_photo) }} style={styles.idPhoto} resizeMode="cover" />
+                      
+                      {/* Fixed ID Photo */}
+                      <Image 
+                        source={idPhotoUri ? { uri: idPhotoUri } : require("../../assets/icons/Group.png")} 
+                        style={styles.idPhoto} 
+                        resizeMode="cover" 
+                      />
+                      
                       <View style={styles.idCardContent}>
                         <Text style={styles.idName}>{userData ? `${userData.first_name}\n${userData.last_name}`.toUpperCase() : " "}</Text>
                         <Text style={styles.idCourse}>{userData?.program ? userData.program.toUpperCase() : " "}</Text>

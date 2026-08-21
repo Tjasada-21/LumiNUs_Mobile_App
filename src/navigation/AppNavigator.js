@@ -30,6 +30,7 @@ import AddSkillsScreen from "../screens/AddSkillsScreen";
 import WorkExperienceScreen from "../screens/WorkExperienceScreen";
 import WorkExperienceFormScreen from "../screens/WorkExperienceFormScreen";
 import ArchivedChatsScreen from "../screens/ArchivedChatsScreen";
+import MentorshipScreen from "../screens/MentorshipScreen"; // <-- Added import for MentorshipScreen
 
 // Profile Screens
 import UserProfileScreen from "../screens/UserProfileScreen"; 
@@ -87,6 +88,9 @@ const AppNavigator = () => {
       <Stack.Screen name="WorkExperienceScreen" component={WorkExperienceScreen} />
       <Stack.Screen name="WorkExperienceFormScreen" component={WorkExperienceFormScreen} />
       <Stack.Screen name="Restricted" component={RestrictedScreen} options={{ headerShown: false }} />
+      
+      {/* Added MentorshipScreen to the navigator */}
+      <Stack.Screen name="MentorshipScreen" component={MentorshipScreen} />
     </Stack.Navigator>
   );
 };
